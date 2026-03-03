@@ -18,6 +18,7 @@ import {
 
 import {
   awardManualPoints,
+  burgerNextItem,
   cancelPendingAutoReveal,
   finishQuiz,
   lockPlayers,
@@ -421,6 +422,8 @@ export function setupSocketHandlers(io) {
               }
               session.gameState.trueFalseVotes = { yes: [], no: [] };
               session.gameState.buzzerState = null;
+              session.gameState.buzzerQueue = [];
+              session.gameState.burgerState = null;
               session.gameState.status = "round_intro";
               session.gameState.updatedAt = new Date().toISOString();
               res = { ok: true };
@@ -542,6 +545,27 @@ export function setupSocketHandlers(io) {
             break;
           }
 
+          case "burger_next_item":
+            res = burgerNextItem(session);
+            break;
+
+          case "assign_team": {
+            const player = (session.players || []).find(
+              (p) => p.id === payload.playerId,
+            );
+            if (!player) {
+              res = { ok: false, error: "Joueur introuvable" };
+              break;
+            }
+            const team = payload.teamId
+              ? (session.teams || []).find((t) => t.id === payload.teamId)
+              : null;
+            player.teamId = team?.id || null;
+            player.teamName = team?.name || null;
+            res = { ok: true };
+            break;
+          }
+
           case "reset_game": {
             // Resets game to lobby while keeping players
             if (session.gameState) {
@@ -559,6 +583,8 @@ export function setupSocketHandlers(io) {
               };
               session.gameState.trueFalseVotes = { yes: [], no: [] };
               session.gameState.buzzerState = null;
+              session.gameState.buzzerQueue = [];
+              session.gameState.burgerState = null;
               session.gameState.updatedAt = new Date().toISOString();
             }
             res = { ok: true };

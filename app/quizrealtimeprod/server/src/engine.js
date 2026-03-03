@@ -154,15 +154,27 @@ function setAnswerModeFromQuestion(session) {
   } else {
     const qType = getQuestionType(question);
     if (
+      qType === "rapidite" ||
+      qType === "speed" ||
+      qType === "buzzer" ||
       round.type === "rapidite" ||
-      round.type === "speed" ||
-      qType === "buzzer"
+      round.type === "speed"
     ) {
       answerMode = "buzzer";
-    } else if (round.type === "true_false" || qType === "true_false") {
+    } else if (
+      qType === "true_false" ||
+      round.type === "true_false"
+    ) {
       answerMode = "true_false";
-    } else if (qType === "mcq") {
+    } else if (
+      qType === "qcm" ||
+      qType === "mcq" ||
+      round.type === "qcm" ||
+      round.type === "questionnaire"
+    ) {
       answerMode = "mcq";
+    } else if (qType === "burger" || round.type === "burger") {
+      answerMode = "burger";
     } else {
       answerMode = "text";
     }
@@ -431,15 +443,21 @@ export function startQuiz(session) {
     timer: null,
   };
 
-  // Reset transients de question
+  // Reset transients
   session.gameState.trueFalseVotes = { yes: [], no: [] };
   session.gameState.buzzerState = null;
+  session.gameState.burgerState = null;
+  session.gameState.buzzerQueue = [];
 
-  // Optionnel: reset answers de cette partie ? On conserve l’historique existant.
-  // Pour un vrai reset complet, décommenter :
-  // session.gameState.answers = {};
-
-  setStatus(session, "lobby");
+  // Aller directement à round_intro si des manches existent
+  const rounds = getRounds(session);
+  if (rounds.length > 0) {
+    session.gameState.currentRoundIndex = 0;
+    setCurrentRoundAndQuestionSnapshots(session);
+    setStatus(session, "round_intro");
+  } else {
+    setStatus(session, "lobby");
+  }
   return { ok: true };
 }
 
@@ -665,10 +683,27 @@ export function unlockPlayers(session) {
   const q = getCurrentQuestion(session);
   if (!q) return { ok: false, error: "Aucune question en cours" };
 
+  // En mode rapidité, reset le buzzerState pour permettre au prochain joueur de buzzer
+  const round = getCurrentRound(session);
+  const isSpeed =
+    round?.type === "rapidite" ||
+    round?.type === "speed" ||
+    getQuestionType(q) === "rapidite" ||
+    getQuestionType(q) === "buzzer";
+  if (isSpeed) {
+    session.gameState.buzzerState = null;
+  }
+
   setPhaseMeta(session, {
     playerScreenLocked: false,
-    allowAnswer: ["question", "waiting"].includes(session.gameState.status),
+    allowAnswer: ["question", "waiting", "manual_scoring"].includes(
+      session.gameState.status,
+    ),
   });
+
+  if (isSpeed) {
+    setStatus(session, "question");
+  }
 
   return { ok: true };
 }
@@ -856,10 +891,27 @@ export function recordBuzzer(session, { player } = {}) {
     return { ok: false, error: "Buzzer fermé" };
   }
 
+  // Gestion rotation buzzerQueue : un joueur ne peut rebuzzer que si tous ont participé
+  if (!Array.isArray(session.gameState.buzzerQueue)) {
+    session.gameState.buzzerQueue = [];
+  }
+  const connectedIds = getConnectedPlayers(session).map((p) => p.id);
+  // Si tous ont participé, reset la queue
+  if (connectedIds.every((id) => session.gameState.buzzerQueue.includes(id))) {
+    session.gameState.buzzerQueue = [];
+  }
+  if (session.gameState.buzzerQueue.includes(player.id)) {
+    return {
+      ok: false,
+      error: "Vous avez déjà participé, attendez les autres joueurs",
+    };
+  }
+
   if (session.gameState.buzzerState?.firstPlayerId) {
     return { ok: false, error: "Buzzer déjà pris" };
   }
 
+  session.gameState.buzzerQueue.push(player.id);
   session.gameState.buzzerState = {
     firstPlayerId: player.id,
     firstPseudo: player.pseudo,
@@ -875,6 +927,43 @@ export function recordBuzzer(session, { player } = {}) {
 
   touch(session);
   return { ok: true };
+}
+
+export function burgerNextItem(session) {
+  ensureSessionRuntime(session);
+
+  const q = getCurrentQuestion(session);
+  if (!q) return { ok: false, error: "Aucune question active" };
+
+  const qType = getQuestionType(q);
+  if (qType !== "burger") {
+    return { ok: false, error: "Question de type burger uniquement" };
+  }
+
+  if (!session.gameState.burgerState) {
+    session.gameState.burgerState = {
+      questionId: q.id,
+      currentItemIndex: -1,
+    };
+  }
+
+  const bs = session.gameState.burgerState;
+  const totalItems = Array.isArray(q.items) ? q.items.length : 0;
+
+  if (bs.currentItemIndex < totalItems - 1) {
+    bs.currentItemIndex++;
+    touch(session);
+    return { ok: true, currentItemIndex: bs.currentItemIndex, totalItems };
+  }
+
+  // Tous les items sont passés → scoring manuel
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+  });
+  setStatus(session, "manual_scoring");
+  touch(session);
+  return { ok: true, finished: true, currentItemIndex: bs.currentItemIndex, totalItems };
 }
 
 export function shouldAutoRevealNow(session) {
