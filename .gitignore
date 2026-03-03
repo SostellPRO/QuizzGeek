@@ -1,0 +1,26 @@
+# deps
+**/node_modules/
+
+# env
+**/.env
+**/.env.*
+!**/.env.example
+
+# runtime
+**/uploads/
+**/data/
+**/*.log
+
+# caches / build
+.cache/
+dist/
+build/
+
+# Office temp files
+~$*.docx
+*.tmp
+
+# IDE
+.vscode/
+.idea/
+.DS_Store

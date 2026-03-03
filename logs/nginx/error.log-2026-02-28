@@ -1,0 +1,2 @@
+2026/02/28 00:21:56 [error] 18155#18155: *457 SSL_do_handshake() failed (SSL: error:0A0000EB:SSL routines::no application protocol) while handling frames, client: 91.170.44.225, server: 0.0.0.0:443
+2026/02/28 07:23:40 [error] 22818#22818: *547 SSL_do_handshake() failed (SSL: error:0A0000EB:SSL routines::no application protocol) while handling frames, client: 91.170.44.225, server: 0.0.0.0:443

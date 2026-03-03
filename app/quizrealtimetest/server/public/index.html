@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz Live</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+
+  <!-- Barre de navigation -->
+  <nav>
+    <span class="nav-brand" onclick="navigate('home')">🎮 Quiz Live</span>
+
+    <!-- Info session active (visible quand connecté) -->
+    <div id="nav-session-info">
+      <span id="nav-session-code">----</span>
+      <span id="nav-session-pseudo" style="color:rgba(255,255,255,.6);font-size:.78rem;"></span>
+    </div>
+
+    <button data-page="player"  onclick="navigate('player')">📱 Jouer</button>
+    <button data-page="host"    onclick="navigate('host')">🎮 Host</button>
+    <button data-page="display" onclick="navigate('display')">📺 Écran</button>
+    <button data-page="admin"   onclick="navigate('admin')">⚙️ Admin</button>
+  </nav>
+
+  <!-- Conteneur principal -->
+  <main>
+    <div id="page-home"    class="page active"></div>
+    <div id="page-player"  class="page"></div>
+    <div id="page-host"    class="page"></div>
+    <div id="page-display" class="page"></div>
+    <div id="page-admin"   class="page"></div>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

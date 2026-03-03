@@ -1,0 +1,1006 @@
+// server/src/engine.js
+// Moteur de jeu (compatible avec server/src/socket.js + server/src/store.js)
+// Version sécurisée et défensive
+
+import { touchGameState, resetQuestionTransientState } from "./gameState.js";
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function asUpper(v) {
+  return String(v || "").toUpperCase();
+}
+
+function normalizeText(v) {
+  return String(v ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
+}
+
+function ensureSessionRuntime(session) {
+  if (!session || typeof session !== "object") {
+    throw new Error("Session invalide");
+  }
+
+  if (!session._runtime || typeof session._runtime !== "object") {
+    session._runtime = {
+      timerInterval: null,
+      autoRevealTimeout: null,
+      timerQuestionId: null,
+      timerStartedAt: null,
+    };
+  }
+
+  if (!session.gameState?.phaseMeta) {
+    session.gameState.phaseMeta = {
+      playerScreenLocked: false,
+      allowAnswer: false,
+      answerMode: "none",
+      timer: null,
+    };
+  }
+
+  if (
+    !session.gameState.answers ||
+    typeof session.gameState.answers !== "object"
+  ) {
+    session.gameState.answers = {};
+  }
+
+  if (!session.gameState.trueFalseVotes) {
+    session.gameState.trueFalseVotes = { yes: [], no: [] };
+  }
+
+  if (session.gameState.buzzerState === undefined) {
+    session.gameState.buzzerState = null;
+  }
+
+  return session._runtime;
+}
+
+function clearTimer(session) {
+  const rt = ensureSessionRuntime(session);
+
+  if (rt.timerInterval) {
+    clearInterval(rt.timerInterval);
+    rt.timerInterval = null;
+  }
+
+  rt.timerQuestionId = null;
+  rt.timerStartedAt = null;
+
+  if (session?.gameState?.phaseMeta) {
+    session.gameState.phaseMeta.timer = null;
+  }
+}
+
+function clearAutoRevealTimeout(session) {
+  const rt = ensureSessionRuntime(session);
+
+  if (rt.autoRevealTimeout) {
+    clearTimeout(rt.autoRevealTimeout);
+    rt.autoRevealTimeout = null;
+  }
+}
+
+function touch(session) {
+  if (!session?.gameState) return;
+  touchGameState(session.gameState);
+}
+
+function getRounds(session) {
+  return Array.isArray(session?.quiz?.rounds) ? session.quiz.rounds : [];
+}
+
+// Supporte les deux formats: round.questions (nouveau) et round.items (ancien)
+function getRoundQuestions(round) {
+  if (Array.isArray(round?.questions)) return round.questions;
+  if (Array.isArray(round?.items)) return round.items;
+  return [];
+}
+
+// Normalise le type d'une question (supporte type et questionType)
+function getQuestionType(question) {
+  return question?.type || question?.questionType || "text";
+}
+
+function getCurrentRound(session) {
+  const rounds = getRounds(session);
+  const idx = Number(session?.gameState?.currentRoundIndex ?? -1);
+  return rounds[idx] || null;
+}
+
+function getCurrentQuestion(session) {
+  const round = getCurrentRound(session);
+  if (!round) return null;
+
+  const questions = getRoundQuestions(round);
+  const qIdx = Number(session?.gameState?.currentQuestionIndex ?? -1);
+  return questions[qIdx] || null;
+}
+
+function setCurrentRoundAndQuestionSnapshots(session) {
+  if (!session?.gameState) return;
+
+  session.gameState.currentRound = getCurrentRound(session);
+  session.gameState.currentQuestion = getCurrentQuestion(session);
+}
+
+function setStatus(session, status) {
+  session.gameState.status = status;
+  touch(session);
+}
+
+function setPhaseMeta(session, patch = {}) {
+  ensureSessionRuntime(session);
+  session.gameState.phaseMeta = {
+    ...session.gameState.phaseMeta,
+    ...patch,
+  };
+  touch(session);
+}
+
+function setAnswerModeFromQuestion(session) {
+  const round = getCurrentRound(session);
+  const question = getCurrentQuestion(session);
+
+  let answerMode = "none";
+
+  if (!round || !question) {
+    answerMode = "none";
+  } else {
+    const qType = getQuestionType(question);
+    if (
+      round.type === "rapidite" ||
+      round.type === "speed" ||
+      qType === "buzzer"
+    ) {
+      answerMode = "buzzer";
+    } else if (round.type === "true_false" || qType === "true_false") {
+      answerMode = "true_false";
+    } else if (qType === "mcq") {
+      answerMode = "mcq";
+    } else {
+      answerMode = "text";
+    }
+  }
+
+  setPhaseMeta(session, { answerMode });
+}
+
+function ensureQuestionAnswersBucket(session, questionId) {
+  if (!questionId) return null;
+
+  if (
+    !session.gameState.answers[questionId] ||
+    typeof session.gameState.answers[questionId] !== "object"
+  ) {
+    session.gameState.answers[questionId] = {};
+  }
+
+  return session.gameState.answers[questionId];
+}
+
+function getQuestionAnswersMap(session, questionId) {
+  if (!questionId) return {};
+  return session.gameState.answers?.[questionId] || {};
+}
+
+function getCurrentQuestionAnswers(session) {
+  const q = getCurrentQuestion(session);
+  if (!q) return {};
+  return getQuestionAnswersMap(session, q.id);
+}
+
+function recomputeTrueFalseVotes(session) {
+  const q = getCurrentQuestion(session);
+  if (!q) {
+    session.gameState.trueFalseVotes = { yes: [], no: [] };
+    return;
+  }
+
+  const answers = getQuestionAnswersMap(session, q.id);
+  const yes = [];
+  const no = [];
+
+  for (const player of session.players || []) {
+    const a = answers[player.id];
+    if (!a) continue;
+
+    const n = normalizeText(a.answer);
+    if (["vrai", "true", "oui", "yes"].includes(n)) yes.push(player.pseudo);
+    if (["faux", "false", "non", "no"].includes(n)) no.push(player.pseudo);
+  }
+
+  session.gameState.trueFalseVotes = { yes, no };
+  touch(session);
+}
+
+function resetQuestionTransient(session) {
+  resetQuestionTransientState(session.gameState);
+
+  // on conserve answers globaux par question, mais on réinitialise le timer + écrans
+  setPhaseMeta(session, {
+    timer: null,
+  });
+
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+}
+
+function getConnectedPlayers(session) {
+  return (session.players || []).filter((p) => !!p.connected);
+}
+
+function getAnsweredPlayerIdsForCurrentQuestion(session) {
+  const answers = getCurrentQuestionAnswers(session);
+  return new Set(Object.keys(answers));
+}
+
+function allConnectedPlayersAnswered(session) {
+  const connected = getConnectedPlayers(session);
+  if (!connected.length) return false;
+
+  const answeredIds = getAnsweredPlayerIdsForCurrentQuestion(session);
+  return connected.every((p) => answeredIds.has(p.id));
+}
+
+function isAutoScoringRound(round) {
+  return String(round?.scoringMode || "").toLowerCase() === "auto";
+}
+
+function isArbitreRound(round) {
+  return String(round?.scoringMode || "").toLowerCase() === "arbitre";
+}
+
+function syncTeamScoresFromPlayers(session) {
+  const teamTotals = new Map();
+
+  for (const t of session.teams || []) {
+    teamTotals.set(t.id, 0);
+  }
+
+  for (const p of session.players || []) {
+    if (p.teamId && teamTotals.has(p.teamId)) {
+      teamTotals.set(
+        p.teamId,
+        (teamTotals.get(p.teamId) || 0) + Number(p.scoreTotal || 0),
+      );
+    }
+  }
+
+  for (const t of session.teams || []) {
+    t.scoreTotal = teamTotals.get(t.id) || 0;
+  }
+}
+
+function awardPointsToPlayer(session, playerId, points) {
+  const p = (session.players || []).find((x) => x.id === playerId);
+  if (!p) return { ok: false, error: "Joueur introuvable" };
+
+  const n = Number(points);
+  if (!Number.isFinite(n)) return { ok: false, error: "Points invalides" };
+
+  p.scoreTotal = Number(p.scoreTotal || 0) + n;
+  syncTeamScoresFromPlayers(session);
+  touch(session);
+
+  return { ok: true, player: p };
+}
+
+function detectCorrectAnswer(question, answer) {
+  if (!question) return false;
+
+  const qType = getQuestionType(question);
+
+  // true/false
+  if (qType === "true_false") {
+    const expected = normalizeText(
+      question.correctAnswer ??
+        question.solution ??
+        (question.isTrue === true
+          ? "vrai"
+          : question.isTrue === false
+            ? "faux"
+            : ""),
+    );
+    const actual = normalizeText(answer);
+    return !!expected && actual === expected;
+  }
+
+  // MCQ / text / generic
+  const expected = normalizeText(
+    question.correctAnswer ?? question.solution ?? "",
+  );
+  const actual = normalizeText(answer);
+
+  return !!expected && actual === expected;
+}
+
+function autoScoreCurrentQuestion(session) {
+  const round = getCurrentRound(session);
+  const q = getCurrentQuestion(session);
+
+  if (!round || !q) return { ok: false, error: "Aucune question active" };
+  if (!isAutoScoringRound(round)) return { ok: true, skipped: true };
+
+  const bucket = getQuestionAnswersMap(session, q.id);
+  const answers = Object.values(bucket);
+
+  if (!answers.length) return { ok: true, applied: 0 };
+
+  let applied = 0;
+
+  // rapidité: seul le premier bon répondant marque 1 point
+  if (round.type === "rapidite" || round.type === "speed") {
+    const sorted = answers
+      .filter((a) => detectCorrectAnswer(q, a.answer))
+      .sort((a, b) => Number(a.answeredAt || 0) - Number(b.answeredAt || 0));
+
+    const winner = sorted[0];
+    if (winner) {
+      const res = awardPointsToPlayer(session, winner.playerId, 1);
+      if (res.ok) applied += 1;
+    }
+
+    return { ok: true, applied };
+  }
+
+  // auto classique: 1 point par bonne réponse
+  for (const a of answers) {
+    if (detectCorrectAnswer(q, a.answer)) {
+      const res = awardPointsToPlayer(session, a.playerId, 1);
+      if (res.ok) applied += 1;
+    }
+  }
+
+  return { ok: true, applied };
+}
+
+function buildRevealPayloadForCurrentQuestion(session) {
+  const q = getCurrentQuestion(session);
+  if (!q) return null;
+
+  const revealMode = q.revealMode || "pseudo_and_answer";
+  const bucket = getQuestionAnswersMap(session, q.id);
+
+  const answers = Object.values(bucket)
+    .sort((a, b) => Number(a.answeredAt || 0) - Number(b.answeredAt || 0))
+    .map((a) => ({
+      playerId: a.playerId,
+      pseudo: a.pseudo,
+      answer: a.answer,
+      answerType: a.answerType || null,
+      answeredAt: a.answeredAt || null,
+    }));
+
+  return {
+    questionId: q.id,
+    revealMode,
+    correctAnswer: q.correctAnswer ?? q.solution ?? null,
+    answers,
+  };
+}
+
+function isQuestionPhaseOpen(session) {
+  const status = session?.gameState?.status;
+  const locked = !!session?.gameState?.phaseMeta?.playerScreenLocked;
+  const allowAnswer = !!session?.gameState?.phaseMeta?.allowAnswer;
+
+  return (
+    (status === "question" || status === "waiting") && !locked && allowAnswer
+  );
+}
+
+function safeSeconds(raw, fallback = 15) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(1, Math.min(3600, Math.floor(n)));
+}
+
+function canHostMutateDuringTimer(session) {
+  // réservé si besoin futur
+  return !!session;
+}
+
+/* ------------------------------------------------------------------ */
+/* Exports utilisés par socket.js                                      */
+/* ------------------------------------------------------------------ */
+
+export function startQuiz(session) {
+  ensureSessionRuntime(session);
+
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+
+  // Reset progression
+  session.gameState.currentRoundIndex = -1;
+  session.gameState.currentQuestionIndex = -1;
+  session.gameState.currentRound = null;
+  session.gameState.currentQuestion = null;
+
+  // Reset phase meta
+  session.gameState.phaseMeta = {
+    ...session.gameState.phaseMeta,
+    playerScreenLocked: true,
+    allowAnswer: false,
+    answerMode: "none",
+    timer: null,
+  };
+
+  // Reset transients de question
+  session.gameState.trueFalseVotes = { yes: [], no: [] };
+  session.gameState.buzzerState = null;
+
+  // Optionnel: reset answers de cette partie ? On conserve l’historique existant.
+  // Pour un vrai reset complet, décommenter :
+  // session.gameState.answers = {};
+
+  setStatus(session, "lobby");
+  return { ok: true };
+}
+
+export function startRound(session) {
+  ensureSessionRuntime(session);
+
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+
+  const rounds = getRounds(session);
+  if (!rounds.length) return { ok: false, error: "Aucune manche disponible" };
+
+  // Si aucune manche en cours => 0, sinon on garde l’index courant
+  let idx = Number(session.gameState.currentRoundIndex ?? -1);
+  if (idx < 0) idx = 0;
+
+  if (!rounds[idx]) return { ok: false, error: "Manche introuvable" };
+
+  session.gameState.currentRoundIndex = idx;
+  session.gameState.currentQuestionIndex = -1;
+  setCurrentRoundAndQuestionSnapshots(session);
+
+  resetQuestionTransient(session);
+
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+    answerMode: "none",
+    timer: null,
+  });
+
+  setStatus(session, "round_intro");
+  return { ok: true };
+}
+
+export function nextQuestion(session) {
+  ensureSessionRuntime(session);
+
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+
+  const round = getCurrentRound(session);
+  if (!round) return { ok: false, error: "Lancez d'abord une manche" };
+
+  const questions = getRoundQuestions(round);
+  if (!questions.length) {
+    setPhaseMeta(session, {
+      playerScreenLocked: true,
+      allowAnswer: false,
+      answerMode: "none",
+      timer: null,
+    });
+    setStatus(session, "results");
+    return { ok: true };
+  }
+
+  const nextIdx = Number(session.gameState.currentQuestionIndex ?? -1) + 1;
+
+  if (!questions[nextIdx]) {
+    // fin de manche
+    session.gameState.currentQuestionIndex = -1;
+    setCurrentRoundAndQuestionSnapshots(session);
+
+    setPhaseMeta(session, {
+      playerScreenLocked: true,
+      allowAnswer: false,
+      answerMode: "none",
+      timer: null,
+    });
+
+    resetQuestionTransientState(session.gameState);
+    setStatus(session, "results");
+    return { ok: true };
+  }
+
+  session.gameState.currentQuestionIndex = nextIdx;
+  setCurrentRoundAndQuestionSnapshots(session);
+
+  resetQuestionTransient(session);
+
+  setPhaseMeta(session, {
+    playerScreenLocked: false,
+    allowAnswer: true,
+    timer: null,
+  });
+  setAnswerModeFromQuestion(session);
+
+  setStatus(session, "question");
+  return { ok: true };
+}
+
+export function startTimer(session, seconds, hooks = {}) {
+  ensureSessionRuntime(session);
+
+  const q = getCurrentQuestion(session);
+  if (!q) return { ok: false, error: "Aucune question en cours" };
+  if (!canHostMutateDuringTimer(session))
+    return { ok: false, error: "Session invalide" };
+
+  clearTimer(session);
+
+  const totalSec = safeSeconds(seconds, q.timeLimitSec ?? 15);
+  const rt = ensureSessionRuntime(session);
+
+  rt.timerQuestionId = q.id;
+  rt.timerStartedAt = Date.now();
+
+  session.gameState.phaseMeta.timer = {
+    totalSec,
+    remainingSec: totalSec,
+    startedAt: nowIso(),
+  };
+
+  touch(session);
+
+  const emitNow = typeof hooks.emitNow === "function" ? hooks.emitNow : null;
+  const onAutoReveal =
+    typeof hooks.onAutoReveal === "function" ? hooks.onAutoReveal : null;
+
+  rt.timerInterval = setInterval(() => {
+    const currentQ = getCurrentQuestion(session);
+
+    // sécurité: si la question a changé, on stoppe
+    if (!currentQ || currentQ.id !== rt.timerQuestionId) {
+      clearTimer(session);
+      return;
+    }
+
+    const timer = session.gameState?.phaseMeta?.timer;
+    if (!timer) {
+      clearTimer(session);
+      return;
+    }
+
+    timer.remainingSec = Math.max(0, Number(timer.remainingSec || 0) - 1);
+    touch(session);
+
+    if (emitNow) {
+      try {
+        emitNow(session);
+      } catch {
+        // noop
+      }
+    }
+
+    if (timer.remainingSec <= 0) {
+      clearTimer(session);
+
+      // Fin du temps: verrouiller + waiting (ou manual_scoring selon round)
+      const round = getCurrentRound(session);
+      const isArbitre = isArbitreRound(round);
+
+      setPhaseMeta(session, {
+        playerScreenLocked: true,
+        allowAnswer: false,
+      });
+
+      if (isArbitre) {
+        setStatus(session, "manual_scoring");
+        if (emitNow) {
+          try {
+            emitNow(session);
+          } catch {
+            // noop
+          }
+        }
+        return;
+      }
+
+      setStatus(session, "waiting");
+
+      if (emitNow) {
+        try {
+          emitNow(session);
+        } catch {
+          // noop
+        }
+      }
+
+      // reveal auto après 5s
+      clearAutoRevealTimeout(session);
+      rt.autoRevealTimeout = setTimeout(() => {
+        rt.autoRevealTimeout = null;
+
+        // vérifier que la question n'a pas changé
+        const qAgain = getCurrentQuestion(session);
+        if (!qAgain || qAgain.id !== rt.timerQuestionId) return;
+
+        // seulement si on est encore sur une phase compatible
+        if (!["question", "waiting"].includes(session.gameState.status)) return;
+
+        if (onAutoReveal) {
+          try {
+            onAutoReveal(session, "timer_end");
+          } catch {
+            // fallback local
+            revealAnswer(session);
+          }
+        } else {
+          revealAnswer(session);
+        }
+      }, 5000);
+    }
+  }, 1000);
+
+  return { ok: true };
+}
+
+export function lockPlayers(session) {
+  ensureSessionRuntime(session);
+
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+  });
+
+  return { ok: true };
+}
+
+export function unlockPlayers(session) {
+  ensureSessionRuntime(session);
+
+  const q = getCurrentQuestion(session);
+  if (!q) return { ok: false, error: "Aucune question en cours" };
+
+  setPhaseMeta(session, {
+    playerScreenLocked: false,
+    allowAnswer: ["question", "waiting"].includes(session.gameState.status),
+  });
+
+  return { ok: true };
+}
+
+export function revealAnswer(session) {
+  ensureSessionRuntime(session);
+
+  const q = getCurrentQuestion(session);
+  if (!q) return { ok: false, error: "Aucune question en cours" };
+
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+
+  // score auto si manche auto et si on n'est pas déjà en reveal/scoring
+  const round = getCurrentRound(session);
+  if (round && isAutoScoringRound(round)) {
+    autoScoreCurrentQuestion(session);
+  }
+
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+    timer: null,
+  });
+
+  setStatus(session, "answer_reveal");
+
+  // On stocke un objet "revealedAnswer" directement dans gameState si le front le lit
+  session.gameState.revealedAnswer =
+    buildRevealPayloadForCurrentQuestion(session);
+
+  // true/false votes à jour pour l’écran
+  recomputeTrueFalseVotes(session);
+
+  touch(session);
+  return { ok: true };
+}
+
+export function showResults(session) {
+  ensureSessionRuntime(session);
+
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+    timer: null,
+    answerMode: "none",
+  });
+
+  setStatus(session, "results");
+  return { ok: true };
+}
+
+export function finishQuiz(session) {
+  ensureSessionRuntime(session);
+
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+    timer: null,
+    answerMode: "none",
+  });
+
+  setStatus(session, "end");
+  return { ok: true };
+}
+
+export function awardManualPoints(session, { playerId, points, reason } = {}) {
+  ensureSessionRuntime(session);
+
+  if (!playerId) return { ok: false, error: "playerId requis" };
+
+  const n = Number(points);
+  if (!Number.isFinite(n)) return { ok: false, error: "Points invalides" };
+  if (n < -100 || n > 100) return { ok: false, error: "Points hors limite" };
+
+  const res = awardPointsToPlayer(session, playerId, n);
+  if (!res.ok) return res;
+
+  // On peut passer / rester en scoring manuel
+  if (!["results", "end"].includes(session.gameState.status)) {
+    setStatus(session, "manual_scoring");
+  }
+
+  session.gameState.lastManualAward = {
+    playerId,
+    points: n,
+    reason: reason || null,
+    at: nowIso(),
+  };
+
+  touch(session);
+  return { ok: true };
+}
+
+export function recordPlayerAnswer(
+  session,
+  { player, playerId, answer, answerType } = {},
+) {
+  ensureSessionRuntime(session);
+
+  if (!player && playerId) {
+    player = (session.players || []).find((p) => p.id === playerId) || null;
+  }
+
+  if (!player) return { ok: false, error: "Joueur introuvable" };
+  if (!player.connected) return { ok: false, error: "Joueur hors ligne" };
+
+  const q = getCurrentQuestion(session);
+  if (!q) return { ok: false, error: "Aucune question active" };
+
+  if (!isQuestionPhaseOpen(session)) {
+    return { ok: false, error: "Phase de réponse fermée" };
+  }
+
+  const bucket = ensureQuestionAnswersBucket(session, q.id);
+
+  const payload = {
+    playerId: player.id,
+    pseudo: player.pseudo,
+    answer:
+      typeof answer === "string"
+        ? answer.trim()
+        : answer === null || answer === undefined
+          ? ""
+          : String(answer),
+    answerType: answerType || null,
+    answeredAt: Date.now(),
+  };
+
+  // overwrite autorisé (utile pour vrai/faux)
+  bucket[player.id] = payload;
+
+  // buzzer + vrai/faux états de display
+  if (
+    session.gameState.phaseMeta.answerMode === "true_false" ||
+    getQuestionType(q) === "true_false"
+  ) {
+    recomputeTrueFalseVotes(session);
+  }
+
+  touch(session);
+
+  // mode rapidité: si bon answer => auto reveal immédiat possible
+  const round = getCurrentRound(session);
+  const isSpeed =
+    round?.type === "rapidite" ||
+    round?.type === "speed" ||
+    getQuestionType(q) === "buzzer";
+  if (isSpeed && detectCorrectAnswer(q, payload.answer)) {
+    // lock + waiting/reveal via socket (res.autoReveal = true)
+    setPhaseMeta(session, { playerScreenLocked: true, allowAnswer: false });
+    setStatus(session, "waiting");
+    return { ok: true, autoReveal: true, mode: "speed_first_correct" };
+  }
+
+  return { ok: true };
+}
+
+export function recordBuzzer(session, { player } = {}) {
+  ensureSessionRuntime(session);
+
+  if (!player) return { ok: false, error: "Joueur introuvable" };
+  if (!player.connected) return { ok: false, error: "Joueur hors ligne" };
+
+  const q = getCurrentQuestion(session);
+  if (!q) return { ok: false, error: "Aucune question active" };
+
+  const round = getCurrentRound(session);
+  const buzzerAllowed =
+    session.gameState.phaseMeta.answerMode === "buzzer" ||
+    round?.type === "rapidite" ||
+    round?.type === "speed";
+
+  if (!buzzerAllowed) {
+    return { ok: false, error: "Buzzer non disponible sur cette question" };
+  }
+
+  if (!isQuestionPhaseOpen(session)) {
+    return { ok: false, error: "Buzzer fermé" };
+  }
+
+  if (session.gameState.buzzerState?.firstPlayerId) {
+    return { ok: false, error: "Buzzer déjà pris" };
+  }
+
+  session.gameState.buzzerState = {
+    firstPlayerId: player.id,
+    firstPseudo: player.pseudo,
+    buzzedAt: nowIso(),
+  };
+
+  // Verrouille les joueurs et passe en scoring manuel
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+  });
+  setStatus(session, "manual_scoring");
+
+  touch(session);
+  return { ok: true };
+}
+
+export function shouldAutoRevealNow(session) {
+  ensureSessionRuntime(session);
+
+  const q = getCurrentQuestion(session);
+  const round = getCurrentRound(session);
+
+  if (!q || !round) return { ok: false, error: "Aucune question active" };
+
+  // Seulement pendant question/waiting
+  if (!["question", "waiting"].includes(session.gameState.status)) {
+    return { ok: false, error: "Phase incompatible" };
+  }
+
+  // Si déjà verrouillé manuellement, pas d'auto reveal
+  if (session.gameState.phaseMeta.playerScreenLocked) {
+    return { ok: false, error: "Écrans verrouillés" };
+  }
+
+  // auto uniquement pour scoring auto
+  if (!isAutoScoringRound(round)) {
+    return { ok: false, error: "Manche en arbitrage manuel" };
+  }
+
+  // cas rapidité: géré dans recordPlayerAnswer (premier bon)
+  if (round.type === "rapidite" || round.type === "speed") {
+    return { ok: false, error: "Gestion rapidité séparée" };
+  }
+
+  if (!allConnectedPlayersAnswered(session)) {
+    return { ok: false, error: "Tous les joueurs n'ont pas répondu" };
+  }
+
+  return { ok: true, mode: "delay_5s" };
+}
+
+export function scheduleAutoRevealAfterAllAnswered(session, hooks = {}) {
+  ensureSessionRuntime(session);
+
+  const q = getCurrentQuestion(session);
+  if (!q) return { ok: false, error: "Aucune question active" };
+
+  const rt = ensureSessionRuntime(session);
+  clearAutoRevealTimeout(session);
+
+  // Passe en waiting + verrouille les réponses
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+  });
+  setStatus(session, "waiting");
+
+  const emitNow = typeof hooks.emitNow === "function" ? hooks.emitNow : null;
+  const onAutoReveal =
+    typeof hooks.onAutoReveal === "function" ? hooks.onAutoReveal : null;
+  const expectedQuestionId = q.id;
+
+  rt.autoRevealTimeout = setTimeout(() => {
+    rt.autoRevealTimeout = null;
+
+    const qNow = getCurrentQuestion(session);
+    if (!qNow || qNow.id !== expectedQuestionId) return;
+    if (!["question", "waiting"].includes(session.gameState.status)) return;
+
+    if (onAutoReveal) {
+      try {
+        onAutoReveal(session, "all_answered");
+      } catch {
+        revealAnswer(session);
+      }
+    } else {
+      revealAnswer(session);
+    }
+  }, 5000);
+
+  if (emitNow) {
+    try {
+      emitNow(session);
+    } catch {
+      // noop
+    }
+  }
+
+  return { ok: true, mode: "delay_5s" };
+}
+
+export function cancelPendingAutoReveal(session) {
+  ensureSessionRuntime(session);
+  clearAutoRevealTimeout(session);
+  clearTimer(session);
+  return { ok: true };
+}
+
+/* ------------------------------------------------------------------ */
+/* Helpers optionnels (non importés par socket.js, mais utiles)        */
+/* ------------------------------------------------------------------ */
+
+export function resetEngineRuntime(session) {
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+  if (session?._runtime) {
+    session._runtime.timerQuestionId = null;
+    session._runtime.timerStartedAt = null;
+  }
+  return { ok: true };
+}
+
+export function getEngineDebugState(session) {
+  const rt = ensureSessionRuntime(session);
+  return {
+    ok: true,
+    runtime: {
+      hasTimerInterval: !!rt.timerInterval,
+      hasAutoRevealTimeout: !!rt.autoRevealTimeout,
+      timerQuestionId: rt.timerQuestionId || null,
+      timerStartedAt: rt.timerStartedAt || null,
+    },
+    game: {
+      status: session?.gameState?.status,
+      currentRoundIndex: session?.gameState?.currentRoundIndex,
+      currentQuestionIndex: session?.gameState?.currentQuestionIndex,
+      timer: session?.gameState?.phaseMeta?.timer || null,
+      locked: !!session?.gameState?.phaseMeta?.playerScreenLocked,
+      allowAnswer: !!session?.gameState?.phaseMeta?.allowAnswer,
+      answerMode: session?.gameState?.phaseMeta?.answerMode || "none",
+    },
+  };
+}
