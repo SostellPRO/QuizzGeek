@@ -29,7 +29,7 @@ const state = {
   display: { sessionCode: '', connected: false },
 
   // Admin: quiz en cours d'édition
-  admin: { quizzes: [], editingQuiz: null },
+  admin: { quizzes: [], editingQuiz: null, activeRoundIndex: 0 },
 };
 
 // ── Utilitaires DOM ──────────────────────────────────────────
@@ -177,9 +177,29 @@ pageInits.player = function() {
 };
 
 function renderPlayerJoin(suggestedCode = '') {
-  const teamsOptions = state.teams.map(t =>
-    `<option value="${t.id}">${t.name}</option>`
-  ).join('');
+  const teamsOptions = state.teams.length
+    ? state.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')
+    : '';
+
+  // Cartes d'équipes si disponibles
+  const teamCards = state.teams.length
+    ? `<div>
+        <label>Choisir votre équipe</label>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:8px;">
+          ${state.teams.map(t => `
+            <label style="display:flex;align-items:center;gap:6px;padding:10px;border-radius:10px;
+              border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);cursor:pointer;">
+              <input type="radio" name="team-pick" value="${t.id}" style="accent-color:#79b8ff;">
+              <span style="font-size:.9rem;">${t.name}</span>
+            </label>`).join('')}
+          <label style="display:flex;align-items:center;gap:6px;padding:10px;border-radius:10px;
+            border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);cursor:pointer;">
+            <input type="radio" name="team-pick" value="" checked style="accent-color:#79b8ff;">
+            <span style="font-size:.9rem;color:rgba(255,255,255,.5);">Sans équipe</span>
+          </label>
+        </div>
+      </div>`
+    : '';
 
   html('page-player', `
     <div class="card" style="text-align:center;background:linear-gradient(135deg,rgba(240,147,251,.1),rgba(245,87,108,.1));">
@@ -189,19 +209,18 @@ function renderPlayerJoin(suggestedCode = '') {
     <div id="player-alert"></div>
     <div class="card">
       <h2>Rejoindre la partie</h2>
-      <div style="display:grid;gap:12px;margin-top:12px;">
+      <div style="display:grid;gap:14px;margin-top:12px;">
         <div>
           <label>Code de session</label>
-          <input id="in-session-code" placeholder="ex: 1234" value="${suggestedCode}" style="font-size:1.4rem;letter-spacing:4px;text-align:center;text-transform:uppercase;">
+          <input id="in-session-code" placeholder="ex: 1234" value="${suggestedCode}"
+            style="font-size:1.4rem;letter-spacing:4px;text-align:center;text-transform:uppercase;"
+            oninput="this.value=this.value.toUpperCase();loadTeamsForCode(this.value)">
         </div>
         <div>
           <label>Pseudo</label>
           <input id="in-pseudo" placeholder="Votre nom de joueur" maxlength="32">
         </div>
-        ${teamsOptions ? `<div>
-          <label>Équipe</label>
-          <select id="in-team"><option value="">— choisir une équipe —</option>${teamsOptions}</select>
-        </div>` : ''}
+        ${teamCards}
         <button class="btn-primary" onclick="submitJoinPlayer()" style="margin-top:4px;">
           🚀 Rejoindre la partie
         </button>
@@ -209,24 +228,24 @@ function renderPlayerJoin(suggestedCode = '') {
     </div>
   `);
 
-  // Charger les équipes disponibles en se connectant à la session
-  const code = suggestedCode;
-  if (code) {
-    fetch(`${API}/api/sessions/${code}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.ok && state.teams.length === 0) {
-          // Les équipes arrivent via game:state une fois connecté
-        }
-      })
-      .catch(() => {});
-  }
+  if (suggestedCode) loadTeamsForCode(suggestedCode);
+}
+
+function loadTeamsForCode(code) {
+  if (!code || code.length < 4) return;
+  fetch(`${API}/api/sessions/${code}`)
+    .then(r => r.json())
+    .then(d => {
+      // Les équipes arriveront via game:state quand le socket rejoindra la session
+    })
+    .catch(() => {});
 }
 
 function submitJoinPlayer() {
   const sessionCode = ($('#in-session-code')?.value || '').trim().toUpperCase();
   const pseudo = ($('#in-pseudo')?.value || '').trim();
-  const teamId = $('#in-team')?.value || null;
+  const teamRadio = document.querySelector('input[name="team-pick"]:checked');
+  const teamId = teamRadio?.value || null;
 
   if (!sessionCode) { alert$('player-alert', 'Code de session requis', 'error'); return; }
   if (!pseudo) { alert$('player-alert', 'Pseudo requis', 'error'); return; }
@@ -378,14 +397,30 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
       </div>`;
   }
 
+  // Buzzer queue info
+  const myInQueue = Array.isArray(gs.buzzerQueue) && gs.buzzerQueue.includes(playerId);
+  const connectedCount = state.players.filter(p => p.connected).length;
+  const queueCount = Array.isArray(gs.buzzerQueue) ? gs.buzzerQueue.length : 0;
+  const allBuzzed = queueCount >= connectedCount && connectedCount > 0;
+
   let answerUI = '';
   if (answerMode === 'buzzer') {
-    answerUI = `
-      <div style="text-align:center;">
-        <button class="buzzer-btn" id="buzzer-btn" onclick="sendBuzzer('${gs.sessionCode || ''}')">
-          🔔<br>BUZZER
-        </button>
-      </div>`;
+    if (myInQueue && !allBuzzed) {
+      answerUI = `
+        <div class="card" style="text-align:center;padding:30px;">
+          <div style="font-size:2rem;">⏳</div>
+          <p style="margin-top:10px;">Vous avez déjà participé. Attendez les autres joueurs…</p>
+          <p class="muted" style="margin-top:6px;">${queueCount}/${connectedCount} ont participé</p>
+        </div>`;
+    } else {
+      answerUI = `
+        <div style="text-align:center;padding:20px 0;">
+          <button class="buzzer-btn" id="buzzer-btn" onclick="sendBuzzer('${gs.sessionCode || ''}')">
+            🔔<br>BUZZER
+          </button>
+          ${allBuzzed ? '<p class="muted" style="margin-top:10px;">Tour suivant !</p>' : ''}
+        </div>`;
+    }
   } else if (answerMode === 'true_false') {
     answerUI = `
       <div class="answer-grid" style="grid-template-columns:1fr 1fr;">
@@ -393,10 +428,28 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
         <button class="answer-btn" style="background:rgba(235,51,73,.15);border-color:#eb3349;text-align:center;font-size:1.3rem;" onclick="sendAnswer('${gs.sessionCode || ''}','${playerId}','faux')">❌ FAUX</button>
       </div>`;
   } else if (answerMode === 'mcq' && Array.isArray(q.options) && q.options.length) {
-    const opts = q.options.map(opt =>
-      `<button class="answer-btn" onclick="sendAnswer('${gs.sessionCode || ''}','${playerId}',${JSON.stringify(opt)})">${opt}</button>`
-    ).join('');
-    answerUI = `<div class="answer-grid">${opts}</div>`;
+    const labelColors = ['#4ade80','#60a5fa','#f59e0b','#f87171'];
+    const labels = ['A','B','C','D'];
+    const opts = q.options.map((opt, i) => {
+      const label = typeof opt === 'object' ? (opt.text || '') : String(opt || '');
+      const optMedia = typeof opt === 'object' && opt.mediaUrl ? resolveMedia(opt.mediaUrl) : '';
+      const isImg = optMedia && /\.(jpg|jpeg|png|gif|webp)$/i.test(optMedia);
+      const isAudio = optMedia && /\.(mp3|wav|ogg)$/i.test(optMedia);
+      const mediaEl = isImg ? `<img src="${optMedia}" style="max-height:80px;border-radius:6px;margin-bottom:6px;">` :
+                      isAudio ? `<audio controls src="${optMedia}" style="height:28px;margin-bottom:6px;"></audio>` : '';
+      return `<button class="answer-btn" style="border-color:${labelColors[i]};flex-direction:column;padding:12px;"
+        onclick="sendAnswer('${gs.sessionCode || ''}','${playerId}',${JSON.stringify(label)})">
+        ${mediaEl}<span style="color:${labelColors[i]};font-weight:700;margin-bottom:4px;">${labels[i]}</span>${label}
+      </button>`;
+    }).join('');
+    answerUI = `<div class="answer-grid" style="grid-template-columns:1fr 1fr;">${opts}</div>`;
+  } else if (answerMode === 'burger') {
+    answerUI = `
+      <div class="card" style="text-align:center;padding:30px;">
+        <div style="font-size:2.5rem;">🍔</div>
+        <h3 style="margin-top:12px;">Observez bien les éléments…</h3>
+        <p class="muted">Le maître de jeu vous interrogera à la fin</p>
+      </div>`;
   } else {
     answerUI = `
       <div class="card">
@@ -462,6 +515,11 @@ function logoutPlayer() {
 
 // ── Page : HOST ──────────────────────────────────────────────
 pageInits.host = function() {
+  // Si déjà connecté (ex: passage depuis doLaunchGame), on reste sur l'écran de jeu
+  if (state.host.connected) {
+    renderHostGame();
+    return;
+  }
   const savedCode = localStorage.getItem('quiz_host_session_code') || '';
   const savedKey  = localStorage.getItem('quiz_host_key') || 'demo-host';
   state.host.sessionCode = savedCode;
@@ -577,9 +635,17 @@ function renderHostGame() {
     // Infos question
     const cq = gs?.currentQuestion;
     if (cq) {
+      const cqType = cq.type || gs?.currentRound?.type || '';
+      const buzzerQueuePseudos = (gs.buzzerQueue || [])
+        .map(pid => state.players.find(p => (p.id||p.playerId) === pid)?.pseudo || pid)
+        .join(', ');
+      const burgerIdx = gs.burgerState?.currentItemIndex ?? -1;
+      const burgerTotal = Array.isArray(cq.items) ? cq.items.length : 0;
+      const burgerItem = burgerIdx >= 0 && cq.items?.[burgerIdx];
+
       html_ += `
         <div class="card">
-          <div class="muted" style="font-size:.75rem;">QUESTION ACTIVE</div>
+          <div class="muted" style="font-size:.75rem;">QUESTION ACTIVE · ${cqType.toUpperCase()}</div>
           <p style="margin-top:6px;">${cq.content || '—'}</p>
           ${gs.phaseMeta?.timer ? `
             <div style="margin-top:10px;">
@@ -589,7 +655,19 @@ function renderHostGame() {
               </div>
               <div class="progress-bar"><div class="fill" style="width:${gs.phaseMeta.timer.totalSec>0?Math.round(gs.phaseMeta.timer.remainingSec/gs.phaseMeta.timer.totalSec*100):0}%"></div></div>
             </div>` : ''}
-          ${gs.buzzerState?.firstPseudo ? `<p style="margin-top:10px;">🔔 Premier : <strong>${gs.buzzerState.firstPseudo}</strong></p>` : ''}
+          ${gs.buzzerState?.firstPseudo ? `
+            <div style="margin-top:10px;padding:10px;background:rgba(255,165,0,.1);border-radius:8px;border-left:3px solid #ffa500;">
+              🔔 <strong>${gs.buzzerState.firstPseudo}</strong> a buzzé — interrogez-le oralement
+            </div>` : ''}
+          ${cqType === 'rapidite' || cqType === 'speed' ? `
+            <div style="margin-top:8px;font-size:.82rem;color:rgba(255,255,255,.5);">
+              Queue : ${buzzerQueuePseudos || '—'} (${(gs.buzzerQueue||[]).length}/${state.players.filter(p=>p.connected).length})
+            </div>` : ''}
+          ${cqType === 'burger' ? `
+            <div style="margin-top:10px;padding:10px;background:rgba(99,179,237,.08);border-radius:8px;">
+              🍔 Élément ${burgerIdx+1}/${burgerTotal}
+              ${burgerItem ? `<strong style="display:block;margin-top:4px;">${burgerItem.text || ''}${burgerItem.mediaUrl ? ' 🖼️' : ''}</strong>` : '<span class="muted"> — pas encore démarré</span>'}
+            </div>` : ''}
           <p style="margin-top:8px;font-size:.85rem;">Écrans : ${gs.phaseMeta?.playerScreenLocked ? '<span class="badge red">🔒 Verrouillés</span>' : '<span class="badge green">🔓 Ouverts</span>'}</p>
         </div>`;
     }
@@ -638,11 +716,18 @@ function renderHostGame() {
 
   // ONGLET JOUEURS
   else if (hostActiveTab === 'joueurs') {
+    const teamOptions = state.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
     const rows = state.players.map(p => `
       <tr>
         <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.connected?'#38ef7d':'#555'};"></span></td>
         <td><strong>${p.pseudo}</strong></td>
-        <td class="muted">${p.teamName || '—'}</td>
+        <td>
+          <select onchange="hostAction('assign_team',{playerId:'${p.id||p.playerId}',teamId:this.value||null})"
+            style="font-size:.8rem;padding:3px 6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:#fff;">
+            <option value="">— aucune équipe —</option>
+            ${state.teams.map(t => `<option value="${t.id}" ${p.teamId===t.id?'selected':''}>${t.name}</option>`).join('')}
+          </select>
+        </td>
         <td>${p.scoreTotal ?? 0}</td>
         <td><button class="btn-danger" style="padding:4px 8px;font-size:.8rem;" onclick="hostAction('remove_player',{playerId:'${p.id||p.playerId}'})">✕</button></td>
       </tr>`).join('') || `<tr><td colspan="5" class="muted">Aucun joueur</td></tr>`;
@@ -661,7 +746,10 @@ function renderHostGame() {
         <h3>🤖 Ajouter un bot</h3>
         <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:10px;">
           <input id="bot-name" placeholder="Nom du bot" style="flex:1;min-width:120px;">
-          <select id="bot-team" style="width:130px;">${Array.from({length:20},(_,i)=>`<option value="team_${i+1}">Équipe ${i+1}</option>`).join('')}</select>
+          <select id="bot-team" style="width:160px;">
+            <option value="">— sans équipe —</option>
+            ${state.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+          </select>
           <button class="btn-success" style="white-space:nowrap;" onclick="addBot()">Ajouter</button>
         </div>
       </div>`;
@@ -703,21 +791,46 @@ function renderHostGame() {
 
 function buildHostActionButtons(phase) {
   const btns = [];
+  const gs = state.gameState;
+  const currentType = gs?.currentRound?.type || gs?.currentQuestion?.type || '';
+
   if (phase === 'lobby')          btns.push({ label: '▶️ Démarrer le quiz', action: 'start_quiz', style: 'success' });
   if (phase === 'round_intro')    btns.push({ label: '▶️ Démarrer la manche', action: 'start_round', style: 'success' });
+
   if (phase === 'question' || phase === 'waiting') {
-    btns.push({ label: '📋 Révéler la réponse', action: 'reveal_answer', style: 'secondary' });
+    // Mode burger : bouton "Élément suivant" au lieu de "Révéler"
+    if (currentType === 'burger') {
+      btns.push({ label: '🍔 Élément suivant', action: 'burger_next_item', style: 'success' });
+    } else {
+      btns.push({ label: '📋 Révéler la réponse', action: 'reveal_answer', style: 'secondary' });
+    }
     btns.push({ label: '⏭️ Question suivante', action: 'next_question', style: 'secondary' });
     btns.push({ label: '🔒 Verrouiller', action: 'lock_players', style: 'secondary' });
-    btns.push({ label: '🔓 Déverrouiller', action: 'unlock_players', style: 'secondary' });
+    btns.push({ label: '🔓 Débloquer', action: 'unlock_players', style: 'secondary' });
   }
-  if (phase === 'answer_reveal')  btns.push({ label: '📊 Afficher résultats', action: 'show_results', style: 'secondary' });
+
+  if (phase === 'answer_reveal') {
+    btns.push({ label: '📊 Afficher résultats', action: 'show_results', style: 'secondary' });
+    btns.push({ label: '⏭️ Question suivante', action: 'next_question', style: 'secondary' });
+  }
+
   if (phase === 'results') {
     btns.push({ label: '⏭️ Manche suivante', action: 'next_round', style: 'secondary' });
     btns.push({ label: '⏭️ Question suivante', action: 'next_question', style: 'secondary' });
     btns.push({ label: '🏁 Terminer le quiz', action: 'finish_quiz', style: 'danger' });
   }
-  if (phase === 'manual_scoring') btns.push({ label: '📊 Afficher résultats', action: 'show_results', style: 'secondary' });
+
+  if (phase === 'manual_scoring') {
+    // Rapidité : boutons +1 / Refus + Débloquer pour passer au suivant
+    if (currentType === 'rapidite' || currentType === 'speed' || gs?.phaseMeta?.answerMode === 'buzzer') {
+      btns.push({ label: '✅ +1 pt (bonne réponse)', action: 'award_buzzer_correct', style: 'success' });
+      btns.push({ label: '❌ Refuser (mauvaise)', action: 'award_buzzer_wrong', style: 'danger' });
+    } else if (currentType === 'burger') {
+      btns.push({ label: '🍔 Élément suivant', action: 'burger_next_item', style: 'success' });
+    }
+    btns.push({ label: '📊 Afficher résultats', action: 'show_results', style: 'secondary' });
+  }
+
   if (phase === 'end') {
     btns.push({ label: '🎊 Cérémonie', action: 'final_ceremony_init', style: 'success' });
     btns.push({ label: '🔁 Nouvelle partie', action: 'reset_game', style: 'secondary' });
@@ -731,9 +844,32 @@ function switchHostTab(tab) {
 }
 
 function hostAction(action, extra = {}) {
-  state.socket.emit('host:action', { sessionCode: state.host.sessionCode, hostKey: state.host.hostKey, action, ...extra }, (res) => {
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  const gs = state.gameState;
+
+  // Actions spéciales rapidité
+  if (action === 'award_buzzer_correct') {
+    const buzzerId = gs?.buzzerState?.firstPlayerId;
+    if (!buzzerId) { alert$('host-alert', 'Aucun joueur n\'a buzzé', 'error'); return; }
+    // +1 pt puis débloquer pour le suivant
+    state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'award_manual_points', playerId: buzzerId, points: 1, reason: 'rapidite' }, (res) => {
+      if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
+      // Débloquer pour passer au prochain buzzer
+      state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'unlock_players' }, () => {});
+    });
+    return;
+  }
+  if (action === 'award_buzzer_wrong') {
+    // Juste débloquer sans points, pour passer au suivant
+    state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'unlock_players' }, (res) => {
+      if (!res?.ok) alert$('host-alert', res?.error || 'Erreur', 'error');
+    });
+    return;
+  }
+
+  state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action, ...extra }, (res) => {
     if (!res?.ok) alert$('host-alert', res?.error || 'Action impossible', 'error');
-    else alert$('host-alert', `✅ ${action}`, 'success');
   });
 }
 
@@ -806,12 +942,23 @@ function renderDisplay() {
   const phase = gs?.status || 'lobby';
   const sc    = state.display.sessionCode;
 
+  // Fond d'écran et musique de la manche courante
+  const roundBg = gs?.currentRound?.backgroundUrl ? resolveMedia(gs.currentRound.backgroundUrl) : '';
+  const roundMusic = gs?.currentRound?.musicUrl ? resolveMedia(gs.currentRound.musicUrl) : '';
+  const bgStyle = roundBg ? `background-image:url('${roundBg}');background-size:cover;background-position:center;` : '';
+
+  // Gestion de la musique (lecture auto)
+  const musicEl = roundMusic
+    ? `<audio id="round-music" autoplay loop src="${roundMusic}" style="display:none;"></audio>`
+    : '';
+
   let content = `
+    ${musicEl}
     <div class="session-banner">
       <span>Session : <strong class="session-code">${sc}</strong></span>
       <span>${state.players.length} joueur(s)</span>
     </div>
-    <div style="padding:16px;">`;
+    <div style="padding:16px;${bgStyle}">`;
 
   if (phase === 'lobby') {
     content += `
@@ -905,25 +1052,71 @@ function renderDisplayQuestion(gs) {
       </div>`;
   }
 
-  // Options QCM
+  // Options QCM (avec support médias par option)
   let opts = '';
   if (pm.answerMode === 'mcq' && Array.isArray(q.options) && q.options.length) {
-    opts = `<div class="answer-grid">${q.options.map(o => `<div class="answer-btn">${o}</div>`).join('')}</div>`;
+    const labelColors = ['#4ade80','#60a5fa','#f59e0b','#f87171'];
+    const labels = ['A','B','C','D'];
+    opts = `<div class="answer-grid" style="grid-template-columns:1fr 1fr;">${q.options.slice(0,4).map((o, i) => {
+      const label = typeof o === 'object' ? (o.text || '') : String(o || '');
+      const optMedia = typeof o === 'object' && o.mediaUrl ? resolveMedia(o.mediaUrl) : '';
+      const isImg = optMedia && /\.(jpg|jpeg|png|gif|webp)$/i.test(optMedia);
+      const isAudio = optMedia && /\.(mp3|wav|ogg)$/i.test(optMedia);
+      const mediaEl = isImg ? `<img src="${optMedia}" style="max-height:70px;border-radius:6px;margin-bottom:6px;">` :
+                      isAudio ? `<audio controls src="${optMedia}" style="height:28px;margin-bottom:6px;"></audio>` : '';
+      return `<div class="answer-btn" style="border-color:${labelColors[i]};flex-direction:column;padding:14px;">
+        ${mediaEl}<span style="color:${labelColors[i]};font-weight:700;margin-bottom:4px;">${labels[i]}</span>${label}
+      </div>`;
+    }).join('')}</div>`;
   }
 
-  // Compteur de réponses
+  // Buzzer rapidité
+  let buzzerDisplay = '';
+  if (pm.answerMode === 'buzzer' && gs.buzzerState?.firstPseudo) {
+    buzzerDisplay = `
+      <div class="card" style="text-align:center;padding:30px;border:2px solid #ffa500;">
+        <div style="font-size:2.5rem;">🔔</div>
+        <h2 style="color:#ffa500;margin-top:12px;">${gs.buzzerState.firstPseudo}</h2>
+        <p class="muted">a buzzé en premier</p>
+      </div>`;
+  }
+
+  // Burger : afficher l'item courant
+  let burgerDisplay = '';
+  if ((q.type === 'burger' || gs?.currentRound?.type === 'burger') && gs.burgerState) {
+    const bs = gs.burgerState;
+    const items = q.items || [];
+    const curItem = bs.currentItemIndex >= 0 ? items[bs.currentItemIndex] : null;
+    const itemUrl = curItem?.mediaUrl ? resolveMedia(curItem.mediaUrl) : '';
+    const isImg = itemUrl && /\.(jpg|jpeg|png|gif|webp)$/i.test(itemUrl);
+    const isAudio = itemUrl && /\.(mp3|wav|ogg)$/i.test(itemUrl);
+    burgerDisplay = `
+      <div class="card" style="text-align:center;padding:30px;">
+        <div style="font-size:.85rem;color:rgba(255,255,255,.4);margin-bottom:12px;">🍔 Élément ${bs.currentItemIndex+1} / ${items.length}</div>
+        ${curItem ? `
+          ${isImg ? `<img src="${itemUrl}" style="max-height:200px;border-radius:10px;margin-bottom:14px;">` : ''}
+          ${isAudio ? `<audio controls autoplay src="${itemUrl}" style="margin-bottom:14px;"></audio>` : ''}
+          <p style="font-size:1.6rem;font-weight:700;">${curItem.text || ''}</p>
+        ` : '<p class="muted">En attente du maître de jeu…</p>'}
+      </div>`;
+  }
+
+  // Compteur de réponses (pas pour burger/buzzer)
   const answered = gs.answers?.[q.id] ? Object.keys(gs.answers[q.id]).length : 0;
   const connected = state.players.filter(p => p.connected).length;
+  const showCounter = pm.answerMode !== 'buzzer' && q.type !== 'burger' && q.type !== 'rapidite';
 
   return `
     ${media}
     ${timerHtml}
     <div class="card">
       <p style="font-size:1.4rem;font-weight:600;">${q.content || ''}</p>
-      <p class="muted" style="margin-top:8px;">${answered}/${connected} réponse(s)</p>
+      ${showCounter ? `<p class="muted" style="margin-top:8px;">${answered}/${connected} réponse(s)</p>` : ''}
     </div>
     ${opts}
-    ${votes}`;
+    ${votes}
+    ${buzzerDisplay}
+    ${burgerDisplay}`;
 }
 
 function renderAnswerList(answers) {
@@ -1085,7 +1278,6 @@ async function doLaunchGame(quizId, isTestMode) {
     state.socket.emit('join:host', { sessionCode, hostKey }, (res) => {
       if (!res?.ok) { alert$('host-alert', res?.error || 'Connexion impossible', 'error'); return; }
       state.host.connected = true;
-      updateNavSession();
       if (isTestMode && botCount > 0) {
         const botNames = ['Alice','Bob','Charlie','David','Eva','Frank','Grace','Hugo'];
         for (let i = 0; i < botCount; i++) {
@@ -1106,25 +1298,82 @@ function emptyRound(idx = 0) {
   return {
     id: uid('round'),
     title: `Manche ${idx + 1}`,
-    type: 'questionnaire',
+    type: 'qcm',
     scoringMode: 'auto',
+    scoringTarget: 'individual', // 'individual' | 'team'
     shortRules: '',
+    backgroundUrl: '',
+    musicUrl: '',
     questions: [],
   };
 }
 
-function emptyQuestion(type = 'questionnaire') {
-  const base = { id: uid('q'), content: 'Question', mediaUrl: '', correctAnswer: '' };
-  if (type === 'questionnaire' || type === 'mcq') {
-    return { ...base, type: 'mcq', options: ['Réponse A', 'Réponse B', 'Réponse C', 'Réponse D'], correctAnswer: 'Réponse A' };
+function emptyQuestion(type = 'qcm') {
+  const base = { id: uid('q'), content: '', mediaUrl: '' };
+  // QCM : 4 options avec texte (+ optionnellement un mediaUrl par option)
+  if (type === 'qcm' || type === 'questionnaire' || type === 'mcq') {
+    return {
+      ...base,
+      type: 'qcm',
+      options: [
+        { id: uid('opt'), text: 'Réponse A', mediaUrl: '' },
+        { id: uid('opt'), text: 'Réponse B', mediaUrl: '' },
+        { id: uid('opt'), text: 'Réponse C', mediaUrl: '' },
+        { id: uid('opt'), text: 'Réponse D', mediaUrl: '' },
+      ],
+      correctOptionIndex: 0,
+      correctAnswer: 'Réponse A',
+    };
   }
-  if (type === 'true_false') return { ...base, type: 'true_false', correctAnswer: 'vrai' };
-  if (type === 'speed')      return { ...base, type: 'text', questionType: 'buzzer' };
-  return { ...base, type: 'text' };
+  // Vrai/Faux
+  if (type === 'true_false') {
+    return { ...base, type: 'true_false', correctAnswer: 'vrai' };
+  }
+  // Rapidité (buzzer) — le host interroge oralement et donne les points
+  if (type === 'rapidite' || type === 'speed') {
+    return { ...base, type: 'rapidite' };
+  }
+  // Burger — liste de 10 items que le host défile
+  if (type === 'burger') {
+    return {
+      ...base,
+      type: 'burger',
+      items: Array.from({ length: 10 }, (_, i) => ({
+        id: uid('item'),
+        text: `Élément ${i + 1}`,
+        mediaUrl: '',
+      })),
+    };
+  }
+  return { ...base, type: type };
 }
 
 function renderQuizEditor() {
   const q = state.admin.editingQuiz;
+  const rounds = q.rounds || [];
+  // Assurer que l'index actif est valide
+  if (state.admin.activeRoundIndex >= rounds.length) {
+    state.admin.activeRoundIndex = Math.max(0, rounds.length - 1);
+  }
+  const ari = state.admin.activeRoundIndex;
+  const activeRound = rounds[ari] || null;
+
+  // Navigation entre manches
+  const roundNav = rounds.length
+    ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
+        ${rounds.map((r, ri) => `
+          <button onclick="switchRound(${ri})"
+            style="padding:6px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.15);
+            background:${ari===ri?'rgba(99,179,237,.25)':'rgba(255,255,255,.04)'};
+            color:${ari===ri?'#79b8ff':'rgba(255,255,255,.7)'};
+            font-weight:${ari===ri?'700':'400'};cursor:pointer;font-size:.82rem;
+            outline:${ari===ri?'2px solid rgba(99,179,237,.5)':'none'};">
+            ${r.title || `Manche ${ri+1}`}
+          </button>`).join('')}
+        <button class="btn-primary" style="padding:6px 14px;font-size:.82rem;border-radius:20px;" onclick="addRound()">+ Manche</button>
+      </div>`
+    : `<div style="margin-bottom:14px;"><button class="btn-primary" style="font-size:.85rem;" onclick="addRound()">+ Manche</button></div>`;
+
   html('page-admin', `
     <div class="row" style="justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
       <h1>✏️ Éditeur de quiz</h1>
@@ -1146,129 +1395,270 @@ function renderQuizEditor() {
     </div>
 
     <div class="card">
-      <div class="row" style="justify-content:space-between;">
-        <h3>Manches (${q.rounds?.length || 0})</h3>
-        <button class="btn-primary" style="font-size:.85rem;" onclick="addRound()">+ Manche</button>
+      <div class="row" style="justify-content:space-between;margin-bottom:4px;">
+        <h3>Manches (${rounds.length})</h3>
       </div>
-      <div id="rounds-container" style="margin-top:14px;">
-        ${(q.rounds || []).map((r, ri) => renderRoundBlock(r, ri)).join('')}
+      ${roundNav}
+      <div id="rounds-container">
+        ${activeRound ? renderRoundBlock(activeRound, ari) : '<p class="muted" style="text-align:center;padding:20px;">Aucune manche. Cliquez sur "+ Manche".</p>'}
       </div>
     </div>
   `);
 }
 
+function switchRound(idx) {
+  // Sauvegarder le titre du quiz en cours avant de changer de manche
+  const titleInput = document.getElementById('quiz-title');
+  if (titleInput && state.admin.editingQuiz) {
+    state.admin.editingQuiz.title = titleInput.value.trim() || state.admin.editingQuiz.title;
+  }
+  state.admin.activeRoundIndex = idx;
+  renderQuizEditor();
+}
+
 function renderRoundBlock(round, ri) {
-  const roundTypes = ['questionnaire','music','image','speed','true_false','riddle','karaoke'];
+  const roundTypes = [
+    { v:'qcm',       l:'🔘 QCM (choix multiple)' },
+    { v:'rapidite',  l:'⚡ Rapidité (buzzer)' },
+    { v:'true_false',l:'✅ Vrai / Faux' },
+    { v:'burger',    l:'🍔 Burger (liste révélée)' },
+  ];
+
+  const bgPreview = round.backgroundUrl
+    ? `<div style="margin-top:6px;"><img src="${resolveMedia(round.backgroundUrl)}" style="max-height:80px;border-radius:8px;opacity:.7;"></div>` : '';
+  const musicPreview = round.musicUrl
+    ? `<div style="margin-top:6px;"><audio controls src="${resolveMedia(round.musicUrl)}" style="height:32px;width:100%;"></audio></div>` : '';
+
+  const nbQ = round.questions?.length || 0;
+  const qLabel = round.type === 'burger' ? 'Question(s) burger' : 'Questions';
+
   return `
     <div class="round-panel" id="round-${round.id}">
-      <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-        <strong>Manche ${ri+1}</strong>
-        <button class="btn-danger" style="padding:4px 10px;font-size:.8rem;" onclick="removeRound('${round.id}')">Supprimer</button>
+      <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+        <strong style="font-size:1rem;">📋 Manche ${ri+1}</strong>
+        <button class="btn-danger" style="padding:4px 10px;font-size:.8rem;" onclick="removeRound('${round.id}')">🗑️ Supprimer cette manche</button>
       </div>
+
+      <!-- Infos de base -->
       <div class="grid2" style="gap:10px;margin-bottom:12px;">
         <div>
           <label>Titre</label>
           <input value="${round.title||''}" onchange="updateRound('${round.id}','title',this.value)" placeholder="Titre de la manche">
         </div>
         <div>
-          <label>Type</label>
+          <label>Type de questions</label>
           <select onchange="updateRound('${round.id}','type',this.value)">
-            ${roundTypes.map(t => `<option value="${t}" ${round.type===t?'selected':''}>${t}</option>`).join('')}
+            ${roundTypes.map(t => `<option value="${t.v}" ${round.type===t.v?'selected':''}>${t.l}</option>`).join('')}
           </select>
         </div>
         <div>
-          <label>Scoring</label>
+          <label>Points attribués à</label>
+          <select onchange="updateRound('${round.id}','scoringTarget',this.value)">
+            <option value="individual" ${(round.scoringTarget||'individual')==='individual'?'selected':''}>👤 Individuel</option>
+            <option value="team"       ${round.scoringTarget==='team'?'selected':''}>👥 Équipe</option>
+          </select>
+        </div>
+        <div>
+          <label>Mode de scoring</label>
           <select onchange="updateRound('${round.id}','scoringMode',this.value)">
-            <option value="auto" ${round.scoringMode==='auto'?'selected':''}>Auto</option>
-            <option value="arbitre" ${round.scoringMode==='arbitre'?'selected':''}>Arbitre (manuel)</option>
+            <option value="auto"    ${round.scoringMode==='auto'?'selected':''}>Auto (vérification auto)</option>
+            <option value="arbitre" ${round.scoringMode==='arbitre'?'selected':''}>Arbitre (attribution manuelle)</option>
           </select>
         </div>
         <div>
-          <label>Règles courtes</label>
-          <input value="${round.shortRules||''}" onchange="updateRound('${round.id}','shortRules',this.value)" placeholder="Affiché aux joueurs">
+          <label>Règles courtes (affichées aux joueurs)</label>
+          <input value="${round.shortRules||''}" onchange="updateRound('${round.id}','shortRules',this.value)" placeholder="Règles courtes">
         </div>
       </div>
+
+      <!-- Personnalisation fond & musique -->
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;margin-bottom:14px;">
+        <div style="font-size:.78rem;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🎨 Personnalisation</div>
+        <div class="grid2" style="gap:10px;">
+          <div>
+            <label style="font-size:.8rem;">Fond d'écran</label>
+            <div class="row" style="gap:6px;margin-top:4px;">
+              <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="uploadRoundMedia('${round.id}','backgroundUrl','image/*')">🖼️ Choisir image</button>
+              ${round.backgroundUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearRoundMedia('${round.id}','backgroundUrl')">✕</button>` : ''}
+            </div>
+            ${bgPreview}
+          </div>
+          <div>
+            <label style="font-size:.8rem;">Musique de fond</label>
+            <div class="row" style="gap:6px;margin-top:4px;">
+              <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="uploadRoundMedia('${round.id}','musicUrl','audio/*')">🎵 Choisir musique</button>
+              ${round.musicUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearRoundMedia('${round.id}','musicUrl')">✕</button>` : ''}
+            </div>
+            ${musicPreview}
+          </div>
+        </div>
+      </div>
+
+      <!-- Questions -->
       <div>
         <div class="row" style="justify-content:space-between;margin-bottom:8px;">
-          <span style="font-size:.85rem;color:rgba(255,255,255,.6);">Questions (${round.questions?.length||0})</span>
-          <button class="btn-secondary" style="padding:4px 10px;font-size:.8rem;" onclick="addQuestion('${round.id}','${round.type||'questionnaire'}')">+ Question</button>
+          <span style="font-size:.85rem;color:rgba(255,255,255,.6);">${qLabel} (${nbQ})</span>
+          <button class="btn-secondary" style="padding:4px 10px;font-size:.8rem;" onclick="addQuestion('${round.id}','${round.type||'qcm'}')">+ Question</button>
         </div>
         <div id="questions-${round.id}">
-          ${(round.questions || []).map((q, qi) => renderQuestionRow(q, qi, round.id, round.type || 'questionnaire')).join('')}
+          ${(round.questions || []).map((q, qi) => renderQuestionRow(q, qi, round.id, round.type || 'qcm')).join('')}
         </div>
       </div>
     </div>`;
 }
 
 function renderQuestionRow(q, qi, roundId, roundType) {
-  const isMcq   = q.type === 'mcq';
-  const isMusic = roundType === 'music';
-
-  const mediaHtml = q.mediaUrl
-    ? `<div style="font-size:.78rem;color:rgba(255,255,255,.4);margin:4px 0 4px 28px;">
-         <a href="${resolveMedia(q.mediaUrl)}" target="_blank" style="color:#79b8ff;">📎 ${q.mediaUrl}</a>
-       </div>`
-    : '';
-
-  const musicTypeHtml = isMusic ? `
-    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;margin-left:28px;">
-      <span style="font-size:.75rem;color:rgba(255,255,255,.45);">Mode réponse :</span>
-      <select onchange="changeQuestionType('${roundId}','${q.id}',this.value)"
-        style="font-size:.8rem;padding:3px 8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:#fff;">
-        <option value="text" ${q.type !== 'mcq' ? 'selected' : ''}>📝 Texte libre</option>
-        <option value="mcq"  ${q.type === 'mcq' ? 'selected' : ''}>🔘 Choix multiple</option>
-      </select>
-    </div>` : '';
-
-  const opts = Array.isArray(q.options) && q.options.length ? q.options : ['','','',''];
+  const effectiveType = q.type || roundType || 'qcm';
   const labels = ['A','B','C','D'];
   const labelColors = ['#4ade80','#60a5fa','#f59e0b','#f87171'];
 
-  const optionsHtml = isMcq ? `
-    <div style="margin:8px 0 4px 28px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:10px;">
-      <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">Choix multiples</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">
-        ${opts.slice(0, 4).map((opt, i) => `
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:.78rem;font-weight:700;color:${labelColors[i]};min-width:16px;">${labels[i]}</span>
-            <input value="${(opt||'').replace(/"/g,'&quot;')}" placeholder="Option ${labels[i]}"
-              oninput="updateQuestionOption('${roundId}','${q.id}',${i},this.value)"
-              style="flex:1;font-size:.82rem;padding:5px 8px;">
-          </div>`).join('')}
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:.75rem;color:rgba(255,255,255,.45);white-space:nowrap;">✅ Bonne réponse :</span>
-        <select onchange="updateQuestion('${roundId}','${q.id}','correctAnswer',this.value)"
-          style="flex:1;font-size:.82rem;padding:5px 8px;">
-          ${opts.slice(0,4).map((opt,i) => `
-            <option value="${(opt||'').replace(/"/g,'&quot;')}" ${q.correctAnswer===opt?'selected':''}>${labels[i]}: ${opt||'?'}</option>`).join('')}
-        </select>
-      </div>
-    </div>` : '';
+  // Aperçu média de la question
+  function mediaPreview(url, cls='') {
+    if (!url) return '';
+    const resolved = resolveMedia(url);
+    if (/\.(mp3|wav|ogg)$/i.test(resolved))
+      return `<audio controls src="${resolved}" style="height:28px;max-width:200px;${cls}"></audio>`;
+    return `<img src="${resolved}" style="max-height:48px;border-radius:6px;opacity:.8;${cls}">`;
+  }
+
+  const qMediaBtn = `<button class="btn-secondary" style="padding:4px 8px;font-size:.78rem;white-space:nowrap;" onclick="openMediaUpload('${q.id}')">🖼️</button>`;
+  const qMediaPreview = q.mediaUrl ? mediaPreview(q.mediaUrl,'margin-left:6px;') : '';
+  const removeBtn = `<button class="btn-danger" style="padding:4px 8px;font-size:.8rem;flex-shrink:0;" onclick="removeQuestion('${roundId}','${q.id}')">✕</button>`;
+
+  // Ligne commune : numéro + contenu + média + supprimer
+  const headerRow = `
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span class="muted" style="min-width:24px;font-size:.85rem;flex-shrink:0;">${qi+1}.</span>
+      <input value="${(q.content||'').replace(/"/g,'&quot;')}" placeholder="Énoncé de la question"
+        onchange="updateQuestion('${roundId}','${q.id}','content',this.value)"
+        style="flex:1;min-width:160px;">
+      ${qMediaBtn}
+      ${qMediaPreview}
+      ${removeBtn}
+    </div>`;
+
+  let body = '';
+
+  // ── QCM ──────────────────────────────────────────────────
+  if (effectiveType === 'qcm' || effectiveType === 'questionnaire' || effectiveType === 'mcq') {
+    const opts = Array.isArray(q.options) && q.options.length
+      ? q.options.map(o => typeof o === 'object' ? o : { id: uid('opt'), text: String(o||''), mediaUrl: '' })
+      : [{ id:uid('opt'),text:'Réponse A',mediaUrl:'' },{ id:uid('opt'),text:'Réponse B',mediaUrl:'' },
+         { id:uid('opt'),text:'Réponse C',mediaUrl:'' },{ id:uid('opt'),text:'Réponse D',mediaUrl:'' }];
+    const correctIdx = typeof q.correctOptionIndex === 'number' ? q.correctOptionIndex : 0;
+
+    body = `
+      <div style="margin:8px 0 4px 28px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:10px;">
+        <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">Options de réponse</div>
+        <div style="display:grid;gap:6px;">
+          ${opts.slice(0, 4).map((opt, i) => `
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input type="radio" name="correct-${q.id}" ${correctIdx===i?'checked':''} title="Bonne réponse"
+                onchange="updateQcmCorrect('${roundId}','${q.id}',${i})"
+                style="accent-color:#4ade80;width:16px;height:16px;flex-shrink:0;">
+              <span style="font-size:.78rem;font-weight:700;color:${labelColors[i]};min-width:18px;">${labels[i]}</span>
+              <input value="${(opt.text||'').replace(/"/g,'&quot;')}" placeholder="Option ${labels[i]}"
+                oninput="updateQcmOptionText('${roundId}','${q.id}',${i},this.value)"
+                style="flex:1;font-size:.82rem;padding:5px 8px;">
+              <button class="btn-secondary" style="padding:3px 7px;font-size:.75rem;" onclick="uploadOptionMedia('${roundId}','${q.id}',${i})" title="Image/Son pour cette option">🖼️</button>
+              ${opt.mediaUrl ? mediaPreview(opt.mediaUrl) : ''}
+            </div>`).join('')}
+        </div>
+        <div style="margin-top:8px;font-size:.75rem;color:rgba(255,255,255,.4);">🔘 Cocher le bouton radio = bonne réponse</div>
+      </div>`;
+  }
+
+  // ── VRAI/FAUX ────────────────────────────────────────────
+  else if (effectiveType === 'true_false') {
+    const isVrai = (q.correctAnswer||'vrai').toLowerCase() === 'vrai';
+    body = `
+      <div style="margin:8px 0 4px 28px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:.78rem;color:rgba(255,255,255,.5);">✅ Bonne réponse :</span>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+          <input type="radio" name="tf-${q.id}" value="vrai" ${isVrai?'checked':''}
+            onchange="updateQuestion('${roundId}','${q.id}','correctAnswer','vrai')"
+            style="accent-color:#38ef7d;">
+          <span style="color:#38ef7d;font-weight:600;">✅ VRAI</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+          <input type="radio" name="tf-${q.id}" value="faux" ${!isVrai?'checked':''}
+            onchange="updateQuestion('${roundId}','${q.id}','correctAnswer','faux')"
+            style="accent-color:#eb3349;">
+          <span style="color:#eb3349;font-weight:600;">❌ FAUX</span>
+        </label>
+      </div>`;
+  }
+
+  // ── RAPIDITÉ ─────────────────────────────────────────────
+  else if (effectiveType === 'rapidite' || effectiveType === 'speed') {
+    body = `
+      <div style="margin:6px 0 4px 28px;background:rgba(255,165,0,.08);border:1px solid rgba(255,165,0,.2);border-radius:8px;padding:10px;font-size:.82rem;color:rgba(255,165,0,.9);">
+        ⚡ Mode <strong>Rapidité</strong> : un buzzer apparaît sur l'écran du joueur. Le premier qui clique est interrogé oralement. Le maître de jeu attribue le point manuellement.
+      </div>`;
+  }
+
+  // ── BURGER ───────────────────────────────────────────────
+  else if (effectiveType === 'burger') {
+    const items = Array.isArray(q.items) ? q.items : [];
+    body = `
+      <div style="margin:8px 0 4px 28px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:10px;">
+        <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">🍔 Liste des éléments (le host les révèle un par un)</div>
+        <div style="display:grid;gap:6px;">
+          ${items.map((item, i) => `
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:.78rem;color:rgba(255,255,255,.4);min-width:22px;flex-shrink:0;">${i+1}.</span>
+              <input value="${(item.text||'').replace(/"/g,'&quot;')}" placeholder="Élément ${i+1}"
+                oninput="updateBurgerItem('${roundId}','${q.id}',${i},this.value)"
+                style="flex:1;font-size:.82rem;padding:5px 8px;">
+              <button class="btn-secondary" style="padding:3px 7px;font-size:.75rem;" onclick="uploadItemMedia('${roundId}','${q.id}',${i})" title="Image/Son">🖼️</button>
+              ${item.mediaUrl ? mediaPreview(item.mediaUrl) : ''}
+            </div>`).join('')}
+        </div>
+        <div style="margin-top:10px;font-size:.75rem;color:rgba(255,255,255,.4);">🎯 Après les 10 éléments, le maître de jeu attribue de 0 à 10 points</div>
+      </div>`;
+  }
 
   return `
-    <div class="question-row" id="question-${q.id}" style="flex-direction:column;align-items:stretch;gap:0;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span class="muted" style="min-width:26px;font-size:.85rem;">${qi+1}.</span>
-        <input value="${(q.content||'').replace(/"/g,'&quot;')}" placeholder="Contenu de la question"
-          onchange="updateQuestion('${roundId}','${q.id}','content',this.value)" style="flex:2;">
-        ${!isMcq
-          ? `<input value="${(q.correctAnswer||q.solution||'').replace(/"/g,'&quot;')}" placeholder="Bonne réponse"
-               onchange="updateQuestion('${roundId}','${q.id}','correctAnswer',this.value)" style="flex:1;">`
-          : ''}
-        <button class="btn-secondary" style="padding:4px 10px;font-size:.8rem;white-space:nowrap;" onclick="openMediaUpload('${q.id}')">🖼️ Média</button>
-        <button class="btn-danger"    style="padding:4px 8px;font-size:.8rem;" onclick="removeQuestion('${roundId}','${q.id}')">✕</button>
-      </div>
-      ${musicTypeHtml}
-      ${optionsHtml}
-      ${mediaHtml}
+    <div class="question-row" id="question-${q.id}" style="flex-direction:column;align-items:stretch;gap:4px;margin-bottom:10px;">
+      ${headerRow}
+      ${body}
     </div>`;
+}
+
+function updateQcmOptionText(roundId, qId, optIndex, value) {
+  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+  const q = round?.questions?.find(q => q.id === qId);
+  if (!q) return;
+  if (!Array.isArray(q.options)) q.options = [{text:'',mediaUrl:''},{text:'',mediaUrl:''},{text:'',mediaUrl:''},{text:'',mediaUrl:''}];
+  const opt = q.options[optIndex];
+  if (typeof opt === 'string') q.options[optIndex] = { id: uid('opt'), text: value, mediaUrl: '' };
+  else if (opt) opt.text = value;
+  // recalculer correctAnswer depuis correctOptionIndex
+  const idx = typeof q.correctOptionIndex === 'number' ? q.correctOptionIndex : 0;
+  q.correctAnswer = (q.options[idx]?.text || q.options[idx] || '').toString();
+}
+
+function updateQcmCorrect(roundId, qId, optIndex) {
+  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+  const q = round?.questions?.find(q => q.id === qId);
+  if (!q) return;
+  q.correctOptionIndex = optIndex;
+  const opt = q.options?.[optIndex];
+  q.correctAnswer = typeof opt === 'object' ? (opt.text || '') : String(opt || '');
+}
+
+function updateBurgerItem(roundId, qId, itemIndex, value) {
+  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+  const q = round?.questions?.find(q => q.id === qId);
+  if (!q || !Array.isArray(q.items)) return;
+  if (q.items[itemIndex]) q.items[itemIndex].text = value;
 }
 
 function addRound() {
   const q = state.admin.editingQuiz;
   q.rounds = q.rounds || [];
   q.rounds.push(emptyRound(q.rounds.length));
+  state.admin.activeRoundIndex = q.rounds.length - 1;
   renderQuizEditor();
 }
 
@@ -1330,6 +1720,81 @@ function changeQuestionType(roundId, qId, newType) {
     if (!q.correctAnswer) q.correctAnswer = q.options[0] || 'Option A';
   }
   renderQuizEditor();
+}
+
+async function uploadRoundMedia(roundId, field, accept) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = accept;
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch(`${API}/api/uploads/media`, { method: 'POST', body: fd });
+      const d   = await res.json();
+      if (!d.ok) { alert$('admin-alert', d.error || 'Erreur upload', 'error'); return; }
+      const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+      if (round) { round[field] = d.file.mediaUrl; }
+      alert$('admin-alert', '✅ Fichier uploadé !', 'success');
+      renderQuizEditor();
+    } catch { alert$('admin-alert', 'Erreur réseau upload', 'error'); }
+  };
+  input.click();
+}
+
+function clearRoundMedia(roundId, field) {
+  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+  if (round) { round[field] = ''; renderQuizEditor(); }
+}
+
+async function uploadOptionMedia(roundId, qId, optIndex) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*,audio/*';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch(`${API}/api/uploads/media`, { method: 'POST', body: fd });
+      const d   = await res.json();
+      if (!d.ok) { alert$('admin-alert', d.error || 'Erreur upload', 'error'); return; }
+      const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+      const q = round?.questions?.find(q => q.id === qId);
+      if (q && Array.isArray(q.options) && q.options[optIndex]) {
+        q.options[optIndex].mediaUrl = d.file.mediaUrl;
+      }
+      renderQuizEditor();
+    } catch { alert$('admin-alert', 'Erreur réseau upload', 'error'); }
+  };
+  input.click();
+}
+
+async function uploadItemMedia(roundId, qId, itemIndex) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*,audio/*';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch(`${API}/api/uploads/media`, { method: 'POST', body: fd });
+      const d   = await res.json();
+      if (!d.ok) { alert$('admin-alert', d.error || 'Erreur upload', 'error'); return; }
+      const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+      const q = round?.questions?.find(q => q.id === qId);
+      if (q && Array.isArray(q.items) && q.items[itemIndex]) {
+        q.items[itemIndex].mediaUrl = d.file.mediaUrl;
+      }
+      renderQuizEditor();
+    } catch { alert$('admin-alert', 'Erreur réseau upload', 'error'); }
+  };
+  input.click();
 }
 
 async function openMediaUpload(qId) {

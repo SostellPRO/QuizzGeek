@@ -56,6 +56,12 @@ export function createInitialGameState({ quiz = null, sessionCode } = {}) {
     // { firstPlayerId, firstPseudo, buzzedAt }
     buzzerState: null,
 
+    // Liste des playerId ayant déjà buzzé sur la question courante (mode rapidité)
+    buzzerQueue: [],
+
+    // État burger : { questionId, currentItemIndex }
+    burgerState: null,
+
     createdAt: nowIso(),
     updatedAt: nowIso(),
   };
@@ -79,6 +85,8 @@ export function resetQuestionTransientState(gameState) {
 
   gameState.trueFalseVotes = { yes: [], no: [] };
   gameState.buzzerState = null;
+  gameState.buzzerQueue = [];
+  gameState.burgerState = null;
 
   // important pour éviter qu'un timer précédent reste accroché
   gameState.phaseMeta.timer = null;
