@@ -1128,6 +1128,134 @@ export function cancelPendingAutoReveal(session) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Nouvelles actions de navigation & jeu                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Retour à la manche précédente (round_intro de cette manche)
+ */
+export function prevRound(session) {
+  ensureSessionRuntime(session);
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+
+  const curIdx = Number(session?.gameState?.currentRoundIndex ?? -1);
+  if (curIdx <= 0) return { ok: false, error: "Déjà à la première manche" };
+
+  const rounds = getRounds(session);
+  const prevIdx = curIdx - 1;
+  if (!rounds[prevIdx]) return { ok: false, error: "Manche précédente introuvable" };
+
+  session.gameState.currentRoundIndex = prevIdx;
+  session.gameState.currentQuestionIndex = -1;
+  setCurrentRoundAndQuestionSnapshots(session);
+  resetQuestionTransient(session);
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+    answerMode: "none",
+    timer: null,
+  });
+  setStatus(session, "round_intro");
+  return { ok: true };
+}
+
+/**
+ * Rafraîchit la question courante : remet à zéro réponses et transients,
+ * repart sur la même question sans changer d'index.
+ */
+export function refreshQuestion(session) {
+  ensureSessionRuntime(session);
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+
+  const q = getCurrentQuestion(session);
+  if (!q) return { ok: false, error: "Aucune question active" };
+
+  // Effacer les réponses enregistrées pour cette question
+  if (session.gameState.answers && q.id) {
+    delete session.gameState.answers[q.id];
+  }
+
+  resetQuestionTransient(session);
+  setPhaseMeta(session, {
+    playerScreenLocked: false,
+    allowAnswer: true,
+    timer: null,
+  });
+  setAnswerModeFromQuestion(session);
+  setStatus(session, "question");
+  return { ok: true };
+}
+
+/**
+ * Sélectionne le joueur actif pour l'épreuve Burger.
+ * Les autres joueurs verront un écran d'attente.
+ */
+export function setBurgerPlayer(session, playerId) {
+  ensureSessionRuntime(session);
+
+  if (!playerId) {
+    // Désélectionner
+    session.gameState.burgerSelectedPlayerId = null;
+    touch(session);
+    return { ok: true };
+  }
+
+  const player = (session.players || []).find((p) => p.id === playerId);
+  if (!player) return { ok: false, error: "Joueur introuvable" };
+
+  session.gameState.burgerSelectedPlayerId = playerId;
+  session.gameState.burgerSelectedPseudo = player.pseudo;
+  touch(session);
+  return { ok: true };
+}
+
+/**
+ * Passe au joueur suivant dans la file buzzer (mode rapidité).
+ * Appelé par l'hôte après une mauvaise réponse.
+ */
+export function buzzerNextPlayer(session) {
+  ensureSessionRuntime(session);
+
+  const gs = session.gameState;
+  // Supprimer le premier de la queue (celui qui vient de rater)
+  if (Array.isArray(gs.buzzerQueue) && gs.buzzerQueue.length > 0) {
+    gs.buzzerQueue.shift();
+  }
+
+  // Si plus personne dans la queue : reset complet (permettre de re-buzzer)
+  if (!gs.buzzerQueue || gs.buzzerQueue.length === 0) {
+    gs.buzzerState = null;
+    gs.buzzerQueue = [];
+    setPhaseMeta(session, {
+      playerScreenLocked: false,
+      allowAnswer: true,
+    });
+    setStatus(session, "question");
+    touch(session);
+    return { ok: true, queueEmpty: true };
+  }
+
+  // Il reste des joueurs dans la queue : proposer au suivant
+  const nextId = gs.buzzerQueue[0];
+  const nextPlayer = (session.players || []).find((p) => p.id === nextId);
+  gs.buzzerState = {
+    firstPlayerId: nextId,
+    firstPseudo: nextPlayer?.pseudo || nextId,
+    buzzedAt: new Date().toISOString(),
+  };
+
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+  });
+  setStatus(session, "manual_scoring");
+  touch(session);
+  return { ok: true, nextPseudo: nextPlayer?.pseudo || nextId };
+}
+
+/* ------------------------------------------------------------------ */
 /* Helpers optionnels (non importés par socket.js, mais utiles)        */
 /* ------------------------------------------------------------------ */
 

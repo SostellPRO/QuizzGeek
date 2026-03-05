@@ -379,7 +379,17 @@ function renderPlayerGame() {
   `;
 
   // Contenu selon la phase
-  if (phase === 'lobby') {
+  const isPaused = gs?.phaseMeta?.paused === true;
+
+  if (isPaused) {
+    content += `
+      <div class="pause-screen">
+        <div class="pause-icon">⏸️</div>
+        <h2>Pause</h2>
+        <p class="muted" style="margin-top:8px;">Le maître de jeu a mis la partie en pause…</p>
+        <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
+      </div>`;
+  } else if (phase === 'lobby') {
     content += `
       <div class="card" style="text-align:center;padding:40px;">
         <div style="font-size:3rem;">⏳</div>
@@ -396,7 +406,22 @@ function renderPlayerGame() {
         <p class="muted">${round?.shortRules || 'Préparez-vous !'}</p>
       </div>`;
   } else if (phase === 'question' || phase === 'waiting') {
-    content += renderPlayerQuestionContent(gs, s.playerId, gs.phaseMeta?.playerScreenLocked);
+    // Burger : seul le joueur sélectionné joue, les autres attendent
+    const burgerSelectedId = gs?.burgerSelectedPlayerId;
+    const isBurgerRound = gs?.currentRound?.type === 'burger' || gs?.currentQuestion?.type === 'burger';
+    if (isBurgerRound && burgerSelectedId && burgerSelectedId !== s.playerId) {
+      const burgerPseudo = gs?.burgerSelectedPseudo || 'Un joueur';
+      content += `
+        <div class="card" style="text-align:center;padding:40px;">
+          <div style="font-size:3rem;margin-bottom:14px;">🍔</div>
+          <h2>Épreuve Burger</h2>
+          <p class="muted" style="margin-top:8px;font-size:1rem;"><strong style="color:#fff;">${burgerPseudo}</strong> passe l'épreuve</p>
+          <p class="muted" style="margin-top:10px;">Regardez l'écran principal !</p>
+          <div class="waiting-dots"><span></span><span></span><span></span></div>
+        </div>`;
+    } else {
+      content += renderPlayerQuestionContent(gs, s.playerId, gs.phaseMeta?.playerScreenLocked);
+    }
   } else if (phase === 'answer_reveal') {
     content += renderPlayerRevealContent(gs, s.playerId);
   } else if (phase === 'manual_scoring') {
@@ -870,192 +895,326 @@ function renderHostPilotageTab(gs, phase) {
   const currentQIdx     = gs?.currentQuestionIndex ?? -1;
   const currentRound    = gs?.currentRound;
   const currentQ        = gs?.currentQuestion;
+  const isPaused        = gs?.phaseMeta?.paused === true;
+  const isBurger        = (currentRound?.type === 'burger' || currentQ?.type === 'burger');
+  const isBuzzer        = gs?.phaseMeta?.answerMode === 'buzzer';
 
-  // Bouton ouvrir l'écran TV + info phase
+  // ── Bandeau supérieur : phase + bouton TV ─────────────────────
+  const phaseLabelMap = {
+    lobby:          '<span class="badge blue">🎪 Lobby</span>',
+    round_intro:    '<span class="badge orange">📢 Présentation manche</span>',
+    question:       isPaused ? '<span class="badge red">⏸️ Pause</span>' : '<span class="badge orange">❓ Question</span>',
+    waiting:        '<span class="badge orange">⏳ Traitement</span>',
+    answer_reveal:  '<span class="badge green">📋 Révélation</span>',
+    manual_scoring: '<span class="badge orange">⚖️ Arbitrage</span>',
+    results:        '<span class="badge blue">📊 Résultats manche</span>',
+    end:            '<span class="badge green">🎉 Fin du quiz</span>',
+  };
   out += `
-    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-      <div>
-        <span class="muted" style="font-size:.78rem;text-transform:uppercase;display:block;margin-bottom:2px;">Phase</span>
-        ${{
-          lobby:'<span class="badge blue" style="font-size:.9rem;">🎪 Lobby</span>',
-          round_intro:'<span class="badge orange" style="font-size:.9rem;">📢 Présentation manche</span>',
-          question:'<span class="badge orange" style="font-size:.9rem;">❓ Question en cours</span>',
-          waiting:'<span class="badge orange" style="font-size:.9rem;">⏳ Traitement</span>',
-          answer_reveal:'<span class="badge green" style="font-size:.9rem;">📋 Révélation réponse</span>',
-          manual_scoring:'<span class="badge orange" style="font-size:.9rem;">⚖️ Arbitrage</span>',
-          results:'<span class="badge blue" style="font-size:.9rem;">📊 Résultats manche</span>',
-          end:'<span class="badge green" style="font-size:.9rem;">🎉 Fin du quiz</span>',
-        }[phase] || `<span class="badge" style="font-size:.9rem;">${phase}</span>`}
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <div>${phaseLabelMap[phase] || `<span class="badge">${phase}</span>`}</div>
+      <div class="row" style="gap:6px;">
+        <button class="btn-secondary btn-sm" onclick="showBroadcastModal()">📡 Diffuser</button>
+        <button class="btn-primary" style="padding:8px 16px;" onclick="openDisplayPopup()">📺 Écran TV ↗</button>
       </div>
-      <button class="btn-primary" style="padding:9px 18px;" onclick="openDisplayPopup()">
-        📺 Ouvrir l'écran TV ↗
-      </button>
     </div>`;
 
-  // Manche + question courante
+  // ── Aperçu question en cours ──────────────────────────────────
   if (currentRound) {
+    const answeredCount = currentQ ? Object.keys(gs?.answers?.[currentQ.id] || {}).length : 0;
+    const connectedCount = state.players.filter(p => p.connected).length;
     out += `
-      <div class="card" style="margin-bottom:12px;padding:14px;border-color:rgba(99,179,237,.2);">
-        <div class="muted" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">
-          MANCHE ${currentRoundIdx + 1} · ${(currentRound.type || '').toUpperCase()}
-        </div>
-        <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-          <h3 style="margin:0;">${currentRound.title || 'Manche en cours'}</h3>
-          <span class="muted" style="font-size:.8rem;">${(currentRound.questions||[]).length} question(s)</span>
-        </div>
-        ${currentQ ? `
-          <div style="margin-top:10px;padding:10px 14px;background:rgba(255,255,255,.06);border-radius:8px;">
-            <div class="muted" style="font-size:.7rem;text-transform:uppercase;margin-bottom:3px;">Question ${currentQIdx + 1}</div>
-            <p style="font-size:.95rem;font-weight:600;">${currentQ.content || '—'}</p>
-            ${currentQ.correctAnswer ? `<p style="color:#38ef7d;font-size:.82rem;margin-top:5px;">✓ Réponse : ${currentQ.correctAnswer}</p>` : ''}
-            <p style="font-size:.78rem;margin-top:5px;">
-              Écrans joueurs : ${gs?.phaseMeta?.playerScreenLocked ? '<span class="badge red" style="font-size:.7rem;">🔒 Verrouillés</span>' : '<span class="badge green" style="font-size:.7rem;">🔓 Ouverts</span>'}
-            </p>
-          </div>` : '<p class="muted" style="margin-top:8px;font-size:.85rem;">Aucune question active — cliquez "Question suivante" pour commencer.</p>'}
-      </div>`;
-  }
-
-  // ── Commandes de navigation ──
-  const actionBtns = buildHostActionButtons(phase);
-  if (actionBtns.length) {
-    out += `
-      <div class="card" style="margin-bottom:12px;">
-        <h3 style="margin-bottom:12px;">⚡ Commandes</h3>
-        <div class="ctrl-grid">
-          ${actionBtns.map(b => `<button class="btn-${b.style}" onclick="hostAction('${b.action}')" style="white-space:nowrap;text-align:center;">${b.label}</button>`).join('')}
-        </div>
-      </div>`;
-  }
-
-  // Timer (en phase question/waiting)
-  if (phase === 'question' || phase === 'waiting') {
-    const timerInfo = gs?.phaseMeta?.timer;
-    out += `
-      <div class="card" style="margin-bottom:12px;">
-        <h3>⏱️ Chronomètre</h3>
-        ${timerInfo ? `
-          <div style="margin-bottom:10px;">
-            <div class="row" style="justify-content:space-between;margin-bottom:6px;">
-              <span class="muted">Temps restant</span>
-              <strong style="color:#ff9a56;font-size:1.3rem;">${timerInfo.remainingSec}s</strong>
+      <div class="card" style="padding:13px;border-color:rgba(99,179,237,.2);margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:0;">
+            <div class="muted" style="font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">
+              Manche ${currentRoundIdx+1} — ${(currentRound.type||'').toUpperCase()} · ${(currentRound.questions||[]).length} Q
             </div>
-            <div class="progress-bar"><div class="fill" style="width:${timerInfo.totalSec>0?Math.round(timerInfo.remainingSec/timerInfo.totalSec*100):0}%"></div></div>
-          </div>` : ''}
-        <div class="row" style="margin-top:8px;">
-          <input type="number" id="timer-sec" value="30" min="1" max="300" style="width:90px;flex-shrink:0;">
-          <button class="btn-success" onclick="startTimer()">▶ Démarrer</button>
+            <div style="font-size:.92rem;font-weight:600;margin-bottom:${currentQ?'8px':'0'};">${currentRound.title||'Manche en cours'}</div>
+            ${currentQ ? `
+              <div style="padding:9px 12px;background:rgba(255,255,255,.06);border-radius:8px;">
+                <div class="muted" style="font-size:.65rem;margin-bottom:3px;">Q${currentQIdx+1}</div>
+                <p style="font-size:.9rem;font-weight:600;margin-bottom:4px;">${currentQ.content||'—'}</p>
+                ${currentQ.correctAnswer ? `<p style="color:#38ef7d;font-size:.78rem;">✓ ${currentQ.correctAnswer}</p>` : ''}
+              </div>` : '<p class="muted" style="font-size:.82rem;">Pas de question active</p>'}
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            ${currentQ ? `<p style="font-size:1.4rem;font-weight:700;color:#f59e0b;">${answeredCount}<span class="muted" style="font-size:.8rem;">/${connectedCount}</span></p><p class="muted" style="font-size:.65rem;">réponses</p>` : ''}
+            <p style="margin-top:6px;font-size:.72rem;">${gs?.phaseMeta?.playerScreenLocked ? '<span class="badge red" style="font-size:.65rem;">🔒 Verrouillé</span>' : '<span class="badge green" style="font-size:.65rem;">🔓 Ouvert</span>'}</p>
+          </div>
         </div>
       </div>`;
   }
 
-  // Buzzer state
+  // ── Section NAVIGATION ────────────────────────────────────────
+  const showNav = ['round_intro','question','waiting','answer_reveal','manual_scoring','results'].includes(phase);
+  if (showNav) {
+    out += `
+      <div class="card" style="padding:12px;margin-bottom:10px;">
+        <div class="ctrl-section-title">🧭 Navigation</div>
+        <div class="ctrl-nav-grid">
+          <button class="btn-secondary" onclick="hostAction('prev_round')" title="Manche précédente">← Manche</button>
+          <button class="btn-secondary" onclick="hostAction('prev_question')" title="Question précédente">← Question</button>
+          <button class="btn-success" onclick="hostAction('next_question')" title="Question suivante">Question →</button>
+          <button class="btn-secondary" onclick="hostAction('next_round')" title="Manche suivante">Manche →</button>
+        </div>
+      </div>`;
+  }
+
+  // ── Section ACTIONS DE JEU ────────────────────────────────────
+  const gameActions = buildHostGameActions(gs, phase, isPaused, isBuzzer, isBurger);
+  if (gameActions.length) {
+    out += `
+      <div class="card" style="padding:12px;margin-bottom:10px;">
+        <div class="ctrl-section-title">⚡ Actions de jeu</div>
+        <div class="ctrl-action-grid">
+          ${gameActions.map(b => `<button class="btn-${b.style}" onclick="${b.onclick}" style="font-size:.82rem;padding:9px 8px;">${b.label}</button>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  // ── Buzzer state ──────────────────────────────────────────────
   if (gs?.buzzerState?.firstPseudo) {
     const buzzerQueuePseudos = (gs.buzzerQueue || [])
       .map(pid => state.players.find(p => (p.id||p.playerId) === pid)?.pseudo || pid)
-      .filter(Boolean).join(', ');
+      .filter(Boolean);
     out += `
-      <div class="card" style="margin-bottom:12px;border-color:rgba(255,165,0,.3);background:rgba(255,165,0,.06);">
-        <div class="row" style="align-items:center;gap:12px;">
-          <span style="font-size:2.2rem;">🔔</span>
-          <div>
+      <div class="card" style="margin-bottom:10px;border-color:rgba(255,165,0,.35);background:rgba(255,165,0,.07);">
+        <div class="row" style="gap:12px;margin-bottom:10px;">
+          <span style="font-size:2rem;">🔔</span>
+          <div style="flex:1;">
             <strong style="font-size:1.1rem;">${gs.buzzerState.firstPseudo}</strong>
-            <p class="muted" style="margin-top:2px;">a buzzé en premier — interrogez-le oralement</p>
-            ${buzzerQueuePseudos ? `<p class="muted" style="font-size:.78rem;margin-top:3px;">Queue : ${buzzerQueuePseudos} (${(gs.buzzerQueue||[]).length}/${state.players.filter(p=>p.connected).length})</p>` : ''}
+            <p class="muted" style="font-size:.82rem;margin-top:2px;">a buzzé — interrogez oralement</p>
+            ${buzzerQueuePseudos.length > 1 ? `<p class="muted" style="font-size:.75rem;margin-top:2px;">File : ${buzzerQueuePseudos.join(' → ')} (${buzzerQueuePseudos.length}/${state.players.filter(p=>p.connected).length})</p>` : ''}
           </div>
+        </div>
+        <div class="row" style="gap:6px;">
+          <button class="btn-success" style="flex:1;" onclick="hostAction('award_buzzer_correct')">✅ Bonne réponse (+1)</button>
+          <button class="btn-danger" style="flex:1;" onclick="hostAction('award_buzzer_wrong')">❌ Mauvaise (suivant)</button>
         </div>
       </div>`;
   }
 
-  // Révélation (phase answer_reveal)
-  if (phase === 'answer_reveal') {
-    const revealed = gs?.revealedAnswer;
-    if (revealed) {
-      const correctNorm = (revealed.correctAnswer || '').trim().toLowerCase();
-      const answerRows = (revealed.answers || []).map(a => {
-        const isCorrect = (a.answer || '').trim().toLowerCase() === correctNorm;
-        return `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:8px;background:${isCorrect?'rgba(56,239,125,.1)':'rgba(235,51,73,.1)'};margin-bottom:5px;">
-            <span style="font-weight:600;">${a.pseudo || '—'}</span>
-            <span style="color:${isCorrect?'#38ef7d':'#eb3349'};font-size:.9rem;">${a.answer || '—'} ${isCorrect?'✅':'❌'}</span>
-          </div>`;
-      }).join('') || '<p class="muted">Aucune réponse enregistrée</p>';
+  // ── Burger : sélection joueur ─────────────────────────────────
+  if (isBurger && phase === 'question') {
+    const selectedId = gs?.burgerSelectedPlayerId || null;
+    const playerBtns = state.players.filter(p => p.connected).map(p => `
+      <button class="burger-player-btn ${p.id === selectedId ? 'selected' : ''}"
+        onclick="hostAction('burger_select_player',{playerId:'${p.id}'})">
+        <span style="font-size:1.4rem;display:block;margin-bottom:4px;">${p.avatar || '🎮'}</span>
+        ${p.pseudo}
+      </button>`).join('');
+    out += `
+      <div class="card" style="padding:12px;margin-bottom:10px;">
+        <div class="ctrl-section-title">🍔 Joueur Burger actif</div>
+        <div class="burger-player-grid">${playerBtns || '<p class="muted">Aucun joueur connecté</p>'}</div>
+        ${selectedId ? `<button class="btn-secondary btn-sm" style="margin-top:8px;" onclick="hostAction('burger_select_player',{playerId:null})">✕ Désélectionner</button>` : ''}
+      </div>`;
+  }
+
+  // ── Timer ─────────────────────────────────────────────────────
+  if (['question','waiting','manual_scoring'].includes(phase)) {
+    const timerInfo = gs?.phaseMeta?.timer;
+    const pct = timerInfo?.totalSec > 0 ? Math.round(timerInfo.remainingSec / timerInfo.totalSec * 100) : 0;
+    out += `
+      <div class="card" style="padding:12px;margin-bottom:10px;">
+        <div class="ctrl-section-title">⏱️ Chronomètre</div>
+        ${timerInfo ? `
+          <div style="margin-bottom:10px;">
+            <div class="row" style="justify-content:space-between;margin-bottom:6px;">
+              <span class="muted" style="font-size:.85rem;">Restant</span>
+              <strong style="color:#ff9a56;font-size:1.4rem;">${timerInfo.remainingSec}s</strong>
+            </div>
+            <div class="progress-bar"><div class="fill" style="width:${pct}%"></div></div>
+          </div>` : ''}
+        <div class="timer-presets">
+          ${[5,10,20,30,45,60].map(s => `<button class="timer-preset-btn" onclick="setTimerPreset(${s})">${s}s</button>`).join('')}
+        </div>
+        <div class="row" style="gap:6px;">
+          <input type="number" id="timer-sec" value="${timerInfo?.remainingSec || 30}" min="1" max="300" style="width:80px;flex-shrink:0;font-size:.9rem;">
+          <button class="btn-success" style="flex:1;" onclick="startTimer()">▶ Démarrer</button>
+          ${timerInfo ? '<button class="btn-secondary" style="flex-shrink:0;" onclick="hostAction(\'pause_game\')">⏸</button>' : ''}
+        </div>
+      </div>`;
+  }
+
+  // ── Révélation des réponses ───────────────────────────────────
+  if (phase === 'answer_reveal' && gs?.revealedAnswer) {
+    const revealed = gs.revealedAnswer;
+    const correctNorm = (revealed.correctAnswer || '').trim().toLowerCase();
+    const answerRows = (revealed.answers || []).map(a => {
+      const isCorrect = (a.answer || '').trim().toLowerCase() === correctNorm;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:8px;background:${isCorrect?'rgba(56,239,125,.1)':'rgba(235,51,73,.08)'};margin-bottom:4px;">
+        <span style="font-weight:600;font-size:.88rem;">${a.pseudo || '—'}</span>
+        <span style="color:${isCorrect?'#38ef7d':'#eb3349'};font-size:.85rem;">${a.answer || '—'} ${isCorrect?'✅':'❌'}</span>
+      </div>`;
+    }).join('') || '<p class="muted">Aucune réponse</p>';
+    out += `
+      <div class="card" style="padding:13px;margin-bottom:10px;">
+        <div class="ctrl-section-title">📋 Réponses révélées</div>
+        <div style="padding:8px 12px;background:rgba(56,239,125,.08);border:1px solid rgba(56,239,125,.25);border-radius:8px;margin-bottom:8px;">
+          <p class="muted" style="font-size:.65rem;margin-bottom:2px;">BONNE RÉPONSE</p>
+          <p style="font-size:1.2rem;font-weight:700;color:#38ef7d;">${revealed.correctAnswer || '—'}</p>
+        </div>
+        <div>${answerRows}</div>
+      </div>`;
+  }
+
+  // ── Gestion des points ────────────────────────────────────────
+  if (['manual_scoring','answer_reveal','waiting','question','results'].includes(phase)) {
+    const allPlayers = state.leaderboardPlayers.slice(0, 20);
+    const allTeams = state.leaderboardTeams.slice(0, 10);
+
+    if (allPlayers.length) {
       out += `
-        <div class="card" style="margin-bottom:12px;">
-          <h3>📋 Révélation des réponses</h3>
-          <div style="margin:10px 0;padding:10px 14px;background:rgba(56,239,125,.08);border:1px solid rgba(56,239,125,.25);border-radius:8px;">
-            <p class="muted" style="font-size:.72rem;margin-bottom:3px;">BONNE RÉPONSE</p>
-            <p style="font-size:1.25rem;font-weight:700;color:#38ef7d;">${revealed.correctAnswer || '—'}</p>
+        <div class="card" style="padding:12px;margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+            <div class="ctrl-section-title" style="margin:0;">🏅 Attribution de points</div>
+            <div class="row" style="gap:5px;">
+              <button class="btn-success btn-sm" onclick="hostAction('award_all',{points:1})">+1 Tous</button>
+              <button class="btn-danger btn-sm" onclick="hostAction('award_all',{points:-1})">-1 Tous</button>
+            </div>
           </div>
-          <div>${answerRows}</div>
+          <div class="player-point-grid">
+            ${allPlayers.map(p => `
+              <div class="player-point-card">
+                <span class="p-avatar">${p.avatar || '🎮'}</span>
+                <div class="p-pseudo">${p.pseudo}</div>
+                <div class="p-score">${p.scoreTotal ?? 0} pts</div>
+                <div class="pt-btns">
+                  <button class="pt-btn pt-btn-minus" onclick="awardPoints('${p.playerId}',-1)">-1</button>
+                  <button class="pt-btn pt-btn-plus" onclick="awardPoints('${p.playerId}',1)">+1</button>
+                </div>
+              </div>`).join('')}
+          </div>
+          ${allTeams.length ? `
+            <div style="margin-top:12px;border-top:1px solid rgba(255,255,255,.08);padding-top:10px;">
+              <div class="ctrl-section-title" style="margin-bottom:7px;">⚽ Par équipe</div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;">
+                ${allTeams.map(t => `
+                  <div style="background:rgba(255,255,255,.05);border-radius:10px;padding:8px;text-align:center;">
+                    <div style="font-size:.82rem;font-weight:600;margin-bottom:2px;">${t.name}</div>
+                    <div style="font-size:.72rem;color:#f59e0b;margin-bottom:6px;">${t.scoreTotal??0} pts</div>
+                    <div class="pt-btns">
+                      <button class="pt-btn pt-btn-minus" onclick="hostAction('award_team',{teamId:'${t.id}',points:-1})">-1</button>
+                      <button class="pt-btn pt-btn-plus" onclick="hostAction('award_team',{teamId:'${t.id}',points:1})">+1</button>
+                    </div>
+                  </div>`).join('')}
+              </div>
+            </div>` : ''}
         </div>`;
     }
   }
 
-  // Attribution manuelle de points
-  if (['manual_scoring','answer_reveal','waiting','question'].includes(phase) && state.leaderboardPlayers.length) {
-    out += `
-      <div class="card" style="margin-bottom:12px;">
-        <h3>➕ Points manuels</h3>
-        <div class="grid3" style="margin-top:10px;">
-          ${state.leaderboardPlayers.slice(0,12).map(p => `
-            <div style="background:rgba(255,255,255,.05);border-radius:10px;padding:10px;text-align:center;">
-              <p style="font-weight:600;font-size:.88rem;margin-bottom:2px;">${p.pseudo}</p>
-              <p class="muted" style="margin-bottom:7px;font-size:.78rem;">${p.scoreTotal??0} pts</p>
-              <button class="btn-success" style="width:100%;padding:5px;font-size:.82rem;" onclick="awardPoints('${p.playerId}',1)">+1</button>
-            </div>`).join('')}
-        </div>
-      </div>`;
-  }
-
-  // Bilan de manche (phase results)
+  // ── Bilan de manche ───────────────────────────────────────────
   if (phase === 'results') {
     const rnd = gs?.currentRound;
     const questions = Array.isArray(rnd?.questions) ? rnd.questions : [];
     if (questions.length) {
       const qRows = questions.map((q, i) => {
-        const answers = gs?.answers?.[q.id] || {};
-        const answersArr = Object.values(answers);
+        const answersArr = Object.values(gs?.answers?.[q.id] || {});
         const correctNorm = (q.correctAnswer || '').trim().toLowerCase();
         const correctCount = answersArr.filter(a => (a.answer||'').trim().toLowerCase() === correctNorm).length;
-        return `
-          <div style="padding:10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:7px;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-              <div style="flex:1;">
-                <span class="muted" style="font-size:.72rem;">${i+1}. ${(q.type||'?').toUpperCase()}</span>
-                <p style="margin:4px 0;font-weight:600;">${q.content || '—'}</p>
-                ${q.correctAnswer ? `<p style="color:#38ef7d;font-size:.82rem;">✓ ${q.correctAnswer}</p>` : ''}
-              </div>
-              ${answersArr.length ? `<div style="text-align:right;flex-shrink:0;"><strong>${correctCount}/${answersArr.length}</strong><p class="muted" style="font-size:.72rem;">correct</p></div>` : ''}
+        return `<div style="padding:9px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+            <div style="flex:1;">
+              <span class="muted" style="font-size:.68rem;">${i+1}. ${(q.type||'?').toUpperCase()}</span>
+              <p style="margin:3px 0;font-weight:600;font-size:.88rem;">${q.content||'—'}</p>
+              ${q.correctAnswer ? `<p style="color:#38ef7d;font-size:.78rem;">✓ ${q.correctAnswer}</p>` : ''}
             </div>
-          </div>`;
-      }).join('');
-      out += `
-        <div class="card" style="margin-bottom:12px;">
-          <h3>📊 Bilan — ${rnd?.title || 'Manche'}</h3>
-          <div style="margin-top:10px;">${qRows}</div>
+            ${answersArr.length ? `<div style="text-align:right;flex-shrink:0;"><strong>${correctCount}/${answersArr.length}</strong><p class="muted" style="font-size:.68rem;">correct</p></div>` : ''}
+          </div>
         </div>`;
+      }).join('');
+      out += `<div class="card" style="padding:12px;margin-bottom:10px;">
+        <div class="ctrl-section-title">📊 Bilan — ${rnd?.title||'Manche'}</div>
+        ${qRows}
+      </div>`;
     }
     out += renderScoreboard(state.leaderboardPlayers, '🏆 Classement');
     if (state.leaderboardTeams.length) {
-      out += `
-        <div class="card">
-          <h2>👥 Classement équipes</h2>
-          <table><thead><tr><th>Rang</th><th>Équipe</th><th>Score</th></tr></thead>
-          <tbody>${state.leaderboardTeams.map((t,i) => `<tr class="rank-${i+1}"><td>${t.rank??i+1}</td><td>${t.name}</td><td><strong>${t.scoreTotal??0}</strong></td></tr>`).join('')}</tbody></table>
-        </div>`;
+      out += `<div class="card"><h3>👥 Équipes</h3>
+        <table><thead><tr><th>Rang</th><th>Équipe</th><th>Score</th></tr></thead>
+        <tbody>${state.leaderboardTeams.map((t,i) => `<tr class="rank-${i+1}"><td>${t.rank??i+1}</td><td>${t.name}</td><td><strong>${t.scoreTotal??0}</strong></td></tr>`).join('')}</tbody></table>
+      </div>`;
     }
   }
 
-  // Classement final
+  // ── Fin + cérémonie ───────────────────────────────────────────
   if (phase === 'end') {
-    out += renderFinalCeremony(gs, state.leaderboardPlayers);
-    out += renderScoreboard(state.leaderboardPlayers, '🏆 Classement final');
+    const fc = gs?.phaseMeta?.finalCeremony;
+    if (!fc) {
+      out += `<div class="card" style="text-align:center;padding:20px;">
+        <p class="muted" style="margin-bottom:12px;">Lance la cérémonie pour révéler le classement progressivement</p>
+        <button class="btn-primary" onclick="hostAction('final_ceremony_init')">🎊 Lancer la cérémonie finale</button>
+      </div>`;
+    } else {
+      const remaining = fc.revealOrder.length - fc.revealCursor;
+      out += `<div class="card" style="padding:12px;margin-bottom:10px;">
+        <div class="ctrl-section-title">🎊 Cérémonie finale</div>
+        <div class="row" style="gap:6px;flex-wrap:wrap;">
+          ${remaining > 0 ? `<button class="btn-success" onclick="hostAction('final_ceremony_reveal_next')">▶ Révéler suivant (${remaining} restant${remaining>1?'s':''})</button>` : ''}
+          ${fc.winnerTeam && fc.stage !== 'team_winner' ? `<button class="btn-primary" onclick="hostAction('final_ceremony_show_team_winner')">🏆 Équipe gagnante</button>` : ''}
+          <button class="btn-secondary btn-sm" onclick="hostAction('final_ceremony_reset')">↩ Recommencer</button>
+        </div>
+        <p class="muted" style="font-size:.75rem;margin-top:8px;">${fc.revealCursor}/${fc.revealOrder.length} révélé(s) · Étape : ${fc.stage}</p>
+      </div>`;
+      out += renderFinalCeremony(gs, state.leaderboardPlayers);
+    }
   }
 
-  // Accordion des manches (aperçu navigation)
+  // Accordion des manches
   out += renderRoundsAccordion(gs);
 
   return out;
+}
+
+// ── Boutons actions de jeu (sans navigation) ──────────────────
+function buildHostGameActions(gs, phase, isPaused, isBuzzer, isBurger) {
+  const btns = [];
+  if (phase === 'lobby') {
+    btns.push({ label: '▶️ Démarrer le quiz', style: 'success', onclick: "hostAction('start_quiz')" });
+  }
+  if (phase === 'round_intro') {
+    btns.push({ label: '▶️ Première question', style: 'success', onclick: "hostAction('next_question')" });
+    btns.push({ label: '🔁 Réafficher intro', style: 'secondary', onclick: "hostAction('start_round')" });
+  }
+  if (['question','waiting'].includes(phase)) {
+    if (isPaused) {
+      btns.push({ label: '▶️ Reprendre', style: 'success', onclick: "hostAction('resume_game')" });
+    } else {
+      btns.push({ label: '⏸️ Pause', style: 'warning', onclick: "hostAction('pause_game')" });
+    }
+    if (isBurger) {
+      btns.push({ label: '🍔 Élément suivant', style: 'success', onclick: "hostAction('burger_next_item')" });
+    } else {
+      btns.push({ label: '📋 Révéler réponse', style: 'secondary', onclick: "hostAction('reveal_answer')" });
+    }
+    btns.push({ label: '🔁 Refresh question', style: 'secondary', onclick: "hostAction('refresh_question')" });
+    btns.push({ label: '📊 Afficher scores', style: 'secondary', onclick: "hostAction('show_results')" });
+  }
+  if (phase === 'answer_reveal') {
+    btns.push({ label: '📊 Résultats manche', style: 'secondary', onclick: "hostAction('show_results')" });
+  }
+  if (phase === 'results') {
+    btns.push({ label: '⏭️ Manche suivante', style: 'success', onclick: "hostAction('next_round')" });
+    btns.push({ label: '🏁 Terminer le quiz', style: 'danger', onclick: "hostAction('finish_quiz')" });
+  }
+  if (phase === 'manual_scoring') {
+    if (isBuzzer) {
+      btns.push({ label: '✅ Bonne réponse (+1)', style: 'success', onclick: "hostAction('award_buzzer_correct')" });
+      btns.push({ label: '❌ Mauvaise (suivant)', style: 'danger', onclick: "hostAction('award_buzzer_wrong')" });
+    }
+    if (isBurger) {
+      btns.push({ label: '🍔 Élément suivant', style: 'success', onclick: "hostAction('burger_next_item')" });
+    }
+    btns.push({ label: '📋 Révéler réponse', style: 'secondary', onclick: "hostAction('reveal_answer')" });
+    btns.push({ label: '📊 Résultats manche', style: 'secondary', onclick: "hostAction('show_results')" });
+  }
+  if (phase === 'end') {
+    btns.push({ label: '🔁 Nouvelle partie', style: 'secondary', onclick: "hostAction('reset_game')" });
+  }
+  return btns;
 }
 
 // Accordion des manches pour le pilotage
@@ -1151,67 +1310,14 @@ async function switchSessionQuiz(quizId, quizTitle) {
   } catch { alert$('host-alert', 'Erreur réseau', 'error'); }
 }
 
-function buildHostActionButtons(phase) {
-  const btns = [];
-  const gs = state.gameState;
-  const currentType = gs?.currentRound?.type || gs?.currentQuestion?.type || '';
-  const isPaused = gs?.phaseMeta?.paused === true;
+// buildHostActionButtons conservé pour compatibilité (plus utilisé en principal)
+function buildHostActionButtons(phase) { return []; }
 
-  if (phase === 'lobby') {
-    btns.push({ label: '▶️ Démarrer le quiz', action: 'start_quiz', style: 'success' });
-  }
-
-  if (phase === 'round_intro') {
-    // CORRECTION BUG : bouton pour aller directement à la première question
-    btns.push({ label: '▶️ Première question →', action: 'next_question', style: 'success' });
-    btns.push({ label: '🔁 Réafficher intro manche', action: 'start_round', style: 'secondary' });
-  }
-
-  if (phase === 'question' || phase === 'waiting') {
-    btns.push({ label: '⬅️ Question préc.', action: 'prev_question', style: 'secondary' });
-    if (isPaused) {
-      btns.push({ label: '▶️ Reprendre', action: 'resume_game', style: 'success' });
-    } else {
-      btns.push({ label: '⏸️ Pause', action: 'pause_game', style: 'secondary' });
-    }
-    if (currentType === 'burger') {
-      btns.push({ label: '🍔 Élément suivant', action: 'burger_next_item', style: 'success' });
-    } else {
-      btns.push({ label: '📋 Révéler réponse', action: 'reveal_answer', style: 'secondary' });
-    }
-    btns.push({ label: '⏭️ Question suiv.', action: 'next_question', style: 'secondary' });
-    btns.push({ label: '🔒 Verrouiller', action: 'lock_players', style: 'secondary' });
-    btns.push({ label: '🔓 Débloquer', action: 'unlock_players', style: 'secondary' });
-  }
-
-  if (phase === 'answer_reveal') {
-    btns.push({ label: '⬅️ Question préc.', action: 'prev_question', style: 'secondary' });
-    btns.push({ label: '📊 Résultats manche', action: 'show_results', style: 'secondary' });
-    btns.push({ label: '⏭️ Question suiv.', action: 'next_question', style: 'success' });
-  }
-
-  if (phase === 'results') {
-    btns.push({ label: '⏭️ Manche suivante', action: 'next_round', style: 'success' });
-    btns.push({ label: '🏁 Terminer le quiz', action: 'finish_quiz', style: 'danger' });
-  }
-
-  if (phase === 'manual_scoring') {
-    if (currentType === 'rapidite' || currentType === 'speed' || gs?.phaseMeta?.answerMode === 'buzzer') {
-      btns.push({ label: '✅ +1 pt (bonne rép.)', action: 'award_buzzer_correct', style: 'success' });
-      btns.push({ label: '❌ Refuser (mauvaise)', action: 'award_buzzer_wrong', style: 'danger' });
-    } else if (currentType === 'burger') {
-      btns.push({ label: '🍔 Élément suivant', action: 'burger_next_item', style: 'success' });
-    }
-    btns.push({ label: '📋 Révéler réponse', action: 'reveal_answer', style: 'secondary' });
-    btns.push({ label: '📊 Résultats manche', action: 'show_results', style: 'secondary' });
-    btns.push({ label: '⏭️ Question suiv.', action: 'next_question', style: 'secondary' });
-  }
-
-  if (phase === 'end') {
-    btns.push({ label: '🎊 Cérémonie finale', action: 'final_ceremony_init', style: 'success' });
-    btns.push({ label: '🔁 Nouvelle partie', action: 'reset_game', style: 'secondary' });
-  }
-  return btns;
+function setTimerPreset(sec) {
+  const inp = document.getElementById('timer-sec');
+  if (inp) inp.value = sec;
+  $$('.timer-preset-btn').forEach(b => b.classList.remove('active'));
+  event?.target?.classList.add('active');
 }
 
 function hostAction(action, extra = {}) {
@@ -1232,8 +1338,8 @@ function hostAction(action, extra = {}) {
     return;
   }
   if (action === 'award_buzzer_wrong') {
-    // Juste débloquer sans points, pour passer au suivant
-    state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'unlock_players' }, (res) => {
+    // Passer au joueur suivant dans la file (ou reset si vide)
+    state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'buzzer_next' }, (res) => {
       if (!res?.ok) alert$('host-alert', res?.error || 'Erreur', 'error');
     });
     return;
@@ -1344,7 +1450,17 @@ function renderDisplay() {
     </div>
     <div style="padding:16px;${bgStyle}">`;
 
-  if (phase === 'lobby') {
+  const isPaused = gs?.phaseMeta?.paused === true;
+
+  if (isPaused) {
+    content += `
+      <div class="pause-screen" style="padding:80px 20px;">
+        <div class="pause-icon">⏸️</div>
+        <h1>Pause</h1>
+        <p class="muted" style="font-size:1.1rem;margin-top:10px;">Le maître de jeu a mis la partie en pause</p>
+        <div class="waiting-dots"><span></span><span></span><span></span></div>
+      </div>`;
+  } else if (phase === 'lobby') {
     content += `
       <div class="card" style="text-align:center;padding:60px 20px;">
         <div style="font-size:4rem;margin-bottom:16px;">🎮</div>
@@ -1359,6 +1475,7 @@ function renderDisplay() {
         <div style="font-size:3rem;margin-bottom:16px;">📢</div>
         <h1>${round?.title || 'Nouvelle manche'}</h1>
         ${round?.shortRules ? `<p class="muted" style="font-size:1.1rem;margin-top:12px;">${round.shortRules}</p>` : ''}
+        ${round?.type ? `<p class="muted" style="margin-top:8px;font-size:.9rem;text-transform:uppercase;letter-spacing:.06em;">${round.type}</p>` : ''}
       </div>`;
   } else if (phase === 'question' || phase === 'waiting') {
     content += renderDisplayQuestion(gs);
@@ -1371,7 +1488,12 @@ function renderDisplay() {
       </div>
       ${renderAnswerList(revealed?.answers || [])}
       ${renderScoreboard(state.leaderboardPlayers, 'Classement')}`;
-  } else if (phase === 'results' || phase === 'end') {
+  } else if (phase === 'results') {
+    content += renderScoreboard(state.leaderboardPlayers, '📊 Classement de la manche');
+    if (state.leaderboardTeams.length) {
+      content += renderScoreboard(state.leaderboardTeams, '⚽ Équipes', true);
+    }
+  } else if (phase === 'end') {
     content += renderFinalCeremony(gs, state.leaderboardPlayers);
   } else if (phase === 'manual_scoring') {
     content += `
@@ -1379,6 +1501,16 @@ function renderDisplay() {
         <div style="font-size:3rem;">⚖️</div>
         <h2>Notation en cours…</h2>
         ${gs?.buzzerState?.firstPseudo ? `<p style="margin-top:16px;font-size:1.5rem;">🔔 <strong>${gs.buzzerState.firstPseudo}</strong> a buzzé en premier</p>` : ''}
+      </div>`;
+  }
+
+  // Message de diffusion hôte
+  if (gs?.phaseMeta?.broadcastMessage) {
+    const bm = gs.phaseMeta.broadcastMessage;
+    content += `
+      <div class="card" style="margin-top:14px;border-color:rgba(240,147,251,.4);background:rgba(240,147,251,.07);text-align:center;padding:20px;">
+        ${bm.imageUrl ? `<img src="${bm.imageUrl}" style="max-width:100%;max-height:280px;border-radius:12px;margin-bottom:12px;object-fit:contain;">` : ''}
+        ${bm.text ? `<p style="font-size:1.1rem;font-weight:600;">${bm.text}</p>` : ''}
       </div>`;
   }
 
@@ -2252,23 +2384,153 @@ function renderScoreboard(leaderboard, title = 'Classement') {
 
 function renderFinalCeremony(gs, leaderboard) {
   const fc = gs?.phaseMeta?.finalCeremony;
-  if (fc) {
-    const revealed = fc.revealOrder.filter(p => p.revealed).reverse();
-    return `
-      <div class="card" style="text-align:center;padding:40px;">
-        <h1>🎊 Cérémonie finale</h1>
+  if (!fc) return renderScoreboard(leaderboard, '🏆 Résultats finaux');
+
+  const revealed = fc.revealOrder.filter(p => p.revealed);
+  // Tri podium : 1ère place en dernier (affichage du bas vers le haut)
+  const sorted = [...revealed].sort((a, b) => b.rank - a.rank);
+
+  const rankEmoji = r => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : `#${r}`;
+  const rankClass = r => r === 1 ? 'rank-1-card' : r === 2 ? 'rank-2-card' : r === 3 ? 'rank-3-card' : 'rank-other-card';
+
+  // Déclencher confettis si le 1er vient d'être révélé
+  const first = revealed.find(p => p.rank === 1);
+  const confettiJs = first ? '<script>if(window.launchConfetti)launchConfetti();<\/script>' : '';
+
+  const podiumCards = sorted.map((p, i) => {
+    const delay = i * 0.12;
+    return `<div class="podium-card ${rankClass(p.rank)}" style="animation-delay:${delay}s;">
+      <span class="podium-rank">${rankEmoji(p.rank)}</span>
+      <div class="podium-pseudo">${p.pseudo}</div>
+      ${p.teamName ? `<div class="muted" style="font-size:.78rem;margin-top:2px;">⚽ ${p.teamName}</div>` : ''}
+      <div class="podium-score">${p.scoreTotal ?? 0} pts</div>
+      <div class="podium-nickname">${p.nickname || ''}</div>
+    </div>`;
+  }).join('');
+
+  const teamWinner = fc.stage === 'team_winner' && fc.winnerTeam ? `
+    <div class="winner-team-card" style="margin-top:14px;">
+      <div style="font-size:3rem;margin-bottom:10px;">🏆</div>
+      <h2>${fc.winnerTeam.name}</h2>
+      <p class="muted" style="margin-top:6px;">Équipe gagnante · ${fc.winnerTeam.scoreTotal ?? 0} pts</p>
+    </div>` : '';
+
+  return `
+    <div class="ceremony-container">
+      ${confettiJs}
+      <div class="card" style="text-align:center;padding:20px;margin-bottom:12px;">
+        <div style="font-size:3rem;margin-bottom:8px;">🎊</div>
+        <h2>Cérémonie finale</h2>
         <p class="muted">${fc.revealCursor}/${fc.revealOrder.length} révélé(s)</p>
-        ${fc.winnerTeam ? `<p style="margin-top:16px;font-size:1.3rem;">🏆 Équipe gagnante : <strong>${fc.winnerTeam.name}</strong></p>` : ''}
       </div>
-      ${revealed.length ? `
-        <div class="card">
-          <h3>Podium</h3>
-          <table style="margin-top:10px;"><tbody>
-            ${revealed.map(p => `<tr><td><strong>${p.rank}</strong></td><td>${p.pseudo}</td><td>${p.scoreTotal} pts</td><td class="muted">${p.nickname}</td></tr>`).join('')}
-          </tbody></table>
-        </div>` : ''}`;
+      ${revealed.length ? `<div class="podium-revealed-list">${podiumCards}</div>` : ''}
+      ${teamWinner}
+    </div>`;
+}
+
+// ── Confettis (lancés côté display/player au moment de la révélation du 1er) ──
+function launchConfetti() {
+  const colors = ['#f093fb','#f5576c','#38ef7d','#ffcc00','#4facfe','#ff9a56'];
+  const container = document.body;
+  for (let i = 0; i < 80; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.style.cssText = `
+      left:${Math.random() * 100}vw;
+      top:-20px;
+      background:${colors[Math.floor(Math.random() * colors.length)]};
+      width:${6 + Math.random() * 8}px;
+      height:${10 + Math.random() * 12}px;
+      animation-duration:${2.5 + Math.random() * 3}s;
+      animation-delay:${Math.random() * 1.5}s;
+    `;
+    container.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
   }
-  return renderScoreboard(leaderboard, '🏆 Résultats finaux');
+}
+window.launchConfetti = launchConfetti;
+
+// ── Modal de diffusion ─────────────────────────────────────────
+function showBroadcastModal() {
+  const sc = state.host.sessionCode;
+  const playerOptions = state.players.map(p => `<option value="${p.id}">${p.pseudo}</option>`).join('');
+  const teamOptions = state.teams.filter(t => state.players.some(p => p.teamId === t.id))
+    .map(t => `<option value="team:${t.id}">${t.name}</option>`).join('');
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'broadcast-modal';
+  modal.innerHTML = `
+    <div class="modal-box">
+      <div class="row" style="justify-content:space-between;margin-bottom:16px;">
+        <h2>📡 Diffuser un message</h2>
+        <button class="btn-secondary btn-sm" onclick="document.getElementById('broadcast-modal')?.remove()">✕</button>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label>Destinataire</label>
+        <select id="bc-target">
+          <option value="all">📢 Tous les joueurs</option>
+          ${teamOptions ? `<optgroup label="Équipes">${teamOptions}</optgroup>` : ''}
+          ${playerOptions ? `<optgroup label="Joueurs">${playerOptions}</optgroup>` : ''}
+        </select>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label>Message texte</label>
+        <textarea id="bc-text" rows="3" placeholder="Votre message…" style="resize:vertical;"></textarea>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label>Image / GIF (URL)</label>
+        <input id="bc-image" type="url" placeholder="https://…">
+      </div>
+      <div id="bc-preview" style="margin-bottom:12px;"></div>
+      <div class="row" style="gap:8px;">
+        <button class="btn-primary" style="flex:1;" onclick="sendBroadcast()">📡 Envoyer</button>
+        <button class="btn-secondary" style="flex:0 0 auto;" onclick="clearBroadcast()" title="Effacer le message diffusé">🗑 Effacer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+  // Preview image
+  document.getElementById('bc-image')?.addEventListener('input', function() {
+    const prev = document.getElementById('bc-preview');
+    if (prev) prev.innerHTML = this.value ? `<img src="${this.value}" style="max-width:100%;max-height:180px;border-radius:8px;object-fit:contain;">` : '';
+  });
+}
+
+function sendBroadcast() {
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  const target = document.getElementById('bc-target')?.value || 'all';
+  const text = (document.getElementById('bc-text')?.value || '').trim();
+  const imageUrl = (document.getElementById('bc-image')?.value || '').trim();
+  if (!text && !imageUrl) { alert('Message vide'); return; }
+
+  state.socket.emit('host:action', {
+    sessionCode: sc, hostKey: hk,
+    action: 'broadcast_message',
+    target, text, imageUrl,
+  }, (res) => {
+    if (!res?.ok) alert$('host-alert', res?.error || 'Diffusion impossible', 'error');
+    else {
+      alert$('host-alert', '✅ Message diffusé !', 'success');
+      document.getElementById('broadcast-modal')?.remove();
+    }
+  });
+}
+
+function clearBroadcast() {
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  state.socket.emit('host:action', {
+    sessionCode: sc, hostKey: hk,
+    action: 'broadcast_clear',
+  }, (res) => {
+    if (res?.ok) {
+      alert$('host-alert', '🗑 Message effacé', 'success');
+      document.getElementById('broadcast-modal')?.remove();
+    }
+  });
 }
 
 // ── Utilitaires divers ───────────────────────────────────────

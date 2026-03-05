@@ -19,17 +19,21 @@ import {
 import {
   awardManualPoints,
   burgerNextItem,
+  buzzerNextPlayer,
   cancelPendingAutoReveal,
   finishQuiz,
   lockPlayers,
   nextQuestion,
   pauseGame,
   prevQuestion,
+  prevRound,
   recordBuzzer,
   recordPlayerAnswer,
+  refreshQuestion,
   resumeGame,
   revealAnswer,
   scheduleAutoRevealAfterAllAnswered,
+  setBurgerPlayer,
   showResults,
   shouldAutoRevealNow,
   startQuiz,
@@ -578,9 +582,78 @@ export function setupSocketHandlers(io) {
             break;
           }
 
+          case "prev_round":
+            res = prevRound(session);
+            break;
+
+          case "refresh_question":
+            res = refreshQuestion(session);
+            break;
+
           case "burger_next_item":
             res = burgerNextItem(session);
             break;
+
+          case "burger_select_player":
+            res = setBurgerPlayer(session, payload.playerId || null);
+            break;
+
+          case "buzzer_next":
+            res = buzzerNextPlayer(session);
+            break;
+
+          case "award_team": {
+            // Attribuer N points à toute une équipe
+            const teamId = payload.teamId;
+            const pts = Number(payload.points || 1);
+            if (!teamId) { res = { ok: false, error: "teamId requis" }; break; }
+            let awarded = 0;
+            for (const p of (session.players || [])) {
+              if (p.teamId === teamId) {
+                const r = awardManualPoints(session, { playerId: p.id, points: pts, reason: "award_team" });
+                if (r.ok) awarded++;
+              }
+            }
+            res = { ok: true, awarded };
+            break;
+          }
+
+          case "award_all": {
+            // Attribuer N points à tous les joueurs connectés
+            const pts2 = Number(payload.points || 1);
+            let awarded2 = 0;
+            for (const p of (session.players || [])) {
+              if (p.connected) {
+                const r = awardManualPoints(session, { playerId: p.id, points: pts2, reason: "award_all" });
+                if (r.ok) awarded2++;
+              }
+            }
+            res = { ok: true, awarded: awarded2 };
+            break;
+          }
+
+          case "broadcast_message": {
+            // Diffuse un message texte/image à tous les joueurs (ou une cible)
+            const bm = {
+              text: payload.text || '',
+              imageUrl: payload.imageUrl || '',
+              target: payload.target || 'all',
+              sentAt: new Date().toISOString(),
+            };
+            if (!session.gameState.phaseMeta) session.gameState.phaseMeta = {};
+            session.gameState.phaseMeta.broadcastMessage = bm;
+            res = { ok: true };
+            break;
+          }
+
+          case "broadcast_clear": {
+            // Efface le message de diffusion en cours
+            if (session.gameState?.phaseMeta) {
+              session.gameState.phaseMeta.broadcastMessage = null;
+            }
+            res = { ok: true };
+            break;
+          }
 
           case "assign_team": {
             const player = (session.players || []).find(
