@@ -48,7 +48,7 @@ export function createInitialGameState({ quiz = null, sessionCode } = {}) {
     currentQuestion: null,
 
     // { [questionId]: { [playerId]: { answer, answerType, answeredAt } } }
-    answers: Object.create(null),
+    answers: {},
 
     // arrays de pseudos pour affichage display
     trueFalseVotes: { yes: [], no: [] },

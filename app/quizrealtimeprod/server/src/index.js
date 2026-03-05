@@ -15,7 +15,10 @@ import {
   loadAllPersistedData,
   saveQuiz,
   deleteQuiz,
+  persistSessions,
 } from "./store.js";
+
+import { createInitialGameState } from "./gameState.js";
 
 import {
   upload,
@@ -292,6 +295,45 @@ app.post("/api/sessions/from-quiz", (req, res) => {
       ok: false,
       error: e.message || "Création de session depuis quiz impossible",
     });
+  }
+});
+
+// PATCH /api/sessions/:sessionCode/quiz — change quiz for an existing session (resets game state)
+app.patch("/api/sessions/:sessionCode/quiz", (req, res) => {
+  try {
+    const sc = normalizeSessionCode(req.params.sessionCode);
+    const session = getSession(sc);
+    if (!session) return res.status(404).json({ ok: false, error: "Session introuvable" });
+
+    const body = isObject(req.body) ? req.body : {};
+    const hostKey = safeString(body.hostKey);
+    if (hostKey && String(hostKey) !== String(session.hostKey || "")) {
+      return res.status(403).json({ ok: false, error: "Clé host invalide" });
+    }
+
+    const quizId = safeString(body.quizId);
+    if (!quizId) return res.status(400).json({ ok: false, error: "quizId requis" });
+
+    const quiz = getQuiz(quizId);
+    if (!quiz) return res.status(404).json({ ok: false, error: "Quiz introuvable" });
+
+    // Update session quiz and reset game state
+    session.quiz = quiz;
+    session.gameState = createInitialGameState({ quiz, sessionCode: sc });
+
+    // Update teams from quiz config if available
+    if (quiz.teamsConfig?.enabled !== false && Array.isArray(quiz.teamsConfig?.teamNames) && quiz.teamsConfig.teamNames.length) {
+      session.teams = quiz.teamsConfig.teamNames.map((name, idx) => ({
+        id: `team_${idx + 1}`,
+        name: name || `Équipe ${idx + 1}`,
+        scoreTotal: 0,
+      }));
+    }
+
+    persistSessions();
+    return res.json({ ok: true, quizTitle: quiz.title, quizId: quiz.id });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || "Erreur serveur" });
   }
 });
 

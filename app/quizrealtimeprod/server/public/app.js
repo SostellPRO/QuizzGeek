@@ -650,281 +650,394 @@ function connectHost() {
   });
 }
 
-let hostActiveTab = 'controle';
+// ── Host : Onglets principaux ──────────────────────────────────
+let hostMainTab = 'gestion'; // 'gestion' | 'pilotage'
+const hostExpandedRounds = new Set();
+
+function switchHostMainTab(tab) {
+  hostMainTab = tab;
+  renderHostGame();
+}
+
+function toggleRoundAccordion(idx) {
+  if (hostExpandedRounds.has(idx)) {
+    hostExpandedRounds.delete(idx);
+  } else {
+    hostExpandedRounds.add(idx);
+  }
+  renderHostGame();
+}
+
+function openDisplayPopup() {
+  const sc = state.host.sessionCode;
+  if (!sc) { alert$('host-alert', 'Pas de session active', 'error'); return; }
+  const url = `${window.location.origin}/?display-session=${encodeURIComponent(sc)}#display`;
+  const popup = window.open(url, 'quiz_display', 'width=1280,height=760,toolbar=no,menubar=no,location=no,status=no,scrollbars=yes,resizable=yes');
+  if (!popup) alert$('host-alert', '🚫 Popup bloqué — autorisez les popups pour ce site dans votre navigateur.', 'error');
+}
 
 function renderHostGame() {
   if (!state.host.connected) return;
-  const gs   = state.gameState;
+  const gs    = state.gameState;
   const phase = gs?.status || 'lobby';
   const sc    = state.host.sessionCode;
 
+  const joinLink = `${window.location.origin}/?join=${sc}`;
+
   const phaseBadge = {
-    lobby:          '<span class="badge blue">🎪 Salle d\'attente</span>',
+    lobby:          '<span class="badge blue">🎪 Lobby</span>',
     round_intro:    '<span class="badge orange">📢 Présentation manche</span>',
     question:       '<span class="badge orange">❓ Question</span>',
     waiting:        '<span class="badge orange">⏳ Traitement</span>',
     answer_reveal:  '<span class="badge green">📋 Révélation</span>',
-    manual_scoring: '<span class="badge orange">⚖️ Notation manuelle</span>',
+    manual_scoring: '<span class="badge orange">⚖️ Arbitrage</span>',
     results:        '<span class="badge blue">📊 Résultats</span>',
     end:            '<span class="badge green">🎉 Fin</span>',
   }[phase] || `<span class="badge">${phase}</span>`;
 
-  const actionBtns = buildHostActionButtons(phase);
-
-  const joinLink = `${window.location.origin}/?join=${sc}`;
-
   let html_ = `
+    <style>
+      .host-main-tabs { display:flex; background:rgba(0,0,0,.25); border-bottom:2px solid rgba(255,255,255,.08); }
+      .host-main-tab {
+        flex:1; padding:15px 8px; border:none; border-bottom:3px solid transparent;
+        background:transparent; color:rgba(255,255,255,.5); font-family:inherit;
+        font-size:1rem; font-weight:600; cursor:pointer; transition:all .2s; text-align:center;
+        margin-bottom:-2px;
+      }
+      .host-main-tab:hover { color:rgba(255,255,255,.85); background:rgba(255,255,255,.04); }
+      .host-main-tab.active { color:#fff; border-bottom-color:#f093fb; background:rgba(240,147,251,.08); }
+      .host-tab-body { padding:16px; }
+      .ctrl-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+      @media(min-width:560px){ .ctrl-grid { grid-template-columns:repeat(3,1fr); } }
+      .round-accordion { border:1px solid rgba(255,255,255,.1); border-radius:12px; overflow:hidden; margin-bottom:10px; }
+      .round-acc-hdr {
+        display:flex; align-items:center; gap:10px; padding:13px 16px;
+        background:rgba(255,255,255,.05); cursor:pointer; border:none;
+        width:100%; color:#fff; font-family:inherit; text-align:left; transition:background .15s;
+      }
+      .round-acc-hdr:hover { background:rgba(255,255,255,.09); }
+      .round-acc-hdr.cur-round { background:rgba(240,147,251,.1); border-left:3px solid #f093fb; }
+      .round-acc-body { padding:12px 16px; background:rgba(0,0,0,.15); }
+      .q-line {
+        display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
+        padding:9px 12px; border-radius:8px; margin-bottom:6px;
+        background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07);
+        transition:background .15s;
+      }
+      .q-line.q-active { background:rgba(99,179,237,.12); border-color:rgba(99,179,237,.3); }
+    </style>
     <div class="session-banner">
       <span>Session : <strong class="session-code">${sc}</strong></span>
-      <span>👥 ${state.players.length} joueur(s)</span>
-      <button class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;margin-left:auto;" onclick="copyToClipboard('${joinLink}','host-alert')">📋 Lien joueur</button>
+      ${phaseBadge}
+      <span>👥 ${state.players.length}</span>
+      <button class="btn-secondary" style="padding:4px 10px;font-size:.8rem;margin-left:auto;" onclick="copyToClipboard('${joinLink}','host-alert')">📋 Lien joueurs</button>
     </div>
-    <div style="padding:16px;">
-    <div class="row" style="justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
-      <h1 style="margin:0;">🎮 Maître de jeu</h1>
-      <div class="row">
-        <button class="btn-secondary" onclick="navigate('display')">📺 Écran</button>
-        <button class="btn-secondary" onclick="navigate('home')">Accueil</button>
-      </div>
+    <div id="host-alert" style="padding:0 16px;"></div>
+    <div class="host-main-tabs">
+      <button class="host-main-tab ${hostMainTab==='gestion'?'active':''}" onclick="switchHostMainTab('gestion')">🎯 Gestion de partie</button>
+      <button class="host-main-tab ${hostMainTab==='pilotage'?'active':''}" onclick="switchHostMainTab('pilotage')">🎮 Partie en cours</button>
     </div>
-    <div id="host-alert"></div>
-    <div class="grid2" style="margin-bottom:16px;">
-      <div class="card" style="margin:0;">
-        <div class="muted" style="font-size:.75rem;margin-bottom:6px;">PHASE</div>
-        ${phaseBadge}
-      </div>
-      <div class="card" style="margin:0;">
-        <div class="muted" style="font-size:.75rem;margin-bottom:6px;">QUIZ</div>
-        <span style="font-size:.9rem;">${gs?.quizTitle || '—'} · ${gs?.currentRound?.title || '—'}</span>
-      </div>
-    </div>
-
-    <div class="tabs">
-      <button class="tab-btn ${hostActiveTab==='controle'?'active':''}" onclick="switchHostTab('controle')">🎮 Contrôle</button>
-      <button class="tab-btn ${hostActiveTab==='joueurs'?'active':''}" onclick="switchHostTab('joueurs')">👥 Joueurs</button>
-      <button class="tab-btn ${hostActiveTab==='equipes'?'active':''}" onclick="switchHostTab('equipes')">⚽ Équipes</button>
-      <button class="tab-btn ${hostActiveTab==='scores'?'active':''}" onclick="switchHostTab('scores')">📊 Scores</button>
-    </div>
+    <div class="host-tab-body">
   `;
 
-  // ONGLET CONTRÔLE
-  if (hostActiveTab === 'controle') {
-    html_ += `<div id="host-tab-content">`;
-
-    // Infos question
-    const cq = gs?.currentQuestion;
-    if (cq) {
-      const cqType = cq.type || gs?.currentRound?.type || '';
-      const buzzerQueuePseudos = (gs.buzzerQueue || [])
-        .map(pid => state.players.find(p => (p.id||p.playerId) === pid)?.pseudo || pid)
-        .join(', ');
-      const burgerIdx = gs.burgerState?.currentItemIndex ?? -1;
-      const burgerTotal = Array.isArray(cq.items) ? cq.items.length : 0;
-      const burgerItem = burgerIdx >= 0 && cq.items?.[burgerIdx];
-
-      html_ += `
-        <div class="card">
-          <div class="muted" style="font-size:.75rem;">QUESTION ACTIVE · ${cqType.toUpperCase()}</div>
-          <p style="margin-top:6px;">${cq.content || '—'}</p>
-          ${gs.phaseMeta?.timer ? `
-            <div style="margin-top:10px;">
-              <div class="row" style="justify-content:space-between;margin-bottom:6px;">
-                <span class="muted">Temps restant</span>
-                <strong style="color:#ff9a56;">${gs.phaseMeta.timer.remainingSec}s</strong>
-              </div>
-              <div class="progress-bar"><div class="fill" style="width:${gs.phaseMeta.timer.totalSec>0?Math.round(gs.phaseMeta.timer.remainingSec/gs.phaseMeta.timer.totalSec*100):0}%"></div></div>
-            </div>` : ''}
-          ${gs.buzzerState?.firstPseudo ? `
-            <div style="margin-top:10px;padding:10px;background:rgba(255,165,0,.1);border-radius:8px;border-left:3px solid #ffa500;">
-              🔔 <strong>${gs.buzzerState.firstPseudo}</strong> a buzzé — interrogez-le oralement
-            </div>` : ''}
-          ${cqType === 'rapidite' || cqType === 'speed' ? `
-            <div style="margin-top:8px;font-size:.82rem;color:rgba(255,255,255,.5);">
-              Queue : ${buzzerQueuePseudos || '—'} (${(gs.buzzerQueue||[]).length}/${state.players.filter(p=>p.connected).length})
-            </div>` : ''}
-          ${cqType === 'burger' ? `
-            <div style="margin-top:10px;padding:10px;background:rgba(99,179,237,.08);border-radius:8px;">
-              🍔 Élément ${burgerIdx+1}/${burgerTotal}
-              ${burgerItem ? `<strong style="display:block;margin-top:4px;">${burgerItem.text || ''}${burgerItem.mediaUrl ? ' 🖼️' : ''}</strong>` : '<span class="muted"> — pas encore démarré</span>'}
-            </div>` : ''}
-          <p style="margin-top:8px;font-size:.85rem;">Écrans : ${gs.phaseMeta?.playerScreenLocked ? '<span class="badge red">🔒 Verrouillés</span>' : '<span class="badge green">🔓 Ouverts</span>'}</p>
-        </div>`;
-    }
-
-    // Boutons d'action
-    if (actionBtns.length) {
-      html_ += `
-        <div class="card">
-          <h3>Actions disponibles</h3>
-          <div class="grid2" style="margin-top:12px;">${actionBtns.map(b =>
-            `<button class="btn-${b.style}" onclick="hostAction('${b.action}')">${b.label}</button>`
-          ).join('')}</div>
-        </div>`;
-    }
-
-    // Timer
-    if (phase === 'question' || phase === 'waiting') {
-      html_ += `
-        <div class="card">
-          <h3>⏱️ Chronomètre</h3>
-          <div class="row" style="margin-top:10px;">
-            <input type="number" id="timer-sec" value="30" min="1" max="300" style="width:100px;">
-            <button class="btn-success" onclick="startTimer()">Démarrer</button>
-          </div>
-        </div>`;
-    }
-
-    // P4 — Écran fin de question : révélation détaillée
-    if (phase === 'answer_reveal') {
-      const revealed = gs?.revealedAnswer;
-      if (revealed) {
-        const correctNorm = (revealed.correctAnswer || '').trim().toLowerCase();
-        const answerRows = (revealed.answers || []).map(a => {
-          const isCorrect = (a.answer || '').trim().toLowerCase() === correctNorm;
-          return `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:8px;background:${isCorrect?'rgba(56,239,125,.1)':'rgba(235,51,73,.1)'};margin-bottom:6px;">
-              <span style="font-weight:600;">${a.pseudo || '—'}</span>
-              <span style="color:${isCorrect?'#38ef7d':'#eb3349'};font-size:.9rem;">${a.answer || '—'} ${isCorrect?'✅':'❌'}</span>
-            </div>`;
-        }).join('') || '<p class="muted">Aucune réponse enregistrée</p>';
-        html_ += `
-          <div class="card">
-            <h3>📋 Révélation des réponses</h3>
-            <div style="margin:12px 0;padding:10px;background:rgba(56,239,125,.08);border:1px solid rgba(56,239,125,.25);border-radius:8px;">
-              <p class="muted" style="font-size:.75rem;margin-bottom:4px;">BONNE RÉPONSE</p>
-              <p style="font-size:1.3rem;font-weight:700;color:#38ef7d;">${revealed.correctAnswer || '—'}</p>
-            </div>
-            <div style="margin-top:8px;">${answerRows}</div>
-          </div>`;
-      }
-    }
-
-    // P5 — Écran fin de manche : bilan des questions + scores
-    if (phase === 'results') {
-      const round = gs?.currentRound;
-      const questions = Array.isArray(round?.questions) ? round.questions : [];
-      if (questions.length) {
-        const qRows = questions.map((q, i) => {
-          const answers = gs?.answers?.[q.id] || {};
-          const answersArr = Object.values(answers);
-          const correctNorm = (q.correctAnswer || '').trim().toLowerCase();
-          const correctCount = answersArr.filter(a => (a.answer||'').trim().toLowerCase() === correctNorm).length;
-          const hasCorrect = q.correctAnswer && q.correctAnswer.trim();
-          return `
-            <div style="padding:10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:8px;">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-                <div style="flex:1;">
-                  <span class="muted" style="font-size:.72rem;">${i+1}. ${(q.type||'?').toUpperCase()}</span>
-                  <p style="margin:4px 0;font-weight:600;">${q.content || '—'}</p>
-                  ${hasCorrect ? `<p style="color:#38ef7d;font-size:.85rem;">✓ ${q.correctAnswer}</p>` : ''}
-                </div>
-                ${answersArr.length ? `
-                  <div style="text-align:right;flex-shrink:0;">
-                    <strong style="font-size:1rem;">${correctCount}/${answersArr.length}</strong>
-                    <p class="muted" style="font-size:.72rem;">correct</p>
-                  </div>` : ''}
-              </div>
-            </div>`;
-        }).join('');
-        html_ += `
-          <div class="card">
-            <h3>📊 Bilan — ${round?.title || 'Manche'}</h3>
-            <div style="margin-top:12px;">${qRows}</div>
-          </div>`;
-      }
-      html_ += renderScoreboard(state.leaderboardPlayers, '🏆 Classement');
-      if (state.leaderboardTeams.length) {
-        html_ += `
-          <div class="card">
-            <h2>👥 Classement équipes</h2>
-            <table><thead><tr><th>Rang</th><th>Équipe</th><th>Score</th></tr></thead>
-            <tbody>${state.leaderboardTeams.map((t,i) => `<tr class="rank-${i+1}"><td>${t.rank??i+1}</td><td>${t.name}</td><td><strong>${t.scoreTotal??0}</strong></td></tr>`).join('')}</tbody></table>
-          </div>`;
-      }
-    }
-
-    // Attribution manuelle de points
-    if (['manual_scoring','answer_reveal','waiting','question'].includes(phase) && state.leaderboardPlayers.length) {
-      html_ += `
-        <div class="card">
-          <h3>➕ Points manuels</h3>
-          <div class="grid3" style="margin-top:12px;">
-            ${state.leaderboardPlayers.slice(0, 12).map(p => `
-              <div style="background:rgba(255,255,255,.05);border-radius:10px;padding:10px;text-align:center;">
-                <p style="font-weight:600;margin-bottom:4px;">${p.pseudo}</p>
-                <p class="muted" style="margin-bottom:8px;">${p.scoreTotal ?? 0} pts</p>
-                <button class="btn-success" style="width:100%;padding:6px;" onclick="awardPoints('${p.playerId}',1)">+1</button>
-              </div>`).join('')}
-          </div>
-        </div>`;
-    }
-
-    html_ += `</div>`; // fin tab-content
+  if (hostMainTab === 'gestion') {
+    html_ += renderHostGestionTab(gs, phase, sc);
+  } else {
+    html_ += renderHostPilotageTab(gs, phase);
   }
 
-  // ONGLET JOUEURS
-  else if (hostActiveTab === 'joueurs') {
-    const teamOptions = state.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-    const rows = state.players.map(p => `
-      <tr>
-        <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.connected?'#38ef7d':'#555'};"></span></td>
-        <td><strong>${p.pseudo}</strong></td>
-        <td>
-          <select onchange="hostAction('assign_team',{playerId:'${p.id||p.playerId}',teamId:this.value||null})"
-            style="font-size:.8rem;padding:3px 6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:#fff;">
-            <option value="">— aucune équipe —</option>
-            ${state.teams.map(t => `<option value="${t.id}" ${p.teamId===t.id?'selected':''}>${t.name}</option>`).join('')}
-          </select>
-        </td>
-        <td>${p.scoreTotal ?? 0}</td>
-        <td><button class="btn-danger" style="padding:4px 8px;font-size:.8rem;" onclick="hostAction('remove_player',{playerId:'${p.id||p.playerId}'})">✕</button></td>
-      </tr>`).join('') || `<tr><td colspan="5" class="muted">Aucun joueur</td></tr>`;
+  html_ += '</div>';
+  html('page-host', html_);
+}
 
-    html_ += `
-      <div class="card">
-        <h3>👥 Joueurs (${state.players.length})</h3>
-        <table style="margin-top:12px;"><thead><tr><th></th><th>Pseudo</th><th>Équipe</th><th>Score</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-        <div class="row" style="margin-top:16px;flex-wrap:wrap;gap:8px;">
-          <button class="btn-secondary" onclick="hostAction('reset_scores')" style="font-size:.85rem;">🔄 Reset scores</button>
-          <button class="btn-secondary" onclick="hostAction('reset_game')"   style="font-size:.85rem;">🔁 Reset partie</button>
-          <button class="btn-danger"    onclick="clearPlayers()"             style="font-size:.85rem;">🗑️ Vider joueurs</button>
+// ── TAB 1 : Gestion de partie ─────────────────────────────────
+function renderHostGestionTab(gs, phase, sc) {
+  let out = '';
+
+  // Quiz info + sélection
+  const quizTitle = gs?.quizTitle || '—';
+  out += `
+    <div class="card" style="margin-bottom:14px;">
+      <div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+        <div>
+          <div class="muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">QUIZ CHARGÉ</div>
+          <h3 style="margin:0;">📚 ${quizTitle}</h3>
+        </div>
+        <button class="btn-secondary" style="font-size:.8rem;padding:6px 14px;" onclick="toggleQuizPicker()">🔄 Changer de quiz</button>
+      </div>
+    </div>
+    <div id="quiz-picker-wrap" style="display:none;margin-bottom:14px;"></div>
+  `;
+
+  // Joueurs connectés
+  const playerRows = state.players.map(p => `
+    <tr>
+      <td style="width:14px;"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${p.connected?'#38ef7d':'#555'};"></span></td>
+      <td><strong>${p.pseudo}</strong></td>
+      <td>
+        <select onchange="hostAction('assign_team',{playerId:'${p.id||p.playerId}',teamId:this.value||null})"
+          style="font-size:.78rem;padding:3px 6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:#fff;max-width:130px;">
+          <option value="">— aucune —</option>
+          ${state.teams.slice(0,20).map(t => `<option value="${t.id}" ${p.teamId===t.id?'selected':''}>${t.name}</option>`).join('')}
+        </select>
+      </td>
+      <td style="color:#f59e0b;font-weight:600;">${p.scoreTotal ?? 0} pts</td>
+      <td><button class="btn-danger" style="padding:3px 7px;font-size:.78rem;" onclick="hostAction('remove_player',{playerId:'${p.id||p.playerId}'})">✕</button></td>
+    </tr>`).join('') || '<tr><td colspan="5" class="muted" style="text-align:center;padding:16px;">Aucun joueur connecté</td></tr>';
+
+  out += `
+    <div class="card" style="margin-bottom:14px;">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+        <h3 style="margin:0;">👥 Joueurs (${state.players.length})</h3>
+        <div class="row" style="gap:6px;">
+          <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="hostAction('reset_scores')">🔄 Scores</button>
+          <button class="btn-danger" style="font-size:.78rem;padding:5px 10px;" onclick="clearPlayers()">🗑️ Vider</button>
         </div>
       </div>
-      <div class="card">
-        <h3>🤖 Ajouter un bot</h3>
-        <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:10px;">
-          <input id="bot-name" placeholder="Nom du bot" style="flex:1;min-width:120px;">
-          <select id="bot-team" style="width:160px;">
-            <option value="">— sans équipe —</option>
-            ${state.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
-          </select>
-          <button class="btn-success" style="white-space:nowrap;" onclick="addBot()">Ajouter</button>
-        </div>
-      </div>`;
-  }
+      <div style="overflow-x:auto;">
+        <table style="width:100%;min-width:280px;">
+          <thead><tr><th></th><th>Joueur</th><th>Équipe</th><th>Score</th><th></th></tr></thead>
+          <tbody>${playerRows}</tbody>
+        </table>
+      </div>
+      <div class="row" style="margin-top:14px;flex-wrap:wrap;gap:8px;">
+        <input id="bot-name" placeholder="Nom du bot" style="flex:1;min-width:110px;max-width:180px;">
+        <select id="bot-team" style="width:140px;flex-shrink:0;">
+          <option value="">— sans équipe —</option>
+          ${state.teams.slice(0,20).map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+        </select>
+        <button class="btn-success" style="white-space:nowrap;flex-shrink:0;" onclick="addBot()">🤖 Ajouter bot</button>
+      </div>
+    </div>`;
 
-  // ONGLET ÉQUIPES
-  else if (hostActiveTab === 'equipes') {
-    const teamsHtml = state.teams.map(t => `
-      <div class="row" style="gap:8px;">
-        <input id="rename-${t.id}" value="${t.name}" style="flex:1;">
-        <button class="btn-secondary" style="white-space:nowrap;padding:8px 12px;" onclick="renameTeam('${t.id}')">✅</button>
-      </div>`).join('') || '<p class="muted">Aucune équipe</p>';
-
-    html_ += `
-      <div class="card">
-        <h3>✏️ Renommer les équipes</h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:14px;">
+  // Équipes (avec membres et score)
+  const teamsWithPlayers = state.teams.filter(t => state.players.some(p => p.teamId === t.id));
+  const teamsToShow = (teamsWithPlayers.length > 0 ? teamsWithPlayers : state.teams).slice(0, 12);
+  if (teamsToShow.length) {
+    const teamsHtml = teamsToShow.map(t => {
+      const members = state.players.filter(p => p.teamId === t.id).map(p => p.pseudo).join(', ');
+      return `
+        <div style="background:rgba(255,255,255,.05);border-radius:10px;padding:12px;">
+          <div class="row" style="gap:6px;margin-bottom:6px;">
+            <input id="rename-${t.id}" value="${t.name}" style="flex:1;font-size:.85rem;padding:6px 10px;">
+            <button class="btn-secondary" style="padding:5px 10px;font-size:.8rem;flex-shrink:0;" onclick="renameTeam('${t.id}')">✅</button>
+          </div>
+          ${members ? `<p class="muted" style="font-size:.75rem;">👤 ${members}</p>` : '<p class="muted" style="font-size:.75rem;">Aucun joueur</p>'}
+          <p style="font-size:.78rem;margin-top:3px;color:#f59e0b;font-weight:600;">${t.scoreTotal ?? 0} pts</p>
+        </div>`;
+    }).join('');
+    out += `
+      <div class="card" style="margin-bottom:14px;">
+        <h3>⚽ Équipes</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:10px;margin-top:12px;">
           ${teamsHtml}
         </div>
       </div>`;
   }
 
-  // ONGLET SCORES
-  else if (hostActiveTab === 'scores') {
-    html_ += renderScoreboard(state.leaderboardPlayers, '📈 Classement joueurs');
+  // Zone de lancement / progression
+  if (phase === 'lobby') {
+    out += `
+      <div class="card" style="text-align:center;padding:28px;border:2px solid rgba(56,239,125,.2);background:rgba(56,239,125,.04);margin-bottom:14px;">
+        <h2 style="margin-bottom:8px;">🚀 Prêt à lancer ?</h2>
+        <p class="muted" style="margin-bottom:18px;">${state.players.length} joueur(s) connecté(s) · Quiz : <strong>${quizTitle}</strong></p>
+        <button class="btn-success" style="font-size:1.1rem;padding:14px 36px;" onclick="hostAction('start_quiz')">
+          ▶️ Lancer la partie
+        </button>
+        <div style="margin-top:12px;">
+          <button class="btn-secondary" style="font-size:.82rem;" onclick="hostAction('reset_game')">🔁 Reset partie</button>
+        </div>
+      </div>`;
+  } else {
+    out += `
+      <div class="card" style="text-align:center;padding:16px;border:1px solid rgba(255,165,0,.2);background:rgba(255,165,0,.04);margin-bottom:14px;">
+        <p style="margin-bottom:10px;">Partie en cours — phase : <strong style="color:#ffa500;">${phase}</strong></p>
+        <div class="row" style="justify-content:center;gap:8px;flex-wrap:wrap;">
+          <button class="btn-primary" onclick="switchHostMainTab('pilotage')">🎮 Aller au panneau de contrôle →</button>
+          <button class="btn-secondary" style="font-size:.82rem;" onclick="hostAction('reset_game')">🔁 Reset partie</button>
+        </div>
+      </div>`;
+  }
+
+  return out;
+}
+
+// ── TAB 2 : Partie en cours (Pilotage) ────────────────────────
+function renderHostPilotageTab(gs, phase) {
+  let out = '';
+
+  const currentRoundIdx = gs?.currentRoundIndex ?? -1;
+  const currentQIdx     = gs?.currentQuestionIndex ?? -1;
+  const currentRound    = gs?.currentRound;
+  const currentQ        = gs?.currentQuestion;
+
+  // Bouton ouvrir l'écran TV + info phase
+  out += `
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <span class="muted" style="font-size:.78rem;text-transform:uppercase;display:block;margin-bottom:2px;">Phase</span>
+        ${{
+          lobby:'<span class="badge blue" style="font-size:.9rem;">🎪 Lobby</span>',
+          round_intro:'<span class="badge orange" style="font-size:.9rem;">📢 Présentation manche</span>',
+          question:'<span class="badge orange" style="font-size:.9rem;">❓ Question en cours</span>',
+          waiting:'<span class="badge orange" style="font-size:.9rem;">⏳ Traitement</span>',
+          answer_reveal:'<span class="badge green" style="font-size:.9rem;">📋 Révélation réponse</span>',
+          manual_scoring:'<span class="badge orange" style="font-size:.9rem;">⚖️ Arbitrage</span>',
+          results:'<span class="badge blue" style="font-size:.9rem;">📊 Résultats manche</span>',
+          end:'<span class="badge green" style="font-size:.9rem;">🎉 Fin du quiz</span>',
+        }[phase] || `<span class="badge" style="font-size:.9rem;">${phase}</span>`}
+      </div>
+      <button class="btn-primary" style="padding:9px 18px;" onclick="openDisplayPopup()">
+        📺 Ouvrir l'écran TV ↗
+      </button>
+    </div>`;
+
+  // Manche + question courante
+  if (currentRound) {
+    out += `
+      <div class="card" style="margin-bottom:12px;padding:14px;border-color:rgba(99,179,237,.2);">
+        <div class="muted" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">
+          MANCHE ${currentRoundIdx + 1} · ${(currentRound.type || '').toUpperCase()}
+        </div>
+        <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <h3 style="margin:0;">${currentRound.title || 'Manche en cours'}</h3>
+          <span class="muted" style="font-size:.8rem;">${(currentRound.questions||[]).length} question(s)</span>
+        </div>
+        ${currentQ ? `
+          <div style="margin-top:10px;padding:10px 14px;background:rgba(255,255,255,.06);border-radius:8px;">
+            <div class="muted" style="font-size:.7rem;text-transform:uppercase;margin-bottom:3px;">Question ${currentQIdx + 1}</div>
+            <p style="font-size:.95rem;font-weight:600;">${currentQ.content || '—'}</p>
+            ${currentQ.correctAnswer ? `<p style="color:#38ef7d;font-size:.82rem;margin-top:5px;">✓ Réponse : ${currentQ.correctAnswer}</p>` : ''}
+            <p style="font-size:.78rem;margin-top:5px;">
+              Écrans joueurs : ${gs?.phaseMeta?.playerScreenLocked ? '<span class="badge red" style="font-size:.7rem;">🔒 Verrouillés</span>' : '<span class="badge green" style="font-size:.7rem;">🔓 Ouverts</span>'}
+            </p>
+          </div>` : '<p class="muted" style="margin-top:8px;font-size:.85rem;">Aucune question active — cliquez "Question suivante" pour commencer.</p>'}
+      </div>`;
+  }
+
+  // ── Commandes de navigation ──
+  const actionBtns = buildHostActionButtons(phase);
+  if (actionBtns.length) {
+    out += `
+      <div class="card" style="margin-bottom:12px;">
+        <h3 style="margin-bottom:12px;">⚡ Commandes</h3>
+        <div class="ctrl-grid">
+          ${actionBtns.map(b => `<button class="btn-${b.style}" onclick="hostAction('${b.action}')" style="white-space:nowrap;text-align:center;">${b.label}</button>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  // Timer (en phase question/waiting)
+  if (phase === 'question' || phase === 'waiting') {
+    const timerInfo = gs?.phaseMeta?.timer;
+    out += `
+      <div class="card" style="margin-bottom:12px;">
+        <h3>⏱️ Chronomètre</h3>
+        ${timerInfo ? `
+          <div style="margin-bottom:10px;">
+            <div class="row" style="justify-content:space-between;margin-bottom:6px;">
+              <span class="muted">Temps restant</span>
+              <strong style="color:#ff9a56;font-size:1.3rem;">${timerInfo.remainingSec}s</strong>
+            </div>
+            <div class="progress-bar"><div class="fill" style="width:${timerInfo.totalSec>0?Math.round(timerInfo.remainingSec/timerInfo.totalSec*100):0}%"></div></div>
+          </div>` : ''}
+        <div class="row" style="margin-top:8px;">
+          <input type="number" id="timer-sec" value="30" min="1" max="300" style="width:90px;flex-shrink:0;">
+          <button class="btn-success" onclick="startTimer()">▶ Démarrer</button>
+        </div>
+      </div>`;
+  }
+
+  // Buzzer state
+  if (gs?.buzzerState?.firstPseudo) {
+    const buzzerQueuePseudos = (gs.buzzerQueue || [])
+      .map(pid => state.players.find(p => (p.id||p.playerId) === pid)?.pseudo || pid)
+      .filter(Boolean).join(', ');
+    out += `
+      <div class="card" style="margin-bottom:12px;border-color:rgba(255,165,0,.3);background:rgba(255,165,0,.06);">
+        <div class="row" style="align-items:center;gap:12px;">
+          <span style="font-size:2.2rem;">🔔</span>
+          <div>
+            <strong style="font-size:1.1rem;">${gs.buzzerState.firstPseudo}</strong>
+            <p class="muted" style="margin-top:2px;">a buzzé en premier — interrogez-le oralement</p>
+            ${buzzerQueuePseudos ? `<p class="muted" style="font-size:.78rem;margin-top:3px;">Queue : ${buzzerQueuePseudos} (${(gs.buzzerQueue||[]).length}/${state.players.filter(p=>p.connected).length})</p>` : ''}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // Révélation (phase answer_reveal)
+  if (phase === 'answer_reveal') {
+    const revealed = gs?.revealedAnswer;
+    if (revealed) {
+      const correctNorm = (revealed.correctAnswer || '').trim().toLowerCase();
+      const answerRows = (revealed.answers || []).map(a => {
+        const isCorrect = (a.answer || '').trim().toLowerCase() === correctNorm;
+        return `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:8px;background:${isCorrect?'rgba(56,239,125,.1)':'rgba(235,51,73,.1)'};margin-bottom:5px;">
+            <span style="font-weight:600;">${a.pseudo || '—'}</span>
+            <span style="color:${isCorrect?'#38ef7d':'#eb3349'};font-size:.9rem;">${a.answer || '—'} ${isCorrect?'✅':'❌'}</span>
+          </div>`;
+      }).join('') || '<p class="muted">Aucune réponse enregistrée</p>';
+      out += `
+        <div class="card" style="margin-bottom:12px;">
+          <h3>📋 Révélation des réponses</h3>
+          <div style="margin:10px 0;padding:10px 14px;background:rgba(56,239,125,.08);border:1px solid rgba(56,239,125,.25);border-radius:8px;">
+            <p class="muted" style="font-size:.72rem;margin-bottom:3px;">BONNE RÉPONSE</p>
+            <p style="font-size:1.25rem;font-weight:700;color:#38ef7d;">${revealed.correctAnswer || '—'}</p>
+          </div>
+          <div>${answerRows}</div>
+        </div>`;
+    }
+  }
+
+  // Attribution manuelle de points
+  if (['manual_scoring','answer_reveal','waiting','question'].includes(phase) && state.leaderboardPlayers.length) {
+    out += `
+      <div class="card" style="margin-bottom:12px;">
+        <h3>➕ Points manuels</h3>
+        <div class="grid3" style="margin-top:10px;">
+          ${state.leaderboardPlayers.slice(0,12).map(p => `
+            <div style="background:rgba(255,255,255,.05);border-radius:10px;padding:10px;text-align:center;">
+              <p style="font-weight:600;font-size:.88rem;margin-bottom:2px;">${p.pseudo}</p>
+              <p class="muted" style="margin-bottom:7px;font-size:.78rem;">${p.scoreTotal??0} pts</p>
+              <button class="btn-success" style="width:100%;padding:5px;font-size:.82rem;" onclick="awardPoints('${p.playerId}',1)">+1</button>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  // Bilan de manche (phase results)
+  if (phase === 'results') {
+    const rnd = gs?.currentRound;
+    const questions = Array.isArray(rnd?.questions) ? rnd.questions : [];
+    if (questions.length) {
+      const qRows = questions.map((q, i) => {
+        const answers = gs?.answers?.[q.id] || {};
+        const answersArr = Object.values(answers);
+        const correctNorm = (q.correctAnswer || '').trim().toLowerCase();
+        const correctCount = answersArr.filter(a => (a.answer||'').trim().toLowerCase() === correctNorm).length;
+        return `
+          <div style="padding:10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:7px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+              <div style="flex:1;">
+                <span class="muted" style="font-size:.72rem;">${i+1}. ${(q.type||'?').toUpperCase()}</span>
+                <p style="margin:4px 0;font-weight:600;">${q.content || '—'}</p>
+                ${q.correctAnswer ? `<p style="color:#38ef7d;font-size:.82rem;">✓ ${q.correctAnswer}</p>` : ''}
+              </div>
+              ${answersArr.length ? `<div style="text-align:right;flex-shrink:0;"><strong>${correctCount}/${answersArr.length}</strong><p class="muted" style="font-size:.72rem;">correct</p></div>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+      out += `
+        <div class="card" style="margin-bottom:12px;">
+          <h3>📊 Bilan — ${rnd?.title || 'Manche'}</h3>
+          <div style="margin-top:10px;">${qRows}</div>
+        </div>`;
+    }
+    out += renderScoreboard(state.leaderboardPlayers, '🏆 Classement');
     if (state.leaderboardTeams.length) {
-      html_ += `
+      out += `
         <div class="card">
           <h2>👥 Classement équipes</h2>
           <table><thead><tr><th>Rang</th><th>Équipe</th><th>Score</th></tr></thead>
@@ -933,8 +1046,109 @@ function renderHostGame() {
     }
   }
 
-  html_ += `</div>`; // fin padding
-  html('page-host', html_);
+  // Classement final
+  if (phase === 'end') {
+    out += renderFinalCeremony(gs, state.leaderboardPlayers);
+    out += renderScoreboard(state.leaderboardPlayers, '🏆 Classement final');
+  }
+
+  // Accordion des manches (aperçu navigation)
+  out += renderRoundsAccordion(gs);
+
+  return out;
+}
+
+// Accordion des manches pour le pilotage
+function renderRoundsAccordion(gs) {
+  if (!gs || !gs.currentRound) return '';
+  const currentRoundIdx = gs.currentRoundIndex ?? -1;
+  const currentQIdx     = gs.currentQuestionIndex ?? -1;
+  const questions = Array.isArray(gs.currentRound?.questions) ? gs.currentRound.questions : [];
+  if (!questions.length) return '';
+
+  const isExpanded = hostExpandedRounds.has(currentRoundIdx);
+  const questionsSummary = isExpanded ? questions.map((q, qi) => {
+    const isCurrent = qi === currentQIdx;
+    const answeredCount = gs.answers?.[q.id] ? Object.keys(gs.answers[q.id]).length : 0;
+    const connectedCount = state.players.filter(p => p.connected).length;
+    return `
+      <div class="q-line ${isCurrent ? 'q-active' : ''}">
+        <div style="flex:1;min-width:0;">
+          <span class="muted" style="font-size:.7rem;">${qi+1}. ${(q.type||'').toUpperCase()}</span>
+          <p style="font-size:.87rem;font-weight:${isCurrent?'700':'400'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:2px 0;">${q.content || '—'}</p>
+          ${q.correctAnswer ? `<p style="font-size:.74rem;color:#38ef7d;">✓ ${q.correctAnswer}</p>` : ''}
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:8px;">
+          ${isCurrent ? '<span class="badge blue" style="font-size:.68rem;padding:2px 7px;">▶ En cours</span>' : ''}
+          ${answeredCount > 0 ? `<p class="muted" style="font-size:.72rem;margin-top:3px;">${answeredCount}/${connectedCount} rép.</p>` : ''}
+        </div>
+      </div>`;
+  }).join('') : '';
+
+  return `
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px;">
+      <button class="round-acc-hdr ${currentRoundIdx >= 0 ? 'cur-round' : ''}" onclick="toggleRoundAccordion(${currentRoundIdx})">
+        <span style="font-size:1rem;">${isExpanded ? '▼' : '▶'}</span>
+        <div style="flex:1;">
+          <div class="muted" style="font-size:.68rem;text-transform:uppercase;margin-bottom:1px;">Manche ${currentRoundIdx+1}</div>
+          <strong style="font-size:.95rem;">${gs.currentRound.title || 'Manche en cours'}</strong>
+        </div>
+        <span class="muted" style="font-size:.78rem;">${questions.length} question(s)</span>
+      </button>
+      ${isExpanded ? `<div class="round-acc-body">${questionsSummary}</div>` : ''}
+    </div>`;
+}
+
+// Sélecteur de quiz (toggle)
+function toggleQuizPicker() {
+  const wrap = document.getElementById('quiz-picker-wrap');
+  if (!wrap) return;
+  if (wrap.style.display !== 'none') { wrap.style.display = 'none'; return; }
+  wrap.innerHTML = '<div class="card"><p class="muted">Chargement des quiz…</p></div>';
+  wrap.style.display = '';
+
+  apiFetch('/api/quizzes').then(d => {
+    const quizzes = d.quizzes || [];
+    if (!quizzes.length) {
+      wrap.innerHTML = '<div class="card"><p class="muted">Aucun quiz disponible. Créez-en un dans l\'admin.</p></div>';
+      return;
+    }
+    wrap.innerHTML = `
+      <div class="card" style="border-color:rgba(99,179,237,.25);">
+        <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="margin:0;">📚 Choisir un quiz</h3>
+          <button class="btn-secondary" style="font-size:.8rem;padding:5px 10px;" onclick="document.getElementById('quiz-picker-wrap').style.display='none'">✕ Fermer</button>
+        </div>
+        <div style="display:grid;gap:8px;">
+          ${quizzes.map(q => `
+            <div class="row" style="background:rgba(255,255,255,.04);padding:10px 14px;border-radius:10px;gap:10px;">
+              <div style="flex:1;">
+                <strong>${q.title}</strong>
+                <span class="muted" style="margin-left:8px;font-size:.82rem;">${q.rounds?.length||0} manche(s)</span>
+              </div>
+              <button class="btn-primary" style="font-size:.82rem;padding:5px 12px;white-space:nowrap;" onclick="switchSessionQuiz('${q.id}','${(q.title||'').replace(/'/g,"\\'")}')">Charger</button>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }).catch(() => {
+    wrap.innerHTML = '<div class="card"><p class="muted">Erreur lors du chargement des quiz</p></div>';
+  });
+}
+
+async function switchSessionQuiz(quizId, quizTitle) {
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  if (!confirm(`Charger "${quizTitle}" ? La partie sera réinitialisée.`)) return;
+  try {
+    const d = await apiFetch(`/api/sessions/${sc}/quiz`, {
+      method: 'PATCH',
+      body: JSON.stringify({ quizId, hostKey: hk }),
+    });
+    if (!d.ok) { alert$('host-alert', d.error || 'Erreur', 'error'); return; }
+    alert$('host-alert', `✅ Quiz "${quizTitle}" chargé !`, 'success');
+    const wrap = document.getElementById('quiz-picker-wrap');
+    if (wrap) wrap.style.display = 'none';
+  } catch { alert$('host-alert', 'Erreur réseau', 'error'); }
 }
 
 function buildHostActionButtons(phase) {
@@ -943,33 +1157,37 @@ function buildHostActionButtons(phase) {
   const currentType = gs?.currentRound?.type || gs?.currentQuestion?.type || '';
   const isPaused = gs?.phaseMeta?.paused === true;
 
-  if (phase === 'lobby')          btns.push({ label: '▶️ Démarrer le quiz', action: 'start_quiz', style: 'success' });
-  if (phase === 'round_intro')    btns.push({ label: '▶️ Démarrer la manche', action: 'start_round', style: 'success' });
+  if (phase === 'lobby') {
+    btns.push({ label: '▶️ Démarrer le quiz', action: 'start_quiz', style: 'success' });
+  }
+
+  if (phase === 'round_intro') {
+    // CORRECTION BUG : bouton pour aller directement à la première question
+    btns.push({ label: '▶️ Première question →', action: 'next_question', style: 'success' });
+    btns.push({ label: '🔁 Réafficher intro manche', action: 'start_round', style: 'secondary' });
+  }
 
   if (phase === 'question' || phase === 'waiting') {
-    // Navigation
     btns.push({ label: '⬅️ Question préc.', action: 'prev_question', style: 'secondary' });
-    // Pause / Resume
     if (isPaused) {
       btns.push({ label: '▶️ Reprendre', action: 'resume_game', style: 'success' });
     } else {
       btns.push({ label: '⏸️ Pause', action: 'pause_game', style: 'secondary' });
     }
-    // Mode burger : bouton "Élément suivant" au lieu de "Révéler"
     if (currentType === 'burger') {
       btns.push({ label: '🍔 Élément suivant', action: 'burger_next_item', style: 'success' });
     } else {
-      btns.push({ label: '📋 Révéler la réponse', action: 'reveal_answer', style: 'secondary' });
+      btns.push({ label: '📋 Révéler réponse', action: 'reveal_answer', style: 'secondary' });
     }
-    btns.push({ label: '⏭️ Question suivante', action: 'next_question', style: 'secondary' });
+    btns.push({ label: '⏭️ Question suiv.', action: 'next_question', style: 'secondary' });
     btns.push({ label: '🔒 Verrouiller', action: 'lock_players', style: 'secondary' });
     btns.push({ label: '🔓 Débloquer', action: 'unlock_players', style: 'secondary' });
   }
 
   if (phase === 'answer_reveal') {
     btns.push({ label: '⬅️ Question préc.', action: 'prev_question', style: 'secondary' });
-    btns.push({ label: '📊 Afficher résultats', action: 'show_results', style: 'secondary' });
-    btns.push({ label: '⏭️ Question suivante', action: 'next_question', style: 'success' });
+    btns.push({ label: '📊 Résultats manche', action: 'show_results', style: 'secondary' });
+    btns.push({ label: '⏭️ Question suiv.', action: 'next_question', style: 'success' });
   }
 
   if (phase === 'results') {
@@ -978,28 +1196,22 @@ function buildHostActionButtons(phase) {
   }
 
   if (phase === 'manual_scoring') {
-    // Rapidité : boutons +1 / Refus + Débloquer pour passer au suivant
     if (currentType === 'rapidite' || currentType === 'speed' || gs?.phaseMeta?.answerMode === 'buzzer') {
-      btns.push({ label: '✅ +1 pt (bonne réponse)', action: 'award_buzzer_correct', style: 'success' });
+      btns.push({ label: '✅ +1 pt (bonne rép.)', action: 'award_buzzer_correct', style: 'success' });
       btns.push({ label: '❌ Refuser (mauvaise)', action: 'award_buzzer_wrong', style: 'danger' });
     } else if (currentType === 'burger') {
       btns.push({ label: '🍔 Élément suivant', action: 'burger_next_item', style: 'success' });
     }
-    btns.push({ label: '📋 Révéler la réponse', action: 'reveal_answer', style: 'secondary' });
-    btns.push({ label: '📊 Afficher résultats', action: 'show_results', style: 'secondary' });
-    btns.push({ label: '⏭️ Question suivante', action: 'next_question', style: 'secondary' });
+    btns.push({ label: '📋 Révéler réponse', action: 'reveal_answer', style: 'secondary' });
+    btns.push({ label: '📊 Résultats manche', action: 'show_results', style: 'secondary' });
+    btns.push({ label: '⏭️ Question suiv.', action: 'next_question', style: 'secondary' });
   }
 
   if (phase === 'end') {
-    btns.push({ label: '🎊 Cérémonie', action: 'final_ceremony_init', style: 'success' });
+    btns.push({ label: '🎊 Cérémonie finale', action: 'final_ceremony_init', style: 'success' });
     btns.push({ label: '🔁 Nouvelle partie', action: 'reset_game', style: 'secondary' });
   }
   return btns;
-}
-
-function switchHostTab(tab) {
-  hostActiveTab = tab;
-  renderHostGame();
 }
 
 function hostAction(action, extra = {}) {
@@ -1062,8 +1274,12 @@ function clearPlayers() {
 
 // ── Page : DISPLAY ───────────────────────────────────────────
 pageInits.display = function() {
-  const savedCode = localStorage.getItem('quiz_display_code') || state.host.sessionCode || '';
+  // Priorité : param URL (popup) > localStorage > session host courante
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlCode = (urlParams.get('display-session') || '').trim().toUpperCase();
+  const savedCode = urlCode || localStorage.getItem('quiz_display_code') || state.host.sessionCode || '';
   state.display.connected = false;
+
   html('page-display', `
     <div class="row" style="justify-content:space-between;margin-bottom:20px;">
       <h1>📺 Écran TV</h1>
@@ -1079,6 +1295,15 @@ pageInits.display = function() {
     </div>
     <div id="display-content"></div>
   `);
+
+  // Auto-connexion si code fourni (via popup URL ou localStorage)
+  if (savedCode) {
+    setTimeout(() => {
+      const inp = $('#display-code');
+      if (inp) inp.value = savedCode;
+      connectDisplay();
+    }, 300);
+  }
 };
 
 function connectDisplay() {
@@ -2061,8 +2286,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Navigation hash
   const hash = window.location.hash.replace('#', '') || 'home';
-  const urlCode = new URLSearchParams(window.location.search).get('join');
-  navigate(urlCode ? 'player' : hash);
+  const _urlParams = new URLSearchParams(window.location.search);
+  const urlCode = _urlParams.get('join');
+  const urlDisplayCode = _urlParams.get('display-session');
+  // Priorité : ?join → player | ?display-session → display | #hash → page
+  navigate(urlCode ? 'player' : urlDisplayCode ? 'display' : hash);
 
   // Écouter les changements de hash
   window.addEventListener('hashchange', () => {
