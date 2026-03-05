@@ -66,6 +66,45 @@ function uid(pre = 'id') { return `${pre}_${Math.random().toString(36).slice(2,9
 
 function randCode() { return Math.floor(1000 + Math.random() * 9000).toString(); }
 
+// ── P6 : Sons d'interaction (Web Audio API) ───────────────────
+let _audioCtx = null;
+function getAudioCtx() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
+  }
+  return _audioCtx;
+}
+function playSound(type) {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const now = ctx.currentTime;
+    if (type === 'answer') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(660, now);
+      gain.gain.setValueAtTime(0.28, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc.start(now); osc.stop(now + 0.22);
+    } else if (type === 'buzzer') {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(880, now);
+      gain.gain.setValueAtTime(0.22, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      osc.start(now); osc.stop(now + 0.28);
+    } else if (type === 'nav') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(400, now);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+      osc.start(now); osc.stop(now + 0.09);
+    }
+  } catch { /* noop si Web Audio non supporté */ }
+}
+
 function closeModal(id) { const m = document.getElementById(id); if (m) m.remove(); }
 
 // ── Socket.IO ────────────────────────────────────────────────
@@ -155,6 +194,22 @@ pageInits.home = function() {
   `);
 };
 
+// ── P8 : Galerie d'avatars ────────────────────────────────────
+const AVATARS = [
+  '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯',
+  '🦁','🐸','🐵','🐔','🐧','🐦','🦆','🦅','🦉','🦇',
+  '🐺','🐗','🦝','🦄','🦋','🐙','🦑','🐬','🦈','🐊',
+  '🎮','🚀','⚡','🔥','🎸','🎯','🏆','💎','🌟','🍕',
+];
+let _selectedAvatar = AVATARS[0];
+
+function selectAvatar(emoji) {
+  _selectedAvatar = emoji;
+  $$('.avatar-opt').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.emoji === emoji);
+  });
+}
+
 // ── Page : PLAYER ────────────────────────────────────────────
 pageInits.player = function() {
   // Restaurer session depuis localStorage
@@ -180,6 +235,15 @@ function renderPlayerJoin(suggestedCode = '') {
   const teamsOptions = state.teams.length
     ? state.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')
     : '';
+
+  // Galerie d'avatars
+  const avatarGrid = `
+    <div>
+      <label>Avatar</label>
+      <div class="avatar-grid">
+        ${AVATARS.map(e => `<button type="button" class="avatar-opt ${e===_selectedAvatar?'active':''}" data-emoji="${e}" onclick="selectAvatar('${e}')">${e}</button>`).join('')}
+      </div>
+    </div>`;
 
   // Cartes d'équipes si disponibles
   const teamCards = state.teams.length
@@ -220,6 +284,7 @@ function renderPlayerJoin(suggestedCode = '') {
           <label>Pseudo</label>
           <input id="in-pseudo" placeholder="Votre nom de joueur" maxlength="32">
         </div>
+        ${avatarGrid}
         ${teamCards}
         <button class="btn-primary" onclick="submitJoinPlayer()" style="margin-top:4px;">
           🚀 Rejoindre la partie
@@ -262,6 +327,7 @@ function submitJoinPlayer() {
       reconnectToken: res.player.reconnectToken,
       teamId: res.player.teamId || null,
       teamName: res.player.teamName || null,
+      avatar: _selectedAvatar || '🎮',
     };
     state.playerSession = session;
     localStorage.setItem('quiz_player_session', JSON.stringify(session));
@@ -305,7 +371,7 @@ function renderPlayerGame() {
   let content = `
     <div class="session-banner">
       <span>Session : <strong class="session-code">${s.sessionCode}</strong></span>
-      <span>👤 <strong>${s.pseudo}</strong>${s.teamName ? ` · ${s.teamName}` : ''}</span>
+      <span>${s.avatar || '🎮'} <strong>${s.pseudo}</strong>${s.teamName ? ` · ${s.teamName}` : ''}</span>
       <span style="margin-left:auto;color:#38ef7d;font-weight:700;">Score : ${myPlayer?.scoreTotal ?? 0}</span>
     </div>
     <div style="padding:16px;">
@@ -390,10 +456,11 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
   if (locked || answered) {
     return `
       ${timer}
-      <div class="card" style="text-align:center;padding:30px;">
-        <div style="font-size:2.5rem;">${answered ? '✅' : '🔒'}</div>
-        <p style="margin-top:12px;font-size:1.1rem;">${answered ? 'Réponse enregistrée !' : 'Écran verrouillé'}</p>
-        ${q.content ? `<p class="muted" style="margin-top:8px;">${q.content}</p>` : ''}
+      <div class="card" style="text-align:center;padding:34px;">
+        <div class="answer-confirmed-icon">${answered ? '✅' : '🔒'}</div>
+        <p style="margin-top:14px;font-size:1.15rem;font-weight:600;">${answered ? 'Réponse envoyée !' : 'Écran verrouillé'}</p>
+        ${q.content ? `<p class="muted" style="margin-top:6px;">${q.content}</p>` : ''}
+        ${answered ? '<div class="waiting-dots"><span></span><span></span><span></span></div>' : ''}
       </div>`;
   }
 
@@ -438,7 +505,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
       const mediaEl = isImg ? `<img src="${optMedia}" style="max-height:80px;border-radius:6px;margin-bottom:6px;">` :
                       isAudio ? `<audio controls src="${optMedia}" style="height:28px;margin-bottom:6px;"></audio>` : '';
       return `<button class="answer-btn" style="border-color:${labelColors[i]};flex-direction:column;padding:12px;"
-        onclick="sendAnswer('${gs.sessionCode || ''}','${playerId}',${JSON.stringify(label)})">
+        onclick="sendAnswerByIndex(${i})">
         ${mediaEl}<span style="color:${labelColors[i]};font-weight:700;margin-bottom:4px;">${labels[i]}</span>${label}
       </button>`;
     }).join('');
@@ -487,6 +554,7 @@ function renderPlayerRevealContent(gs, playerId) {
 
 function sendAnswer(sessionCode, playerId, answer) {
   const s = state.playerSession;
+  playSound('answer');
   state.socket.emit('player:answer', { sessionCode: s?.sessionCode || sessionCode, playerId, answer }, (res) => {
     if (!res?.ok) alert$('player-alert', res?.error || 'Erreur', 'error');
   });
@@ -500,11 +568,22 @@ function sendTextAnswer(sessionCode, playerId) {
 
 function sendBuzzer(sessionCode) {
   const s = state.playerSession;
+  playSound('buzzer');
   state.socket.emit('player:buzzer', { sessionCode: s?.sessionCode || sessionCode, playerId: s?.playerId }, (res) => {
     if (!res?.ok) alert$('player-alert', res?.error || 'Buzzer non disponible', 'error');
     const btn = $('#buzzer-btn');
     if (btn) btn.disabled = true;
   });
+}
+
+// Fonction index-safe pour réponse MCQ (évite le problème d'échappement des guillemets dans onclick)
+function sendAnswerByIndex(optIndex) {
+  const q = state.gameState?.currentQuestion;
+  const opts = Array.isArray(q?.options) ? q.options : [];
+  const opt = opts[optIndex];
+  const label = typeof opt === 'object' ? (opt.text || '') : String(opt || '');
+  const s = state.playerSession;
+  sendAnswer(s?.sessionCode, s?.playerId, label);
 }
 
 function logoutPlayer() {
@@ -695,6 +774,75 @@ function renderHostGame() {
         </div>`;
     }
 
+    // P4 — Écran fin de question : révélation détaillée
+    if (phase === 'answer_reveal') {
+      const revealed = gs?.revealedAnswer;
+      if (revealed) {
+        const correctNorm = (revealed.correctAnswer || '').trim().toLowerCase();
+        const answerRows = (revealed.answers || []).map(a => {
+          const isCorrect = (a.answer || '').trim().toLowerCase() === correctNorm;
+          return `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:8px;background:${isCorrect?'rgba(56,239,125,.1)':'rgba(235,51,73,.1)'};margin-bottom:6px;">
+              <span style="font-weight:600;">${a.pseudo || '—'}</span>
+              <span style="color:${isCorrect?'#38ef7d':'#eb3349'};font-size:.9rem;">${a.answer || '—'} ${isCorrect?'✅':'❌'}</span>
+            </div>`;
+        }).join('') || '<p class="muted">Aucune réponse enregistrée</p>';
+        html_ += `
+          <div class="card">
+            <h3>📋 Révélation des réponses</h3>
+            <div style="margin:12px 0;padding:10px;background:rgba(56,239,125,.08);border:1px solid rgba(56,239,125,.25);border-radius:8px;">
+              <p class="muted" style="font-size:.75rem;margin-bottom:4px;">BONNE RÉPONSE</p>
+              <p style="font-size:1.3rem;font-weight:700;color:#38ef7d;">${revealed.correctAnswer || '—'}</p>
+            </div>
+            <div style="margin-top:8px;">${answerRows}</div>
+          </div>`;
+      }
+    }
+
+    // P5 — Écran fin de manche : bilan des questions + scores
+    if (phase === 'results') {
+      const round = gs?.currentRound;
+      const questions = Array.isArray(round?.questions) ? round.questions : [];
+      if (questions.length) {
+        const qRows = questions.map((q, i) => {
+          const answers = gs?.answers?.[q.id] || {};
+          const answersArr = Object.values(answers);
+          const correctNorm = (q.correctAnswer || '').trim().toLowerCase();
+          const correctCount = answersArr.filter(a => (a.answer||'').trim().toLowerCase() === correctNorm).length;
+          const hasCorrect = q.correctAnswer && q.correctAnswer.trim();
+          return `
+            <div style="padding:10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:8px;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+                <div style="flex:1;">
+                  <span class="muted" style="font-size:.72rem;">${i+1}. ${(q.type||'?').toUpperCase()}</span>
+                  <p style="margin:4px 0;font-weight:600;">${q.content || '—'}</p>
+                  ${hasCorrect ? `<p style="color:#38ef7d;font-size:.85rem;">✓ ${q.correctAnswer}</p>` : ''}
+                </div>
+                ${answersArr.length ? `
+                  <div style="text-align:right;flex-shrink:0;">
+                    <strong style="font-size:1rem;">${correctCount}/${answersArr.length}</strong>
+                    <p class="muted" style="font-size:.72rem;">correct</p>
+                  </div>` : ''}
+              </div>
+            </div>`;
+        }).join('');
+        html_ += `
+          <div class="card">
+            <h3>📊 Bilan — ${round?.title || 'Manche'}</h3>
+            <div style="margin-top:12px;">${qRows}</div>
+          </div>`;
+      }
+      html_ += renderScoreboard(state.leaderboardPlayers, '🏆 Classement');
+      if (state.leaderboardTeams.length) {
+        html_ += `
+          <div class="card">
+            <h2>👥 Classement équipes</h2>
+            <table><thead><tr><th>Rang</th><th>Équipe</th><th>Score</th></tr></thead>
+            <tbody>${state.leaderboardTeams.map((t,i) => `<tr class="rank-${i+1}"><td>${t.rank??i+1}</td><td>${t.name}</td><td><strong>${t.scoreTotal??0}</strong></td></tr>`).join('')}</tbody></table>
+          </div>`;
+      }
+    }
+
     // Attribution manuelle de points
     if (['manual_scoring','answer_reveal','waiting','question'].includes(phase) && state.leaderboardPlayers.length) {
       html_ += `
@@ -793,11 +941,20 @@ function buildHostActionButtons(phase) {
   const btns = [];
   const gs = state.gameState;
   const currentType = gs?.currentRound?.type || gs?.currentQuestion?.type || '';
+  const isPaused = gs?.phaseMeta?.paused === true;
 
   if (phase === 'lobby')          btns.push({ label: '▶️ Démarrer le quiz', action: 'start_quiz', style: 'success' });
   if (phase === 'round_intro')    btns.push({ label: '▶️ Démarrer la manche', action: 'start_round', style: 'success' });
 
   if (phase === 'question' || phase === 'waiting') {
+    // Navigation
+    btns.push({ label: '⬅️ Question préc.', action: 'prev_question', style: 'secondary' });
+    // Pause / Resume
+    if (isPaused) {
+      btns.push({ label: '▶️ Reprendre', action: 'resume_game', style: 'success' });
+    } else {
+      btns.push({ label: '⏸️ Pause', action: 'pause_game', style: 'secondary' });
+    }
     // Mode burger : bouton "Élément suivant" au lieu de "Révéler"
     if (currentType === 'burger') {
       btns.push({ label: '🍔 Élément suivant', action: 'burger_next_item', style: 'success' });
@@ -810,13 +967,13 @@ function buildHostActionButtons(phase) {
   }
 
   if (phase === 'answer_reveal') {
+    btns.push({ label: '⬅️ Question préc.', action: 'prev_question', style: 'secondary' });
     btns.push({ label: '📊 Afficher résultats', action: 'show_results', style: 'secondary' });
-    btns.push({ label: '⏭️ Question suivante', action: 'next_question', style: 'secondary' });
+    btns.push({ label: '⏭️ Question suivante', action: 'next_question', style: 'success' });
   }
 
   if (phase === 'results') {
-    btns.push({ label: '⏭️ Manche suivante', action: 'next_round', style: 'secondary' });
-    btns.push({ label: '⏭️ Question suivante', action: 'next_question', style: 'secondary' });
+    btns.push({ label: '⏭️ Manche suivante', action: 'next_round', style: 'success' });
     btns.push({ label: '🏁 Terminer le quiz', action: 'finish_quiz', style: 'danger' });
   }
 
@@ -828,7 +985,9 @@ function buildHostActionButtons(phase) {
     } else if (currentType === 'burger') {
       btns.push({ label: '🍔 Élément suivant', action: 'burger_next_item', style: 'success' });
     }
+    btns.push({ label: '📋 Révéler la réponse', action: 'reveal_answer', style: 'secondary' });
     btns.push({ label: '📊 Afficher résultats', action: 'show_results', style: 'secondary' });
+    btns.push({ label: '⏭️ Question suivante', action: 'next_question', style: 'secondary' });
   }
 
   if (phase === 'end') {
@@ -1351,28 +1510,26 @@ function emptyQuestion(type = 'qcm') {
 function renderQuizEditor() {
   const q = state.admin.editingQuiz;
   const rounds = q.rounds || [];
-  // Assurer que l'index actif est valide
   if (state.admin.activeRoundIndex >= rounds.length) {
     state.admin.activeRoundIndex = Math.max(0, rounds.length - 1);
   }
   const ari = state.admin.activeRoundIndex;
   const activeRound = rounds[ari] || null;
 
-  // Navigation entre manches
-  const roundNav = rounds.length
-    ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
-        ${rounds.map((r, ri) => `
-          <button onclick="switchRound(${ri})"
-            style="padding:6px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.15);
-            background:${ari===ri?'rgba(99,179,237,.25)':'rgba(255,255,255,.04)'};
-            color:${ari===ri?'#79b8ff':'rgba(255,255,255,.7)'};
-            font-weight:${ari===ri?'700':'400'};cursor:pointer;font-size:.82rem;
-            outline:${ari===ri?'2px solid rgba(99,179,237,.5)':'none'};">
+  // Sidebar : liste des manches
+  const sidebarItems = rounds.length
+    ? rounds.map((r, ri) => `
+        <div class="editor-sidebar-item ${ari===ri?'active':''}" onclick="switchRound(${ri})">
+          <div style="font-size:.7rem;color:rgba(255,255,255,.4);margin-bottom:2px;">Manche ${ri+1}</div>
+          <div style="font-weight:${ari===ri?'700':'400'};font-size:.86rem;color:${ari===ri?'#79b8ff':'rgba(255,255,255,.8)'};
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
             ${r.title || `Manche ${ri+1}`}
-          </button>`).join('')}
-        <button class="btn-primary" style="padding:6px 14px;font-size:.82rem;border-radius:20px;" onclick="addRound()">+ Manche</button>
-      </div>`
-    : `<div style="margin-bottom:14px;"><button class="btn-primary" style="font-size:.85rem;" onclick="addRound()">+ Manche</button></div>`;
+          </div>
+          <div style="font-size:.7rem;color:rgba(255,255,255,.35);margin-top:3px;">
+            ${(r.questions||[]).length} question(s) · ${r.type||'qcm'}
+          </div>
+        </div>`).join('')
+    : '<p class="muted" style="font-size:.8rem;text-align:center;">Aucune manche</p>';
 
   html('page-admin', `
     <div class="row" style="justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
@@ -1384,23 +1541,38 @@ function renderQuizEditor() {
     </div>
     <div id="admin-alert"></div>
 
-    <div class="card">
-      <h3>Informations générales</h3>
-      <div style="display:grid;gap:12px;margin-top:12px;">
-        <div>
-          <label>Titre du quiz</label>
-          <input id="quiz-title" value="${q.title || ''}" placeholder="Nom du quiz">
+    <div class="editor-layout">
+      <!-- Colonne principale -->
+      <div>
+        <div class="card" style="border-color:rgba(99,179,237,.2);">
+          <h3>📝 Informations générales</h3>
+          <div style="margin-top:12px;">
+            <label>Titre du quiz</label>
+            <input id="quiz-title" value="${q.title || ''}" placeholder="Nom du quiz">
+          </div>
+        </div>
+
+        <div id="rounds-container">
+          ${activeRound
+            ? renderRoundBlock(activeRound, ari)
+            : `<div class="card" style="text-align:center;padding:40px;border:2px dashed rgba(255,255,255,.12);">
+                <div style="font-size:2.5rem;margin-bottom:10px;">📋</div>
+                <p class="muted">Aucune manche. Ajoutez-en une dans le panneau de droite.</p>
+               </div>`}
         </div>
       </div>
-    </div>
 
-    <div class="card">
-      <div class="row" style="justify-content:space-between;margin-bottom:4px;">
-        <h3>Manches (${rounds.length})</h3>
-      </div>
-      ${roundNav}
-      <div id="rounds-container">
-        ${activeRound ? renderRoundBlock(activeRound, ari) : '<p class="muted" style="text-align:center;padding:20px;">Aucune manche. Cliquez sur "+ Manche".</p>'}
+      <!-- Sidebar manches -->
+      <div class="editor-sidebar">
+        <div class="card" style="padding:14px;border-color:rgba(99,179,237,.2);">
+          <div style="font-size:.72rem;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">
+            📋 Manches (${rounds.length})
+          </div>
+          ${sidebarItems}
+          <button class="btn-primary" style="width:100%;padding:9px;font-size:.82rem;margin-top:10px;" onclick="addRound()">
+            + Nouvelle manche
+          </button>
+        </div>
       </div>
     </div>
   `);

@@ -23,8 +23,11 @@ import {
   finishQuiz,
   lockPlayers,
   nextQuestion,
+  pauseGame,
+  prevQuestion,
   recordBuzzer,
   recordPlayerAnswer,
+  resumeGame,
   revealAnswer,
   scheduleAutoRevealAfterAllAnswered,
   showResults,
@@ -400,8 +403,38 @@ export function setupSocketHandlers(io) {
           case "start_round":
             res = startRound(session);
             break;
-          case "next_question":
+          case "next_question": {
             res = nextQuestion(session);
+            if (res.ok) {
+              const nextQ = session.gameState.currentQuestion;
+              const nextQType = nextQ?.type || "";
+              // Auto-start 45s timer for MCQ and True/False — host reveals manually (no auto-reveal)
+              if (
+                (nextQType === "qcm" || nextQType === "true_false") &&
+                session.gameState.status === "question"
+              ) {
+                startTimer(session, 45, {
+                  emitNow: (s) => emitSessionState(io, s),
+                  onAutoReveal: () => {}, // noop: pas de reveal auto, le host décide
+                });
+              }
+            }
+            break;
+          }
+
+          case "prev_question":
+            res = prevQuestion(session);
+            break;
+
+          case "pause_game":
+            res = pauseGame(session);
+            break;
+
+          case "resume_game":
+            res = resumeGame(session, {
+              emitNow: (s) => emitSessionState(io, s),
+              onAutoReveal: () => {},
+            });
             break;
           case "next_round": {
             const rounds = session?.quiz?.rounds || [];

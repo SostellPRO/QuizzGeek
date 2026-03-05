@@ -299,7 +299,98 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.8rem; text-tr
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
 
+/* ── Card hover effect ───────────────────────────────────────── */
+.card { transition: box-shadow 0.25s ease; }
+.card:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.25); }
+
+/* ── Answer button animation ─────────────────────────────────── */
+.answer-btn { transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.answer-btn:active { transform: scale(0.94); }
+
+/* ── Answer confirmation animation ──────────────────────────── */
+@keyframes answer-confirm {
+  0%   { transform: scale(0.5); opacity: 0; }
+  65%  { transform: scale(1.25); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.answer-confirmed-icon {
+  font-size: 3.5rem;
+  display: inline-block;
+  animation: answer-confirm 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ── Waiting / loading dots ──────────────────────────────────── */
+@keyframes dot-pulse {
+  0%, 80%, 100% { transform: scale(0.55); opacity: 0.35; }
+  40%           { transform: scale(1);    opacity: 1; }
+}
+.waiting-dots { display: flex; justify-content: center; gap: 10px; margin-top: 18px; }
+.waiting-dots span {
+  display: inline-block;
+  width: 11px; height: 11px;
+  background: rgba(255,255,255,0.65);
+  border-radius: 50%;
+  animation: dot-pulse 1.4s ease-in-out infinite;
+}
+.waiting-dots span:nth-child(2) { animation-delay: 0.22s; }
+.waiting-dots span:nth-child(3) { animation-delay: 0.44s; }
+
+/* ── Avatar picker ───────────────────────────────────────────── */
+.avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+.avatar-opt {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  font-size: 1.4rem;
+  border: 2px solid transparent;
+  background: rgba(255,255,255,0.07);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.15s, border-color 0.15s, background 0.15s;
+}
+.avatar-opt:hover  { transform: scale(1.12); background: rgba(255,255,255,0.14); }
+.avatar-opt.active { border-color: #f093fb; background: rgba(240,147,251,0.22); transform: scale(1.12); }
+
+/* ── Quiz editor sidebar ─────────────────────────────────────── */
+.editor-layout { display: grid; grid-template-columns: 1fr 210px; gap: 18px; align-items: start; }
+.editor-sidebar { position: sticky; top: 72px; }
+.editor-sidebar-item {
+  padding: 10px 13px;
+  border-radius: 9px;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,.07);
+  margin-bottom: 6px;
+  transition: background .15s, border-color .15s;
+}
+.editor-sidebar-item:hover { background: rgba(255,255,255,.08); }
+.editor-sidebar-item.active { background: rgba(99,179,237,.18); border-color: rgba(99,179,237,.4); }
+
+/* ── Round panel improved ────────────────────────────────────── */
+.round-panel {
+  background: rgba(255,255,255,0.05);
+  border-radius: 12px; padding: 18px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.question-row {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: rgba(255,255,255,0.04);
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: border-color .2s;
+}
+.question-row:hover { border-color: rgba(255,255,255,0.16); }
+.question-row input { flex: 1; margin: 0; }
+
 /* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .editor-layout { grid-template-columns: 1fr; }
+  .editor-sidebar { position: static; }
+}
 @media (max-width: 600px) {
   .grid2, .grid3 { grid-template-columns: 1fr; }
   .answer-grid { grid-template-columns: 1fr; }

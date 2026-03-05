@@ -549,6 +549,75 @@ export function nextQuestion(session) {
   return { ok: true };
 }
 
+export function prevQuestion(session) {
+  ensureSessionRuntime(session);
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+
+  const round = getCurrentRound(session);
+  if (!round) return { ok: false, error: "Aucune manche active" };
+
+  const curIdx = Number(session.gameState.currentQuestionIndex ?? -1);
+  if (curIdx <= 0) return { ok: false, error: "Déjà à la première question" };
+
+  const prevIdx = curIdx - 1;
+  const questions = getRoundQuestions(round);
+  if (!questions[prevIdx]) return { ok: false, error: "Question précédente introuvable" };
+
+  session.gameState.currentQuestionIndex = prevIdx;
+  setCurrentRoundAndQuestionSnapshots(session);
+  resetQuestionTransient(session);
+  setPhaseMeta(session, { playerScreenLocked: false, allowAnswer: true, timer: null });
+  setAnswerModeFromQuestion(session);
+  setStatus(session, "question");
+  return { ok: true };
+}
+
+export function pauseGame(session) {
+  ensureSessionRuntime(session);
+  const timerNow = session.gameState?.phaseMeta?.timer;
+  const remainingSec = timerNow?.remainingSec ?? null;
+  const totalSec = timerNow?.totalSec ?? null;
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+  setPhaseMeta(session, {
+    paused: true,
+    pausedRemainingSec: remainingSec,
+    pausedTotalSec: totalSec,
+    playerScreenLocked: true,
+    allowAnswer: false,
+    timer: remainingSec !== null ? {
+      totalSec: totalSec || remainingSec,
+      remainingSec,
+      startedAt: timerNow?.startedAt || new Date().toISOString(),
+      paused: true,
+    } : null,
+  });
+  touch(session);
+  return { ok: true, pausedRemainingSec: remainingSec };
+}
+
+export function resumeGame(session, hooks = {}) {
+  ensureSessionRuntime(session);
+  const pm = session.gameState?.phaseMeta || {};
+  const pausedSec = pm.pausedRemainingSec ?? null;
+  const pausedTotal = pm.pausedTotalSec ?? null;
+  setPhaseMeta(session, {
+    paused: false,
+    pausedRemainingSec: undefined,
+    pausedTotalSec: undefined,
+    playerScreenLocked: false,
+    allowAnswer: true,
+    timer: null,
+  });
+  setStatus(session, "question");
+  touch(session);
+  if (pausedSec != null && pausedSec > 0) {
+    return startTimer(session, pausedSec, hooks);
+  }
+  return { ok: true };
+}
+
 export function startTimer(session, seconds, hooks = {}) {
   ensureSessionRuntime(session);
 
