@@ -545,6 +545,16 @@ export function nextQuestion(session) {
   });
   setAnswerModeFromQuestion(session);
 
+  // Pour les questions buzzer : démarrer en état verrouillé (buzzer gris)
+  // Le host doit cliquer "Activer les buzzers" pour les rendre actifs
+  const newAnswerMode = session.gameState.phaseMeta?.answerMode;
+  if (newAnswerMode === "buzzer") {
+    setPhaseMeta(session, { playerScreenLocked: true, allowAnswer: false });
+  }
+
+  // Réinitialiser le dernier résultat buzzer
+  session.gameState.buzzerLastResult = null;
+
   setStatus(session, "question");
   return { ok: true };
 }
@@ -1253,6 +1263,23 @@ export function buzzerNextPlayer(session) {
   setStatus(session, "manual_scoring");
   touch(session);
   return { ok: true, nextPseudo: nextPlayer?.pseudo || nextId };
+}
+
+/* ------------------------------------------------------------------ */
+/* Stop timer : arrête le chrono et verrouille les joueurs             */
+/* ------------------------------------------------------------------ */
+
+export function stopTimer(session) {
+  ensureSessionRuntime(session);
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+  setPhaseMeta(session, {
+    timer: null,
+    playerScreenLocked: true,
+    allowAnswer: false,
+  });
+  touch(session);
+  return { ok: true };
 }
 
 /* ------------------------------------------------------------------ */

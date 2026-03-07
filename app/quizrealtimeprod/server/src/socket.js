@@ -39,6 +39,7 @@ import {
   startQuiz,
   startRound,
   startTimer,
+  stopTimer,
   unlockPlayers,
 } from "./engine.js";
 
@@ -470,11 +471,14 @@ export function setupSocketHandlers(io) {
           case "start_timer":
             res = startTimer(session, payload.seconds, {
               emitNow: (s) => emitSessionState(io, s),
-              onAutoReveal: (s) => {
-                revealAnswer(s);
-                persistAndEmit(io, s);
-              },
+              // Quand le timer expire : verrouiller les joueurs (écran d'attente)
+              // Le host choisit ensuite de révéler ou passer à la question suivante
+              onAutoReveal: () => {},
             });
+            break;
+
+          case "stop_timer":
+            res = stopTimer(session);
             break;
           case "lock_players":
             res = lockPlayers(session);
@@ -593,6 +597,98 @@ export function setupSocketHandlers(io) {
           case "burger_next_item":
             res = burgerNextItem(session);
             break;
+
+          case "activate_buzzer":
+            // Activer les buzzers (passer de gris à rouge)
+            res = unlockPlayers(session);
+            break;
+
+          case "buzzer_mark_correct": {
+            // Marquer le buzzer courant comme correct (avec son sur le display)
+            const buzzerCorrectId = session.gameState.buzzerState?.firstPlayerId;
+            if (!buzzerCorrectId) {
+              res = { ok: false, error: "Aucun joueur n'a buzzé" };
+              break;
+            }
+            awardManualPoints(session, { playerId: buzzerCorrectId, points: 1, reason: "buzzer_correct" });
+            session.gameState.buzzerLastResult = {
+              result: "correct",
+              playerId: buzzerCorrectId,
+              pseudo: session.gameState.buzzerState.firstPseudo,
+              at: new Date().toISOString(),
+            };
+            res = { ok: true };
+            break;
+          }
+
+          case "buzzer_mark_wrong": {
+            // Marquer le buzzer courant comme incorrect (avec son sur le display)
+            const buzzerWrongId = session.gameState.buzzerState?.firstPlayerId;
+            session.gameState.buzzerLastResult = {
+              result: "wrong",
+              playerId: buzzerWrongId || null,
+              pseudo: session.gameState.buzzerState?.firstPseudo || null,
+              at: new Date().toISOString(),
+            };
+            res = { ok: true };
+            break;
+          }
+
+          case "stop_session": {
+            // Stopper la partie en cours → retour au lobby
+            if (session.gameState) {
+              cancelPendingAutoReveal(session);
+              session.gameState.status = "lobby";
+              session.gameState.currentRoundIndex = -1;
+              session.gameState.currentQuestionIndex = -1;
+              session.gameState.currentRound = null;
+              session.gameState.currentQuestion = null;
+              session.gameState.phaseMeta = {
+                playerScreenLocked: false,
+                allowAnswer: false,
+                answerMode: "none",
+                timer: null,
+                finalCeremony: null,
+              };
+              session.gameState.trueFalseVotes = { yes: [], no: [] };
+              session.gameState.buzzerState = null;
+              session.gameState.buzzerQueue = [];
+              session.gameState.buzzerLastResult = null;
+              session.gameState.burgerState = null;
+              session.gameState.updatedAt = new Date().toISOString();
+            }
+            res = { ok: true };
+            break;
+          }
+
+          case "reset_all": {
+            // Reset complet : joueurs, scores, progression (garde les quiz)
+            cancelPendingAutoReveal(session);
+            session.players = [];
+            session.gameState.status = "lobby";
+            session.gameState.currentRoundIndex = -1;
+            session.gameState.currentQuestionIndex = -1;
+            session.gameState.currentRound = null;
+            session.gameState.currentQuestion = null;
+            session.gameState.answers = {};
+            session.gameState.phaseMeta = {
+              playerScreenLocked: false,
+              allowAnswer: false,
+              answerMode: "none",
+              timer: null,
+              finalCeremony: null,
+            };
+            session.gameState.trueFalseVotes = { yes: [], no: [] };
+            session.gameState.buzzerState = null;
+            session.gameState.buzzerQueue = [];
+            session.gameState.buzzerLastResult = null;
+            session.gameState.burgerState = null;
+            session.gameState.revealedAnswer = null;
+            session.gameState.updatedAt = new Date().toISOString();
+            for (const t of session.teams || []) t.scoreTotal = 0;
+            res = { ok: true };
+            break;
+          }
 
           case "burger_select_player":
             res = setBurgerPlayer(session, payload.playerId || null);
