@@ -58,10 +58,6 @@ function ensureSessionRuntime(session) {
     session.gameState.buzzerState = null;
   }
 
-  if (!session.gameState.voteState) {
-    session.gameState.voteState = null;
-  }
-
   return session._runtime;
 }
 
@@ -171,11 +167,6 @@ function setAnswerModeFromQuestion(session) {
     ) {
       answerMode = "true_false";
     } else if (
-      qType === "vote" ||
-      round.type === "vote"
-    ) {
-      answerMode = "vote_input";
-    } else if (
       qType === "qcm" ||
       qType === "mcq" ||
       round.type === "qcm" ||
@@ -242,9 +233,6 @@ function recomputeTrueFalseVotes(session) {
 
 function resetQuestionTransient(session) {
   resetQuestionTransientState(session.gameState);
-
-  // Réinitialiser l'état de vote pour la nouvelle question
-  session.gameState.voteState = null;
 
   // on conserve answers globaux par question, mais on réinitialise le timer + écrans
   setPhaseMeta(session, {
@@ -522,14 +510,14 @@ export function nextQuestion(session) {
       answerMode: "none",
       timer: null,
     });
-    setStatus(session, "round_end");
+    setStatus(session, "results");
     return { ok: true };
   }
 
   const nextIdx = Number(session.gameState.currentQuestionIndex ?? -1) + 1;
 
   if (!questions[nextIdx]) {
-    // fin de manche → afficher l'écran de fin de manche (pas les scores directement)
+    // fin de manche
     session.gameState.currentQuestionIndex = -1;
     setCurrentRoundAndQuestionSnapshots(session);
 
@@ -541,7 +529,7 @@ export function nextQuestion(session) {
     });
 
     resetQuestionTransientState(session.gameState);
-    setStatus(session, "round_end");
+    setStatus(session, "results");
     return { ok: true };
   }
 
@@ -1297,177 +1285,6 @@ export function stopTimer(session) {
 /* ------------------------------------------------------------------ */
 /* Helpers optionnels (non importés par socket.js, mais utiles)        */
 /* ------------------------------------------------------------------ */
-
-/* ------------------------------------------------------------------ */
-/* Retour à la question courante depuis answer_reveal / results        */
-/* ------------------------------------------------------------------ */
-
-export function returnToQuestion(session) {
-  ensureSessionRuntime(session);
-
-  const q = getCurrentQuestion(session);
-  if (!q) return { ok: false, error: "Aucune question active" };
-
-  // On ne remet PAS à zéro les réponses, on revient juste à l'affichage de la question
-  clearTimer(session);
-  clearAutoRevealTimeout(session);
-
-  setPhaseMeta(session, {
-    playerScreenLocked: true,
-    allowAnswer: false,
-    timer: null,
-  });
-
-  setStatus(session, "question");
-  return { ok: true };
-}
-
-/* ------------------------------------------------------------------ */
-/* Type de question VOTE                                               */
-/* ------------------------------------------------------------------ */
-
-function shuffleArray(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-/**
- * Lance la phase de vote :
- * - Réunit les réponses des joueurs + les fausses réponses pré-configurées
- * - Mélange le tout
- * - Passe en mode vote_voting
- */
-export function startVotePhase(session) {
-  ensureSessionRuntime(session);
-
-  const q = getCurrentQuestion(session);
-  if (!q) return { ok: false, error: "Aucune question active" };
-  if ((q.type || "") !== "vote") return { ok: false, error: "Question non de type vote" };
-
-  const answerMap = getQuestionAnswersMap(session, q.id);
-  const playerAnswers = Object.values(answerMap)
-    .filter((a) => a.answer && a.answer.trim())
-    .map((a) => ({ text: a.answer.trim(), isDecoy: false, playerId: a.playerId }));
-
-  const fakeAnswers = Array.isArray(q.fakeAnswers)
-    ? q.fakeAnswers.filter((f) => f && f.trim()).map((f) => ({ text: f.trim(), isDecoy: true, playerId: null }))
-    : [];
-
-  const allOptions = shuffleArray([...playerAnswers, ...fakeAnswers]);
-
-  // Initialiser ou réinitialiser le voteState
-  session.gameState.voteState = {
-    questionId: q.id,
-    phase: "voting",
-    options: allOptions.map((o, idx) => ({ ...o, idx })),
-    votes: {}, // playerId → voteIndex
-    revealed: false,
-  };
-
-  setPhaseMeta(session, {
-    playerScreenLocked: false,
-    allowAnswer: true,
-    answerMode: "vote_voting",
-  });
-
-  setStatus(session, "question");
-  touch(session);
-  return { ok: true };
-}
-
-/**
- * Enregistre le vote d'un joueur
- */
-export function recordVoteCast(session, { player, voteIndex } = {}) {
-  ensureSessionRuntime(session);
-
-  if (!player) return { ok: false, error: "Joueur introuvable" };
-  if (!player.connected) return { ok: false, error: "Joueur hors ligne" };
-
-  const vs = session.gameState.voteState;
-  if (!vs || vs.phase !== "voting") return { ok: false, error: "Phase de vote non active" };
-
-  const idx = Number(voteIndex);
-  if (!Number.isFinite(idx) || idx < 0 || idx >= vs.options.length) {
-    return { ok: false, error: "Index de vote invalide" };
-  }
-
-  // Un joueur ne peut pas voter pour sa propre réponse
-  const option = vs.options[idx];
-  if (option.playerId === player.id) {
-    return { ok: false, error: "Vous ne pouvez pas voter pour votre propre réponse" };
-  }
-
-  // Overwrite autorisé (peut changer d'avis)
-  vs.votes[player.id] = idx;
-
-  touch(session);
-  return { ok: true };
-}
-
-/**
- * Révèle les résultats du vote et attribue les points
- */
-export function revealVoteResults(session) {
-  ensureSessionRuntime(session);
-
-  const q = getCurrentQuestion(session);
-  if (!q) return { ok: false, error: "Aucune question active" };
-
-  const vs = session.gameState.voteState;
-  if (!vs) return { ok: false, error: "Aucun état de vote" };
-
-  // Compter les votes par option
-  const voteCounts = new Array(vs.options.length).fill(0);
-  for (const voteIdx of Object.values(vs.votes)) {
-    if (Number.isFinite(voteIdx) && voteIdx >= 0 && voteIdx < voteCounts.length) {
-      voteCounts[voteIdx]++;
-    }
-  }
-
-  // Attribuer les points :
-  // - Chaque joueur dont la réponse a reçu des votes gagne autant de points qu'il a reçu de votes
-  // - Chaque joueur qui a voté pour un leurre (isDecoy) perd 1 point
-  for (const [playerId, voteIdx] of Object.entries(vs.votes)) {
-    const chosenOption = vs.options[voteIdx];
-    if (chosenOption?.isDecoy) {
-      // Voter pour un leurre : -1 point
-      awardPointsToPlayer(session, playerId, -1);
-    }
-    // Points pour avoir reçu des votes : attribués ci-dessous
-  }
-
-  // Attribuer les points aux auteurs des réponses
-  for (let idx = 0; idx < vs.options.length; idx++) {
-    const option = vs.options[idx];
-    if (!option.isDecoy && option.playerId && voteCounts[idx] > 0) {
-      awardPointsToPlayer(session, option.playerId, voteCounts[idx]);
-    }
-  }
-
-  // Marquer les options avec les données de vote (pour l'affichage)
-  vs.options = vs.options.map((o, idx) => ({
-    ...o,
-    voteCount: voteCounts[idx],
-  }));
-  vs.phase = "revealed";
-  vs.revealed = true;
-
-  setPhaseMeta(session, {
-    playerScreenLocked: true,
-    allowAnswer: false,
-    timer: null,
-    answerMode: "vote_revealed",
-  });
-
-  setStatus(session, "answer_reveal");
-  touch(session);
-  return { ok: true };
-}
 
 export function resetEngineRuntime(session) {
   clearTimer(session);

@@ -41,10 +41,6 @@ import {
   startTimer,
   stopTimer,
   unlockPlayers,
-  startVotePhase,
-  recordVoteCast,
-  revealVoteResults,
-  returnToQuestion,
 } from "./engine.js";
 
 function sessionRoom(code) {
@@ -414,7 +410,20 @@ export function setupSocketHandlers(io) {
             break;
           case "next_question": {
             res = nextQuestion(session);
-            // Pas de timer automatique — le maître de jeu le lance manuellement
+            if (res.ok) {
+              const nextQ = session.gameState.currentQuestion;
+              const nextQType = nextQ?.type || "";
+              // Auto-start 45s timer for MCQ and True/False — host reveals manually (no auto-reveal)
+              if (
+                (nextQType === "qcm" || nextQType === "true_false") &&
+                session.gameState.status === "question"
+              ) {
+                startTimer(session, 45, {
+                  emitNow: (s) => emitSessionState(io, s),
+                  onAutoReveal: () => {}, // noop: pas de reveal auto, le host décide
+                });
+              }
+            }
             break;
           }
 
@@ -453,7 +462,6 @@ export function setupSocketHandlers(io) {
               session.gameState.buzzerState = null;
               session.gameState.buzzerQueue = [];
               session.gameState.burgerState = null;
-              session.gameState.voteState = null;
               session.gameState.status = "round_intro";
               session.gameState.updatedAt = new Date().toISOString();
               res = { ok: true };
@@ -647,7 +655,6 @@ export function setupSocketHandlers(io) {
               session.gameState.buzzerQueue = [];
               session.gameState.buzzerLastResult = null;
               session.gameState.burgerState = null;
-              session.gameState.voteState = null;
               session.gameState.updatedAt = new Date().toISOString();
             }
             res = { ok: true };
@@ -676,7 +683,6 @@ export function setupSocketHandlers(io) {
             session.gameState.buzzerQueue = [];
             session.gameState.buzzerLastResult = null;
             session.gameState.burgerState = null;
-            session.gameState.voteState = null;
             session.gameState.revealedAnswer = null;
             session.gameState.updatedAt = new Date().toISOString();
             for (const t of session.teams || []) t.scoreTotal = 0;
@@ -723,6 +729,7 @@ export function setupSocketHandlers(io) {
           }
 
           case "broadcast_message": {
+            // Diffuse un message texte/image à tous les joueurs (ou une cible)
             const bm = {
               text: payload.text || '',
               imageUrl: payload.imageUrl || '',
@@ -730,31 +737,7 @@ export function setupSocketHandlers(io) {
               sentAt: new Date().toISOString(),
             };
             if (!session.gameState.phaseMeta) session.gameState.phaseMeta = {};
-
-            if (bm.target === 'all') {
-              // Diffusion globale via gameState (display + tous joueurs)
-              session.gameState.phaseMeta.broadcastMessage = bm;
-            } else {
-              // Diffusion ciblée : émettre directement aux sockets concernées
-              // sans modifier le gameState global
-              const targetSockets = [];
-              if (bm.target.startsWith('team:')) {
-                const teamId = bm.target.replace('team:', '');
-                for (const p of (session.players || [])) {
-                  if (p.teamId === teamId && p.socketId) targetSockets.push(p.socketId);
-                }
-              } else {
-                // playerId direct
-                const targetPlayer = (session.players || []).find(p => p.id === bm.target);
-                if (targetPlayer?.socketId) targetSockets.push(targetPlayer.socketId);
-              }
-              for (const sid of targetSockets) {
-                io.to(sid).emit('player:message', bm);
-              }
-              // Réponse ok sans modifier le state global
-              safeAck(ack, { ok: true });
-              return; // early return pour ne pas appeler persistAndEmit inutilement
-            }
+            session.gameState.phaseMeta.broadcastMessage = bm;
             res = { ok: true };
             break;
           }
@@ -785,18 +768,6 @@ export function setupSocketHandlers(io) {
             break;
           }
 
-          case "return_to_question":
-            res = returnToQuestion(session);
-            break;
-
-          case "vote_start_voting":
-            res = startVotePhase(session);
-            break;
-
-          case "vote_reveal":
-            res = revealVoteResults(session);
-            break;
-
           case "reset_game": {
             // Resets game to lobby while keeping players
             if (session.gameState) {
@@ -816,7 +787,6 @@ export function setupSocketHandlers(io) {
               session.gameState.buzzerState = null;
               session.gameState.buzzerQueue = [];
               session.gameState.burgerState = null;
-              session.gameState.voteState = null;
               session.gameState.updatedAt = new Date().toISOString();
             }
             res = { ok: true };
@@ -824,23 +794,6 @@ export function setupSocketHandlers(io) {
           }
         }
 
-        safeAck(ack, res);
-        if (res.ok) persistAndEmit(io, session);
-      } catch (e) {
-        safeAck(ack, { ok: false, error: e.message });
-      }
-    });
-
-    // --- PLAYER VOTE ---
-    socket.on("player:vote", (payload = {}, ack) => {
-      try {
-        const { sessionCode, playerId, voteIndex } = payload;
-        const session = getSession(sessionCode || socket.data?.sessionCode);
-        if (!session) { safeAck(ack, { ok: false, error: "Session introuvable" }); return; }
-        const effectivePlayerId = socket.data?.playerId || playerId;
-        const player = session.players?.find((p) => p.id === effectivePlayerId);
-        if (!player) { safeAck(ack, { ok: false, error: "Joueur introuvable" }); return; }
-        const res = recordVoteCast(session, { player, voteIndex });
         safeAck(ack, res);
         if (res.ok) persistAndEmit(io, session);
       } catch (e) {

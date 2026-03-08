@@ -1,0 +1,628 @@
+/* ============================================================
+   THEME : PARTY 🎉
+   Vibe : Jackbox / EDM festival / Soirée entre amis
+   Neons, pills, glow, confetti vibes
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+
+/* ── Animated neon background ────────────────────────────── */
+@keyframes party-bg-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes party-glow-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50%       { opacity: 0.65; transform: scale(1.12); }
+}
+@keyframes party-bounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-4px); }
+}
+
+/* ── CSS Variables ───────────────────────────────────────── */
+[data-theme="party"] {
+  --p-bg:       #0f0022;
+  --p-bg2:      #1a0040;
+  --p-surface:  rgba(255,255,255,0.07);
+  --p-pink:     #ff006e;
+  --p-purple:   #8338ec;
+  --p-cyan:     #3bf5ff;
+  --p-green:    #06ffa5;
+  --p-yellow:   #ffbe0b;
+  --p-orange:   #ff5400;
+  --p-grad1:    linear-gradient(135deg, #ff006e, #8338ec);
+  --p-grad2:    linear-gradient(135deg, #06ffa5, #00b4d8);
+  --p-grad3:    linear-gradient(135deg, #ff5400, #ffbe0b);
+  --p-radius:   28px;
+  --p-radius-md: 18px;
+  --p-radius-sm: 12px;
+  --p-glow-pink: 0 0 20px rgba(255,0,110,0.5), 0 0 40px rgba(131,56,236,0.3);
+  --p-glow-green: 0 0 20px rgba(6,255,165,0.5), 0 0 40px rgba(6,255,165,0.2);
+  --p-glow-cyan: 0 0 20px rgba(59,245,255,0.5), 0 0 40px rgba(59,245,255,0.2);
+}
+
+/* ── Base ────────────────────────────────────────────────── */
+[data-theme="party"] html,
+[data-theme="party"] body {
+  font-family: 'Nunito', 'Inter', sans-serif !important;
+  background: var(--p-bg) !important;
+  background-attachment: fixed !important;
+  color: #fff !important;
+}
+
+/* Neon glowing orbs as background decorations */
+[data-theme="party"] body::before {
+  content: '';
+  position: fixed;
+  top: -200px; left: -200px;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(131,56,236,0.25) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  animation: party-glow-pulse 4s ease-in-out infinite;
+}
+[data-theme="party"] body::after {
+  content: '';
+  position: fixed;
+  bottom: -150px; right: -150px;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(255,0,110,0.22) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  animation: party-glow-pulse 5s ease-in-out infinite reverse;
+}
+
+/* ── Navigation ──────────────────────────────────────────── */
+[data-theme="party"] nav {
+  background: rgba(15,0,34,0.95) !important;
+  border-bottom: 2px solid transparent !important;
+  background-clip: padding-box !important;
+  box-shadow: 0 2px 0 0 rgba(131,56,236,0.6), 0 4px 20px rgba(255,0,110,0.2) !important;
+  backdrop-filter: blur(16px) !important;
+  gap: 6px !important;
+  padding: 8px 14px !important;
+}
+[data-theme="party"] nav .nav-brand {
+  background: var(--p-grad1) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  font-size: 1.15rem !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.02em !important;
+}
+[data-theme="party"] nav button {
+  border-radius: var(--p-radius) !important;
+  border: 1.5px solid rgba(131,56,236,0.35) !important;
+  background: rgba(131,56,236,0.1) !important;
+  color: rgba(255,255,255,0.8) !important;
+  font-weight: 700 !important;
+  font-size: 0.82rem !important;
+  padding: 6px 14px !important;
+  transition: all 0.2s !important;
+}
+[data-theme="party"] nav button:hover,
+[data-theme="party"] nav button.active {
+  background: var(--p-grad1) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: var(--p-glow-pink) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* ── Cards ───────────────────────────────────────────────── */
+[data-theme="party"] .card {
+  background: rgba(255,255,255,0.06) !important;
+  border: 1.5px solid rgba(131,56,236,0.3) !important;
+  border-radius: var(--p-radius-md) !important;
+  backdrop-filter: blur(10px) !important;
+}
+[data-theme="party"] .card:hover {
+  border-color: rgba(255,0,110,0.5) !important;
+  box-shadow: var(--p-glow-pink) !important;
+}
+
+/* ── Typography ──────────────────────────────────────────── */
+[data-theme="party"] h1, [data-theme="party"] h2 {
+  font-weight: 900 !important;
+  letter-spacing: -0.02em !important;
+}
+[data-theme="party"] .muted { color: rgba(255,255,255,0.5) !important; }
+
+/* ── Form controls ───────────────────────────────────────── */
+[data-theme="party"] input,
+[data-theme="party"] select,
+[data-theme="party"] textarea {
+  background: rgba(131,56,236,0.1) !important;
+  border: 1.5px solid rgba(131,56,236,0.4) !important;
+  border-radius: var(--p-radius-sm) !important;
+  color: #fff !important;
+}
+[data-theme="party"] input:focus,
+[data-theme="party"] select:focus,
+[data-theme="party"] textarea:focus {
+  border-color: var(--p-pink) !important;
+  background: rgba(255,0,110,0.08) !important;
+  box-shadow: 0 0 0 3px rgba(255,0,110,0.2) !important;
+  outline: none !important;
+}
+
+/* ── Buttons global ──────────────────────────────────────── */
+[data-theme="party"] button {
+  border-radius: var(--p-radius) !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.02em !important;
+  transition: all 0.18s cubic-bezier(0.34,1.56,0.64,1) !important;
+}
+[data-theme="party"] button:hover { transform: translateY(-3px) scale(1.02) !important; }
+[data-theme="party"] button:active { transform: scale(0.93) !important; }
+
+[data-theme="party"] .btn-primary {
+  background: var(--p-grad1) !important;
+  color: #fff !important;
+  border: none !important;
+}
+[data-theme="party"] .btn-primary:hover { box-shadow: var(--p-glow-pink) !important; }
+
+[data-theme="party"] .btn-success {
+  background: var(--p-grad2) !important;
+  color: #0f0022 !important;
+}
+[data-theme="party"] .btn-success:hover { box-shadow: var(--p-glow-green) !important; }
+
+[data-theme="party"] .btn-danger {
+  background: var(--p-grad3) !important;
+  color: #fff !important;
+}
+[data-theme="party"] .btn-warning {
+  background: linear-gradient(135deg, #ffbe0b, #ff5400) !important;
+  color: #0f0022 !important;
+  font-weight: 900 !important;
+}
+[data-theme="party"] .btn-secondary {
+  background: rgba(255,255,255,0.08) !important;
+  border: 1.5px solid rgba(131,56,236,0.4) !important;
+  color: #fff !important;
+}
+[data-theme="party"] .btn-secondary:hover {
+  background: rgba(131,56,236,0.2) !important;
+  border-color: var(--p-purple) !important;
+}
+
+/* Host buttons */
+[data-theme="party"] .hbtn {
+  border-radius: var(--p-radius) !important;
+  font-weight: 800 !important;
+}
+[data-theme="party"] .hbtn:hover { transform: translateY(-2px) scale(1.02) !important; }
+[data-theme="party"] .hbtn:active { transform: scale(0.93) !important; }
+
+[data-theme="party"] .hbtn-primary {
+  background: var(--p-grad1) !important;
+  color: #fff !important;
+  border: none !important;
+}
+[data-theme="party"] .hbtn-primary:hover { box-shadow: var(--p-glow-pink) !important; }
+
+[data-theme="party"] .hbtn-success {
+  background: var(--p-grad2) !important;
+  color: #0f0022 !important;
+}
+[data-theme="party"] .hbtn-success:hover { box-shadow: var(--p-glow-green) !important; }
+
+[data-theme="party"] .hbtn-danger {
+  background: var(--p-grad3) !important;
+  color: #fff !important;
+}
+[data-theme="party"] .hbtn-warning {
+  background: linear-gradient(135deg, #ffbe0b, #ff5400) !important;
+  color: #0f0022 !important;
+}
+[data-theme="party"] .hbtn-secondary {
+  background: rgba(255,255,255,0.06) !important;
+  border: 1.5px solid rgba(131,56,236,0.35) !important;
+  color: rgba(255,255,255,0.85) !important;
+}
+[data-theme="party"] .hbtn-secondary:hover {
+  background: rgba(131,56,236,0.15) !important;
+  border-color: var(--p-purple) !important;
+}
+[data-theme="party"] .hbtn-nav {
+  background: rgba(59,245,255,0.08) !important;
+  border: 1.5px solid rgba(59,245,255,0.3) !important;
+  color: var(--p-cyan) !important;
+}
+[data-theme="party"] .hbtn-nav:hover {
+  background: rgba(59,245,255,0.2) !important;
+  border-color: var(--p-cyan) !important;
+  box-shadow: var(--p-glow-cyan) !important;
+  color: #fff !important;
+}
+[data-theme="party"] .hbtn-nav-fwd {
+  background: rgba(59,245,255,0.15) !important;
+  border-color: rgba(59,245,255,0.5) !important;
+  color: #fff !important;
+}
+
+/* Pulse animation – electric for party */
+[data-theme="party"] .hbtn-pulse {
+  animation: party-pulse 1s ease-in-out infinite !important;
+}
+@keyframes party-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 8px rgba(255,0,110,0.5); }
+  50%       { transform: scale(1.05); box-shadow: 0 0 24px rgba(131,56,236,0.8), 0 0 40px rgba(255,0,110,0.5); }
+}
+
+/* ── Badges ──────────────────────────────────────────────── */
+[data-theme="party"] .badge {
+  border-radius: var(--p-radius) !important;
+  font-weight: 800 !important;
+}
+[data-theme="party"] .badge.green {
+  background: rgba(6,255,165,0.18) !important;
+  color: var(--p-green) !important;
+  border: 1px solid rgba(6,255,165,0.4) !important;
+  box-shadow: 0 0 8px rgba(6,255,165,0.25) !important;
+}
+[data-theme="party"] .badge.orange {
+  background: rgba(255,190,11,0.18) !important;
+  color: var(--p-yellow) !important;
+  border: 1px solid rgba(255,190,11,0.4) !important;
+}
+[data-theme="party"] .badge.red {
+  background: rgba(255,84,0,0.18) !important;
+  color: #ff7a44 !important;
+  border: 1px solid rgba(255,84,0,0.35) !important;
+}
+[data-theme="party"] .badge.blue {
+  background: rgba(59,245,255,0.14) !important;
+  color: var(--p-cyan) !important;
+  border: 1px solid rgba(59,245,255,0.35) !important;
+  box-shadow: 0 0 8px rgba(59,245,255,0.2) !important;
+}
+
+/* ── Tabs ────────────────────────────────────────────────── */
+[data-theme="party"] .tab-btn {
+  border-radius: var(--p-radius) !important;
+  border: 1.5px solid rgba(131,56,236,0.3) !important;
+  background: rgba(131,56,236,0.08) !important;
+  color: rgba(255,255,255,0.7) !important;
+  font-weight: 700 !important;
+}
+[data-theme="party"] .tab-btn.active {
+  background: var(--p-grad1) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: var(--p-glow-pink) !important;
+}
+[data-theme="party"] .host-main-tabs {
+  background: rgba(15,0,34,0.8) !important;
+  border-bottom: 2px solid rgba(131,56,236,0.3) !important;
+}
+[data-theme="party"] .host-main-tab.active {
+  color: var(--p-pink) !important;
+  border-bottom-color: var(--p-pink) !important;
+  background: rgba(255,0,110,0.08) !important;
+}
+
+/* ── Answer tiles ────────────────────────────────────────── */
+[data-theme="party"] .answer-tile {
+  border-radius: var(--p-radius-md) !important;
+  background: rgba(131,56,236,0.1) !important;
+  border: 2px solid rgba(131,56,236,0.35) !important;
+  transition: all 0.18s cubic-bezier(0.34,1.56,0.64,1) !important;
+}
+[data-theme="party"] .answer-tile:hover {
+  background: rgba(131,56,236,0.2) !important;
+  border-color: var(--p-purple) !important;
+  transform: translateY(-4px) scale(1.03) !important;
+  box-shadow: 0 8px 24px rgba(131,56,236,0.4) !important;
+}
+[data-theme="party"] .answer-tile.selected {
+  background: rgba(255,0,110,0.18) !important;
+  border-color: var(--p-pink) !important;
+  box-shadow: 0 0 20px rgba(255,0,110,0.4) !important;
+}
+[data-theme="party"] .answer-tile:active { transform: scale(0.92) !important; }
+[data-theme="party"] .answer-tile-true {
+  background: rgba(6,255,165,0.1) !important;
+  border-color: rgba(6,255,165,0.45) !important;
+}
+[data-theme="party"] .answer-tile-true:hover {
+  background: rgba(6,255,165,0.2) !important;
+  border-color: var(--p-green) !important;
+  box-shadow: var(--p-glow-green) !important;
+}
+[data-theme="party"] .answer-tile-false {
+  background: rgba(255,84,0,0.1) !important;
+  border-color: rgba(255,84,0,0.45) !important;
+}
+[data-theme="party"] .answer-tile-false:hover {
+  background: rgba(255,84,0,0.2) !important;
+  border-color: var(--p-orange) !important;
+  box-shadow: 0 6px 22px rgba(255,84,0,0.35) !important;
+}
+
+/* ── Buzzer button ───────────────────────────────────────── */
+[data-theme="party"] .buzzer-btn {
+  background: var(--p-grad1) !important;
+  box-shadow: 0 0 50px rgba(255,0,110,0.6), 0 0 0 10px rgba(131,56,236,0.2), 0 0 100px rgba(131,56,236,0.2) !important;
+  font-size: 1.4rem !important;
+  font-weight: 900 !important;
+  animation: party-buzzer-idle 2.5s ease-in-out infinite !important;
+}
+@keyframes party-buzzer-idle {
+  0%, 100% { box-shadow: 0 0 50px rgba(255,0,110,0.6), 0 0 0 10px rgba(131,56,236,0.2); }
+  50%       { box-shadow: 0 0 70px rgba(131,56,236,0.8), 0 0 0 16px rgba(255,0,110,0.15), 0 0 120px rgba(255,0,110,0.3); }
+}
+[data-theme="party"] .buzzer-btn:hover {
+  transform: scale(1.1) !important;
+  box-shadow: 0 0 90px rgba(255,0,110,0.9), 0 0 0 20px rgba(131,56,236,0.3) !important;
+}
+[data-theme="party"] .buzzer-btn.buzzer-disabled {
+  background: rgba(80,80,80,0.5) !important;
+  box-shadow: none !important;
+  animation: none !important;
+  color: rgba(255,255,255,0.3) !important;
+}
+
+/* ── Session code ────────────────────────────────────────── */
+[data-theme="party"] .session-code {
+  color: var(--p-cyan) !important;
+  text-shadow: 0 0 12px rgba(59,245,255,0.5) !important;
+  letter-spacing: 8px !important;
+}
+[data-theme="party"] .session-banner {
+  background: rgba(131,56,236,0.1) !important;
+  border-bottom: 1px solid rgba(131,56,236,0.3) !important;
+}
+
+/* ── Host sections ───────────────────────────────────────── */
+[data-theme="party"] .host-section {
+  background: rgba(255,255,255,0.04) !important;
+  border: 1.5px solid rgba(131,56,236,0.25) !important;
+  border-radius: var(--p-radius-sm) !important;
+}
+[data-theme="party"] .host-section-primary {
+  border-left: 3px solid var(--p-pink) !important;
+  background: rgba(255,0,110,0.04) !important;
+}
+[data-theme="party"] .host-section-nav {
+  border-left: 3px solid var(--p-cyan) !important;
+  background: rgba(59,245,255,0.04) !important;
+}
+[data-theme="party"] .host-section-display {
+  border-left: 3px solid var(--p-yellow) !important;
+  background: rgba(255,190,11,0.04) !important;
+}
+[data-theme="party"] .host-section-buzzer {
+  border-left: 3px solid var(--p-orange) !important;
+  background: rgba(255,84,0,0.04) !important;
+}
+[data-theme="party"] .host-status-bar {
+  background: rgba(131,56,236,0.12) !important;
+  border-radius: var(--p-radius-sm) !important;
+  border: 1px solid rgba(131,56,236,0.3) !important;
+}
+
+/* ── Home cards ──────────────────────────────────────────── */
+[data-theme="party"] .home-card {
+  background: rgba(131,56,236,0.1) !important;
+  border: 1.5px solid rgba(131,56,236,0.35) !important;
+  border-radius: var(--p-radius-md) !important;
+  transition: all 0.25s cubic-bezier(0.34,1.4,0.64,1) !important;
+}
+[data-theme="party"] .home-card:hover {
+  transform: translateY(-6px) scale(1.04) !important;
+  background: rgba(255,0,110,0.12) !important;
+  border-color: var(--p-pink) !important;
+  box-shadow: 0 16px 40px rgba(131,56,236,0.3) !important;
+}
+[data-theme="party"] .home-card .icon { animation: party-bounce 2s ease-in-out infinite !important; }
+
+/* ── Progress bar ────────────────────────────────────────── */
+[data-theme="party"] .progress-bar {
+  background: rgba(131,56,236,0.2) !important;
+  border-radius: var(--p-radius) !important;
+  height: 14px !important;
+}
+[data-theme="party"] .progress-bar .fill {
+  background: var(--p-grad1) !important;
+  border-radius: var(--p-radius) !important;
+  box-shadow: 0 0 10px rgba(255,0,110,0.5) !important;
+}
+
+/* ── Modal ───────────────────────────────────────────────── */
+[data-theme="party"] .modal-box {
+  background: var(--p-bg2) !important;
+  border: 1.5px solid rgba(131,56,236,0.5) !important;
+  border-radius: var(--p-radius-md) !important;
+  box-shadow: 0 0 60px rgba(131,56,236,0.3) !important;
+}
+
+/* ── Display question ────────────────────────────────────── */
+[data-theme="party"] .display-question-card {
+  background: rgba(15,0,34,0.88) !important;
+  border: 2px solid rgba(131,56,236,0.5) !important;
+  border-radius: var(--p-radius-md) !important;
+  box-shadow: 0 0 40px rgba(131,56,236,0.3) !important;
+}
+[data-theme="party"] .display-option {
+  border-radius: var(--p-radius-sm) !important;
+  background: rgba(131,56,236,0.12) !important;
+  border-color: rgba(131,56,236,0.4) !important;
+}
+[data-theme="party"] .display-option-label {
+  background: var(--p-grad1) !important;
+  border-radius: 50% !important;
+  color: #fff !important;
+}
+
+/* ── Waiting screen ──────────────────────────────────────── */
+[data-theme="party"] .waiting-host-label {
+  background: var(--p-grad1) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  font-weight: 900 !important;
+}
+[data-theme="party"] .waiting-dots span {
+  background: var(--p-pink) !important;
+  box-shadow: 0 0 8px rgba(255,0,110,0.6) !important;
+}
+
+/* ── Timer presets ───────────────────────────────────────── */
+[data-theme="party"] .timer-preset-btn {
+  border-radius: var(--p-radius) !important;
+  border-color: rgba(131,56,236,0.4) !important;
+  background: rgba(131,56,236,0.1) !important;
+  color: rgba(255,255,255,0.8) !important;
+  font-weight: 700 !important;
+}
+[data-theme="party"] .timer-preset-btn:hover {
+  background: var(--p-grad1) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(255,0,110,0.4) !important;
+}
+
+/* ── Round accordion ─────────────────────────────────────── */
+[data-theme="party"] .round-accordion { border-color: rgba(131,56,236,0.3) !important; border-radius: var(--p-radius-sm) !important; }
+[data-theme="party"] .round-acc-hdr { background: rgba(131,56,236,0.08) !important; }
+[data-theme="party"] .round-acc-hdr.cur-round {
+  background: rgba(255,0,110,0.08) !important;
+  border-left-color: var(--p-pink) !important;
+}
+[data-theme="party"] .q-line.q-active {
+  background: rgba(131,56,236,0.12) !important;
+  border-color: rgba(131,56,236,0.4) !important;
+}
+
+/* ── Podium / ceremony ───────────────────────────────────── */
+[data-theme="party"] .podium-card.rank-1-card {
+  background: linear-gradient(135deg, rgba(255,190,11,.25), rgba(255,84,0,.1)) !important;
+  border-color: rgba(255,190,11,.65) !important;
+  box-shadow: 0 0 30px rgba(255,190,11,0.3) !important;
+}
+[data-theme="party"] .winner-team-card {
+  background: linear-gradient(135deg, rgba(131,56,236,.2), rgba(255,0,110,.12)) !important;
+  border-color: rgba(131,56,236,.5) !important;
+  box-shadow: 0 0 40px rgba(131,56,236,0.3) !important;
+}
+
+/* ── Player question bubble ──────────────────────────────── */
+[data-theme="party"] .player-question-bubble {
+  background: rgba(131,56,236,0.1) !important;
+  border: 1.5px solid rgba(131,56,236,0.35) !important;
+  border-radius: var(--p-radius-sm) !important;
+}
+
+/* ── Buzzer player display ───────────────────────────────── */
+[data-theme="party"] .buzzer-player-display {
+  border-color: rgba(255,0,110,0.5) !important;
+  border-radius: var(--p-radius-sm) !important;
+  box-shadow: 0 0 30px rgba(255,0,110,0.25) !important;
+}
+
+/* ── Buzzer host card ────────────────────────────────────── */
+[data-theme="party"] .buzzer-host-card {
+  border-color: rgba(255,0,110,0.35) !important;
+  border-radius: var(--p-radius-sm) !important;
+}
+[data-theme="party"] .buzzer-host-card.buzzer-host-correct {
+  border-color: rgba(6,255,165,0.5) !important;
+  background: rgba(6,255,165,0.08) !important;
+  box-shadow: 0 0 20px rgba(6,255,165,0.2) !important;
+}
+[data-theme="party"] .buzzer-host-card.buzzer-host-wrong {
+  border-color: rgba(255,84,0,0.5) !important;
+  background: rgba(255,84,0,0.08) !important;
+}
+
+/* ── Text answer area ────────────────────────────────────── */
+[data-theme="party"] .text-answer-area {
+  background: rgba(131,56,236,0.1) !important;
+  border-color: rgba(131,56,236,0.4) !important;
+  border-radius: var(--p-radius-sm) !important;
+}
+[data-theme="party"] .text-answer-area:focus {
+  border-color: var(--p-pink) !important;
+  box-shadow: 0 0 0 3px rgba(255,0,110,0.2) !important;
+}
+
+/* ── Recap modal ─────────────────────────────────────────── */
+[data-theme="party"] .recap-modal {
+  background: var(--p-bg2) !important;
+  border-top: 3px solid var(--p-pink) !important;
+}
+[data-theme="party"] .recap-my-score {
+  background: rgba(131,56,236,0.1) !important;
+  border-color: rgba(131,56,236,0.35) !important;
+}
+[data-theme="party"] .recap-my-pts { color: var(--p-cyan) !important; text-shadow: 0 0 10px rgba(59,245,255,0.5) !important; }
+
+/* ── Avatar options ──────────────────────────────────────── */
+[data-theme="party"] .avatar-opt.active {
+  border-color: var(--p-pink) !important;
+  background: rgba(255,0,110,0.18) !important;
+  box-shadow: 0 0 12px rgba(255,0,110,0.4) !important;
+}
+
+/* ── Player point cards ──────────────────────────────────── */
+[data-theme="party"] .player-point-card {
+  background: rgba(131,56,236,0.08) !important;
+  border: 1px solid rgba(131,56,236,0.3) !important;
+  border-radius: var(--p-radius-sm) !important;
+}
+[data-theme="party"] .player-point-card .p-score { color: var(--p-cyan) !important; }
+[data-theme="party"] .pt-btn-plus { background: var(--p-green) !important; color: #0f0022 !important; }
+[data-theme="party"] .pt-btn-plus:hover { background: #06ffa5 !important; }
+[data-theme="party"] .pt-btn-minus { background: var(--p-orange) !important; }
+
+/* ── Burger player btn ───────────────────────────────────── */
+[data-theme="party"] .burger-player-btn {
+  border-radius: var(--p-radius-sm) !important;
+  border-color: rgba(131,56,236,0.35) !important;
+  background: rgba(131,56,236,0.08) !important;
+}
+[data-theme="party"] .burger-player-btn.selected {
+  border-color: var(--p-pink) !important;
+  background: rgba(255,0,110,0.15) !important;
+  box-shadow: 0 0 12px rgba(255,0,110,0.3) !important;
+}
+
+/* ── Btn recap mini ──────────────────────────────────────── */
+[data-theme="party"] .btn-recap-mini {
+  border-radius: var(--p-radius) !important;
+  border-color: rgba(131,56,236,0.45) !important;
+  background: rgba(131,56,236,0.12) !important;
+}
+[data-theme="party"] .btn-recap-mini:hover {
+  background: var(--p-grad1) !important;
+  border-color: transparent !important;
+}
+
+/* ── Buzzer result badges ────────────────────────────────── */
+[data-theme="party"] .buzzer-correct-badge {
+  border-radius: var(--p-radius) !important;
+  background: rgba(6,255,165,0.18) !important;
+  border-color: rgba(6,255,165,0.5) !important;
+  color: var(--p-green) !important;
+  box-shadow: 0 0 12px rgba(6,255,165,0.3) !important;
+}
+[data-theme="party"] .buzzer-wrong-badge {
+  border-radius: var(--p-radius) !important;
+  background: rgba(255,84,0,0.18) !important;
+  border-color: rgba(255,84,0,0.5) !important;
+  color: var(--p-orange) !important;
+}
+
+/* ── Host main tabs bottom line ──────────────────────────── */
+[data-theme="party"] .host-main-tab { color: rgba(255,255,255,0.5) !important; }
+[data-theme="party"] .host-main-tab:hover { color: rgba(255,255,255,0.85) !important; background: rgba(131,56,236,0.08) !important; }
+
+/* ── Tables ──────────────────────────────────────────────── */
+[data-theme="party"] th { color: rgba(255,255,255,0.45) !important; }
+[data-theme="party"] th, [data-theme="party"] td { border-bottom-color: rgba(131,56,236,0.2) !important; }

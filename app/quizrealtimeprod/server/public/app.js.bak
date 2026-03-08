@@ -165,11 +165,6 @@ function initSocket() {
     console.log('[socket] déconnecté');
   });
 
-  state.socket.on('player:message', (bm) => {
-    // Message ciblé direct (vers un joueur ou une équipe spécifique)
-    showPlayerDirectMessage(bm);
-  });
-
   state.socket.on('game:state', (payload) => {
     state.gameState      = payload?.gameState      || null;
     state.players        = payload?.players        || [];
@@ -486,35 +481,14 @@ function renderPlayerGame() {
       content += renderPlayerQuestionContent(gs, s.playerId, gs.phaseMeta?.playerScreenLocked);
     }
   } else if (phase === 'answer_reveal') {
-    // L'écran de révélation s'affiche sur la TV, sur le téléphone on attend
+    // L'écran de révélation s'affiche sur la TV, pas sur le téléphone du joueur
     content += renderPlayerWaitingScreen(gs, s, myPlayer);
   } else if (phase === 'manual_scoring') {
-    if (gs?.buzzerState?.firstPseudo) {
-      content += `
-        <div class="card" style="text-align:center;padding:40px;">
-          <div style="font-size:3rem;">🔔</div>
-          <h2>${gs.buzzerState.firstPseudo} a buzzé !</h2>
-          <p class="muted" style="margin-top:10px;">Le maître de jeu interroge oralement…</p>
-          <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
-        </div>`;
-    } else {
-      content += `
-        <div class="card" style="text-align:center;padding:40px;">
-          <div style="font-size:3rem;">⚖️</div>
-          <h2>Notation en cours…</h2>
-          <p class="muted">Le maître de jeu évalue les réponses</p>
-          <div class="waiting-dots" style="margin-top:16px;"><span></span><span></span><span></span></div>
-        </div>`;
-    }
-  } else if (phase === 'round_end') {
-    const round = gs?.currentRound;
     content += `
-      <div class="card" style="text-align:center;padding:50px 20px;border:2px solid rgba(56,239,125,.3);background:rgba(56,239,125,.05);">
-        <div style="font-size:4rem;margin-bottom:16px;">🏁</div>
-        <h2 style="margin-bottom:8px;">Manche terminée !</h2>
-        <p class="muted" style="font-size:1rem;">${round?.title || 'Cette manche est terminée'}</p>
-        <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
-        <p class="muted" style="margin-top:16px;font-size:.9rem;">En attente du maître de jeu pour la suite…</p>
+      <div class="card" style="text-align:center;padding:40px;">
+        <div style="font-size:3rem;">⚖️</div>
+        <h2>Notation en cours…</h2>
+        <p class="muted">Le maître de jeu évalue les réponses</p>
       </div>`;
   } else if (phase === 'results') {
     content += renderScoreboard(state.leaderboardPlayers, '📊 Classement');
@@ -659,69 +633,6 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
         <h3>Observez bien les éléments…</h3>
         <p class="muted" style="margin-top:8px;">Le maître de jeu vous interrogera à la fin</p>
       </div>`;
-  } else if (answerMode === 'vote_input') {
-    // Phase 1 du vote : saisie de sa proposition
-    const alreadyAnswered = !!(gs?.answers?.[q?.id]?.[playerId]);
-    if (alreadyAnswered) {
-      const myAnswer = gs?.answers?.[q?.id]?.[playerId]?.answer || '';
-      answerUI = `
-        <div class="player-waiting-screen">
-          <div class="waiting-host-text">✍️</div>
-          <div class="waiting-host-label">RÉPONSE ENVOYÉE !</div>
-          <p class="muted" style="margin-top:12px;font-size:1rem;font-style:italic;">"${myAnswer}"</p>
-          <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
-          <p class="muted" style="font-size:.85rem;">En attente des autres joueurs…</p>
-        </div>`;
-    } else {
-      answerUI = `
-        <div class="text-answer-block">
-          <p class="muted" style="margin-bottom:10px;font-size:.9rem;">🗳️ Proposez votre réponse (elle sera affichée anonymement)</p>
-          <textarea id="text-answer" class="text-answer-area" placeholder="Votre proposition…"
-            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendTextAnswer('${gs.sessionCode || ''}','${playerId}')}"></textarea>
-          <button class="btn-primary btn-full text-answer-send" onclick="sendTextAnswer('${gs.sessionCode || ''}','${playerId}')">
-            ✅ Soumettre ma proposition
-          </button>
-        </div>`;
-    }
-  } else if (answerMode === 'vote_voting') {
-    // Phase 2 du vote : voter pour une réponse parmi les options
-    const vs = gs?.voteState;
-    const myVote = vs?.votes?.[playerId];
-    const hasVoted = myVote !== undefined && myVote !== null;
-
-    if (!vs || !vs.options) {
-      answerUI = `<div class="card" style="text-align:center;padding:30px;"><p class="muted">Chargement des votes…</p></div>`;
-    } else if (hasVoted) {
-      const votedOption = vs.options[myVote];
-      answerUI = `
-        <div class="player-waiting-screen">
-          <div class="waiting-host-text">🗳️</div>
-          <div class="waiting-host-label">VOTE ENVOYÉ !</div>
-          <p class="muted" style="margin-top:12px;font-size:1rem;font-style:italic;">"${votedOption?.text || '—'}"</p>
-          <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
-          <p class="muted" style="font-size:.85rem;">En attente des autres votes…</p>
-        </div>`;
-    } else {
-      const voteButtons = vs.options.map((opt, idx) => {
-        // Ne pas permettre de voter pour sa propre réponse
-        const isMyAnswer = opt.playerId === playerId;
-        if (isMyAnswer) return `
-          <div style="padding:12px 16px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.3);text-align:center;font-style:italic;">
-            "${opt.text}" <span style="font-size:.75rem;">(votre réponse)</span>
-          </div>`;
-        return `
-          <button class="answer-tile answer-tile-vote" onclick="sendVote(${idx})">
-            <span class="answer-tile-text">${opt.text}</span>
-          </button>`;
-      }).join('');
-      answerUI = `
-        <div style="margin-top:8px;">
-          <p class="muted" style="margin-bottom:12px;font-size:.9rem;">🗳️ Votez pour la réponse qui vous semble la plus juste !</p>
-          <div class="answer-tiles" style="grid-template-columns:1fr;">
-            ${voteButtons}
-          </div>
-        </div>`;
-    }
   } else {
     // Réponse texte libre – zone de saisie grande
     answerUI = `
@@ -822,39 +733,6 @@ function closePlayerRecap() {
   document.getElementById('player-recap-overlay')?.remove();
 }
 
-// Affiche un message ciblé directement sur l'écran du joueur
-function showPlayerDirectMessage(bm) {
-  const existing = document.getElementById('player-direct-message');
-  if (existing) existing.remove();
-
-  const overlay = document.createElement('div');
-  overlay.id = 'player-direct-message';
-  overlay.style.cssText = `
-    position:fixed;bottom:0;left:0;right:0;z-index:9999;
-    background:linear-gradient(135deg,rgba(240,147,251,.95),rgba(245,87,108,.95));
-    padding:20px;border-radius:16px 16px 0 0;
-    box-shadow:0 -4px 24px rgba(0,0,0,.4);
-    animation:slide-up-msg .3s ease;
-  `;
-  overlay.innerHTML = `
-    <style>
-      @keyframes slide-up-msg { from{transform:translateY(100%)} to{transform:translateY(0)} }
-    </style>
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-      <div style="flex:1;">
-        <div style="font-size:.72rem;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">📡 Message du maître de jeu</div>
-        ${bm.imageUrl ? `<img src="${bm.imageUrl}" style="max-width:100%;max-height:180px;border-radius:10px;margin-bottom:10px;object-fit:contain;">` : ''}
-        ${bm.text ? `<p style="font-size:1.1rem;font-weight:600;color:#fff;">${bm.text}</p>` : ''}
-      </div>
-      <button onclick="document.getElementById('player-direct-message')?.remove()" style="background:rgba(255,255,255,.2);border:none;border-radius:8px;padding:6px 12px;color:#fff;cursor:pointer;font-size:1rem;flex-shrink:0;">✕</button>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-
-  // Auto-fermer après 12 secondes
-  setTimeout(() => overlay?.remove(), 12000);
-}
-
 // Fermer le récap automatiquement lors d'un changement de question
 let _lastQuestionId = null;
 function checkAndCloseRecapOnNewQuestion() {
@@ -897,17 +775,6 @@ function sendAnswerByIndex(optIndex) {
   const label = typeof opt === 'object' ? (opt.text || '') : String(opt || '');
   const s = state.playerSession;
   sendAnswer(s?.sessionCode, s?.playerId, label);
-}
-
-function sendVote(voteIndex) {
-  const s = state.playerSession;
-  state.socket.emit('player:vote', {
-    sessionCode: s?.sessionCode,
-    playerId: s?.playerId,
-    voteIndex,
-  }, (res) => {
-    if (!res?.ok) alert$('player-alert', res?.error || 'Erreur de vote', 'error');
-  });
 }
 
 function logoutPlayer() {
@@ -1015,7 +882,6 @@ function renderHostGame() {
     waiting:        '<span class="badge orange">⏳ Traitement</span>',
     answer_reveal:  '<span class="badge green">📋 Révélation</span>',
     manual_scoring: '<span class="badge orange">⚖️ Arbitrage</span>',
-    round_end:      '<span class="badge green">🏁 Fin de manche</span>',
     results:        '<span class="badge blue">📊 Résultats</span>',
     end:            '<span class="badge green">🎉 Fin</span>',
   }[phase] || `<span class="badge">${phase}</span>`;
@@ -1031,24 +897,6 @@ function renderHostGame() {
       }
       .host-main-tab:hover { color:rgba(255,255,255,.85); background:rgba(255,255,255,.04); }
       .host-main-tab.active { color:#fff; border-bottom-color:#f093fb; background:rgba(240,147,251,.08); }
-      @keyframes pulse-scale {
-        0%,100% { transform:scale(1); box-shadow:0 0 0 0 rgba(56,239,125,.4); }
-        50% { transform:scale(1.04); box-shadow:0 0 0 8px rgba(56,239,125,0); }
-      }
-      .hbtn-pulse {
-        animation: pulse-scale 1.4s ease-in-out infinite;
-        border-color: rgba(56,239,125,.6) !important;
-      }
-      .hbtn-pulse.hbtn-success { background:linear-gradient(135deg,#38ef7d,#11998e) !important; color:#fff !important; }
-      .hbtn-pulse.hbtn-primary { background:linear-gradient(135deg,#f093fb,#f5576c) !important; color:#fff !important; }
-      .hbtn-pulse.hbtn-nav-fwd { background:rgba(99,179,237,.2) !important; border-color:rgba(99,179,237,.5) !important; }
-      .answer-tile-vote {
-        display:block; width:100%; padding:16px 20px; text-align:left;
-        background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.15);
-        border-radius:12px; cursor:pointer; transition:all .15s;
-        font-family:inherit; font-size:1rem; font-weight:600; color:#fff;
-      }
-      .answer-tile-vote:hover { background:rgba(240,147,251,.2); border-color:rgba(240,147,251,.5); }
       .host-tab-body { padding:16px; }
       .ctrl-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
       @media(min-width:560px){ .ctrl-grid { grid-template-columns:repeat(3,1fr); } }
@@ -1232,7 +1080,6 @@ function renderHostPilotageTab(gs, phase) {
     waiting:        '<span class="badge orange">⏳ En attente</span>',
     answer_reveal:  '<span class="badge green">📋 Révélation</span>',
     manual_scoring: '<span class="badge orange">⚖️ Buzzer/Arbitrage</span>',
-    round_end:      '<span class="badge green">🏁 Fin de manche</span>',
     results:        '<span class="badge blue">📊 Résultats manche</span>',
     end:            '<span class="badge green">🎉 Fin du quiz</span>',
   };
@@ -1269,35 +1116,29 @@ function renderHostPilotageTab(gs, phase) {
   // ═══════════════════════════════════════════════════════════
   // SECTION 1 : GESTION DE LA PARTIE EN COURS
   // ═══════════════════════════════════════════════════════════
-  if (['question','waiting','answer_reveal','manual_scoring','round_intro','round_end'].includes(phase)) {
+  if (['question','waiting','answer_reveal','manual_scoring','round_intro'].includes(phase)) {
     out += `<div class="host-section host-section-primary">
       <div class="host-section-label">⚡ PARTIE EN COURS</div>
       <div class="host-ctrl-row">`;
 
     if (isPaused) {
-      out += `<button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('resume_game')">▶ Reprendre</button>`;
-    } else if (['question','waiting'].includes(phase)) {
+      out += `<button class="hbtn hbtn-success hbtn-wide" onclick="hostAction('resume_game')">▶ Reprendre</button>`;
+    } else {
       out += `<button class="hbtn hbtn-warning" onclick="hostAction('pause_game')">⏸ Pause</button>`;
     }
 
     if (['question','waiting','manual_scoring'].includes(phase)) {
-      // On retire le bouton "fin de timer" et on garde seulement "Montrer la solution"
+      if (timerInfo) {
+        out += `<button class="hbtn hbtn-danger" onclick="hostAction('stop_timer')">⏹ Fin timer</button>`;
+      }
       if (!isBurger && !isBuzzer) {
-        const isVote = gs?.phaseMeta?.answerMode === 'vote_input' || gs?.phaseMeta?.answerMode === 'vote_voting';
-        if (!isVote) {
-          out += `<button class="hbtn hbtn-secondary hbtn-pulse" onclick="hostAction('reveal_answer')">📋 Montrer la solution</button>`;
-        }
+        out += `<button class="hbtn hbtn-secondary" onclick="hostAction('reveal_answer')">📋 Révéler</button>`;
       }
       out += `<button class="hbtn hbtn-secondary" onclick="hostAction('refresh_question')">🔁 Reset Q</button>`;
     }
 
     if (phase === 'answer_reveal') {
-      out += `<button class="hbtn hbtn-secondary" onclick="hostAction('reveal_answer')">📋 Réafficher solution</button>`;
-      out += `<button class="hbtn hbtn-primary hbtn-pulse" onclick="hostAction('return_to_question')">↩ Retour question</button>`;
-    }
-
-    if (phase === 'round_end') {
-      out += `<button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('next_round')">▶ Passer à la manche suivante</button>`;
+      out += `<button class="hbtn hbtn-secondary" onclick="hostAction('reveal_answer')">📋 Réafficher</button>`;
     }
 
     out += `</div></div>`;
@@ -1306,28 +1147,21 @@ function renderHostPilotageTab(gs, phase) {
   // ═══════════════════════════════════════════════════════════
   // SECTION 2 : NAVIGATION (MANCHES & QUESTIONS)
   // ═══════════════════════════════════════════════════════════
-  // Bouton "Question suivante" en surbrillance pulsée quand on est en question active
-  const nextQPulse = ['round_intro','answer_reveal'].includes(phase) ? 'hbtn-pulse' : '';
   out += `<div class="host-section host-section-nav">
     <div class="host-section-label">🧭 NAVIGATION</div>
     <div class="host-nav-grid">
       <button class="hbtn hbtn-nav" onclick="hostAction('prev_round')" title="Manche précédente">◀ Manche</button>
       <button class="hbtn hbtn-nav" onclick="hostAction('prev_question')" title="Question précédente">◀ Question</button>
-      <button class="hbtn hbtn-nav hbtn-nav-fwd ${nextQPulse}" onclick="hostAction('next_question')" title="Question suivante">Question ▶</button>
+      <button class="hbtn hbtn-nav hbtn-nav-fwd" onclick="hostAction('next_question')" title="Question suivante">Question ▶</button>
       <button class="hbtn hbtn-nav hbtn-nav-fwd" onclick="hostAction('next_round')" title="Manche suivante">Manche ▶</button>
     </div>
     <div class="host-ctrl-row" style="margin-top:6px;">
       ${['question','waiting','answer_reveal','manual_scoring'].includes(phase) ? `
-        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Scores</button>
+        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Fin manche</button>
         <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('start_round')">🔁 Refaire manche</button>
       ` : ''}
-      ${phase === 'round_end' ? `
-        <button class="hbtn hbtn-success hbtn-pulse hbtn-wide" onclick="hostAction('next_round')">▶▶ Manche suivante</button>
-        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Voir les scores</button>
-        <button class="hbtn hbtn-danger hbtn-sm" onclick="hostAction('finish_quiz')">🏁 Terminer le quiz</button>
-      ` : ''}
       ${phase === 'results' ? `
-        <button class="hbtn hbtn-success hbtn-pulse hbtn-sm" onclick="hostAction('next_round')">▶ Manche suivante</button>
+        <button class="hbtn hbtn-success hbtn-sm" onclick="hostAction('next_round')">▶ Manche suivante</button>
         <button class="hbtn hbtn-danger hbtn-sm" onclick="hostAction('finish_quiz')">🏁 Terminer le quiz</button>
       ` : ''}
     </div>
@@ -1336,20 +1170,12 @@ function renderHostPilotageTab(gs, phase) {
   // ═══════════════════════════════════════════════════════════
   // SECTION 3 : GESTION DE L'AFFICHAGE
   // ═══════════════════════════════════════════════════════════
-  const isVotePhase = gs?.phaseMeta?.answerMode === 'vote_input' || gs?.phaseMeta?.answerMode === 'vote_voting';
   out += `<div class="host-section host-section-display">
     <div class="host-section-label">📺 AFFICHAGE</div>
     <div class="host-ctrl-row">
-      ${['question','waiting','manual_scoring','round_end','answer_reveal'].includes(phase) ? `
-        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Scores</button>` : ''}
-      ${!isBurger && !isBuzzer && !isVotePhase && ['question','waiting','manual_scoring'].includes(phase) ? `
+      <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Scores</button>
+      ${!isBurger && !isBuzzer && ['question','waiting','manual_scoring'].includes(phase) ? `
         <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reveal_answer')">📋 Solution</button>` : ''}
-      ${isVotePhase && gs?.phaseMeta?.answerMode === 'vote_input' ? `
-        <button class="hbtn hbtn-primary hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer le vote</button>` : ''}
-      ${isVotePhase && gs?.phaseMeta?.answerMode === 'vote_voting' ? `
-        <button class="hbtn hbtn-success hbtn-pulse" onclick="hostAction('vote_reveal')">📋 Révéler les votes</button>` : ''}
-      ${phase === 'answer_reveal' ? `
-        <button class="hbtn hbtn-primary hbtn-sm" onclick="hostAction('return_to_question')">↩ Retour question</button>` : ''}
       <button class="hbtn hbtn-secondary hbtn-sm" onclick="showBroadcastModal()">📡 Message</button>
     </div>
   </div>`;
@@ -1359,30 +1185,29 @@ function renderHostPilotageTab(gs, phase) {
   // ═══════════════════════════════════════════════════════════
   if (['question','waiting','manual_scoring'].includes(phase)) {
     const pct = timerInfo?.totalSec > 0 ? Math.round(timerInfo.remainingSec / timerInfo.totalSec * 100) : 0;
-    // Déterminer si la barre est urgente (moins de 20%)
-    const timerUrgent = timerInfo && pct < 20;
     out += `<div class="host-section">
       <div class="host-section-label">⏱️ CHRONOMÈTRE</div>
       ${timerInfo ? `
         <div style="margin-bottom:10px;">
           <div class="row" style="justify-content:space-between;margin-bottom:6px;">
             <span class="muted" style="font-size:.82rem;">Temps restant</span>
-            <strong style="color:${timerUrgent?'#eb3349':'#ff9a56'};font-size:1.5rem;${timerUrgent?'animation:pulse-scale 0.6s ease-in-out infinite;':''}">${timerInfo.remainingSec}s</strong>
+            <strong style="color:#ff9a56;font-size:1.5rem;">${timerInfo.remainingSec}s</strong>
           </div>
-          <div class="progress-bar"><div class="fill" style="width:${pct}%;background:${timerUrgent?'linear-gradient(90deg,#eb3349,#ff6b7a)':''}"></div></div>
+          <div class="progress-bar"><div class="fill" style="width:${pct}%"></div></div>
         </div>` : ''}
       <div class="timer-presets">
         ${[5,10,20,30,45,60].map(s => `<button class="timer-preset-btn" onclick="setTimerPreset(${s})">${s}s</button>`).join('')}
       </div>
       <div class="row" style="gap:6px;margin-top:6px;">
         <input type="number" id="timer-sec" value="${timerInfo?.remainingSec || 30}" min="1" max="300" style="width:76px;flex-shrink:0;font-size:.9rem;">
-        <button class="hbtn hbtn-success hbtn-pulse" style="flex:1;" onclick="startTimer()">▶ Démarrer le timer</button>
+        <button class="hbtn hbtn-success" style="flex:1;" onclick="startTimer()">▶ Démarrer</button>
+        ${timerInfo ? `<button class="hbtn hbtn-danger hbtn-sm" onclick="hostAction('stop_timer')">⏹</button>` : ''}
       </div>
     </div>`;
   }
 
   // ═══════════════════════════════════════════════════════════
-  // SECTION 5 : BUZZER (si actif) — remontée en priorité
+  // SECTION 5 : BUZZER (si actif)
   // ═══════════════════════════════════════════════════════════
   if (isBuzzer || gs?.buzzerState?.firstPseudo) {
     const bz = gs?.buzzerState;
@@ -1396,11 +1221,11 @@ function renderHostPilotageTab(gs, phase) {
       <div class="host-section-label">🔔 BUZZER</div>`;
 
     if (!bz?.firstPseudo && isLocked) {
-      // Buzzer verrouillé — bouton "Activer" très visible avec pulse
+      // Buzzer verrouillé, personne n'a buzzé
       out += `
-        <div style="text-align:center;padding:16px 8px;">
-          <p class="muted" style="margin-bottom:14px;font-size:.9rem;">🔒 Buzzers désactivés — les joueurs voient un buzzer gris</p>
-          <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" style="font-size:1.1rem;padding:16px;" onclick="hostAction('activate_buzzer')">🔔 ACTIVER LES BUZZERS</button>
+        <div style="text-align:center;padding:12px 8px;">
+          <p class="muted" style="margin-bottom:10px;">Les buzzers sont désactivés (gris)</p>
+          <button class="hbtn hbtn-success hbtn-wide" onclick="hostAction('activate_buzzer')">🔔 Activer les buzzers</button>
         </div>`;
     } else if (bz?.firstPseudo) {
       // Un joueur a buzzé
@@ -1417,8 +1242,8 @@ function renderHostPilotageTab(gs, phase) {
             </div>
           </div>
           <div class="host-ctrl-row">
-            <button class="hbtn hbtn-success" style="flex:1;" onclick="hostAction('buzzer_mark_correct')">✅ Bonne (+1)</button>
-            <button class="hbtn hbtn-danger" style="flex:1;" onclick="hostAction('buzzer_mark_wrong')">❌ Mauvaise</button>
+            <button class="hbtn hbtn-success" style="flex:1;" onclick="hostAction('award_buzzer_correct')">✅ Bonne (+1)</button>
+            <button class="hbtn hbtn-danger" style="flex:1;" onclick="hostAction('award_buzzer_wrong')">❌ Mauvaise</button>
           </div>
           <div class="host-ctrl-row" style="margin-top:6px;">
             <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reveal_answer')">📋 Afficher réponse</button>
@@ -1434,91 +1259,6 @@ function renderHostPilotageTab(gs, phase) {
           <button class="hbtn hbtn-secondary hbtn-sm" style="margin-top:8px;" onclick="hostAction('reveal_answer')">📋 Afficher réponse</button>
         </div>`;
     }
-    out += `</div>`;
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // SECTION 5.5 : VOTE (si type vote actif)
-  // ═══════════════════════════════════════════════════════════
-  const isVoteActive = currentQ?.type === 'vote' && ['question','waiting','manual_scoring','answer_reveal'].includes(phase);
-  if (isVoteActive) {
-    const voteState = gs?.voteState;
-    const answerMode = gs?.phaseMeta?.answerMode;
-    const answersForQ = gs?.answers?.[currentQ?.id] || {};
-    const submittedCount = Object.values(answersForQ).filter(a => a.answer?.trim()).length;
-    const connectedCount = state.players.filter(p => p.connected).length;
-
-    out += `<div class="host-section host-section-buzzer">
-      <div class="host-section-label">🗳️ VOTE</div>`;
-
-    if (answerMode === 'vote_input') {
-      // Phase 1 : collecte des réponses texte
-      out += `
-        <div style="text-align:center;padding:12px 8px;">
-          <p style="font-size:1.6rem;font-weight:700;color:#f59e0b;margin-bottom:4px;">${submittedCount}<span class="muted" style="font-size:.9rem;">/${connectedCount}</span></p>
-          <p class="muted" style="font-size:.8rem;margin-bottom:14px;">réponses reçues</p>
-          <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer le vote</button>
-        </div>`;
-      // Liste des réponses reçues (anonymisées dans l'ordre d'arrivée)
-      const submittedAnswers = Object.values(answersForQ).filter(a => a.answer?.trim());
-      if (submittedAnswers.length) {
-        out += `<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px;">
-          <p class="muted" style="font-size:.68rem;text-transform:uppercase;margin-bottom:6px;">Réponses collectées (visible MJ uniquement)</p>`;
-        for (const a of submittedAnswers) {
-          out += `<div style="padding:5px 10px;border-radius:7px;background:rgba(255,255,255,.05);margin-bottom:4px;font-size:.83rem;display:flex;justify-content:space-between;align-items:center;">
-            <span style="color:#f59e0b;font-size:.72rem;font-weight:600;">${a.pseudo || '?'}</span>
-            <span style="flex:1;margin-left:8px;">${a.answer}</span>
-          </div>`;
-        }
-        out += `</div>`;
-      }
-    } else if (answerMode === 'vote_voting') {
-      // Phase 2 : vote en cours
-      const options = voteState?.options || [];
-      const votes = voteState?.votes || {};
-      const voterCount = Object.keys(votes).length;
-      out += `
-        <div style="text-align:center;padding:6px 8px 12px;">
-          <p class="muted" style="font-size:.8rem;margin-bottom:10px;">Vote en cours — <strong>${voterCount}/${connectedCount}</strong> ont voté</p>
-          <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('vote_reveal')">📋 Révéler les résultats</button>
-        </div>`;
-      if (options.length) {
-        out += `<div style="border-top:1px solid rgba(255,255,255,.08);padding-top:8px;">
-          <p class="muted" style="font-size:.68rem;text-transform:uppercase;margin-bottom:6px;">Options (votes en direct)</p>`;
-        for (const opt of options) {
-          const voteCount = Object.values(votes).filter(v => v === opt.idx).length;
-          const decoyBadge = opt.isDecoy ? `<span style="background:#eb334920;color:#eb3349;border-radius:4px;padding:1px 5px;font-size:.65rem;margin-left:4px;">LEURRE</span>` : '';
-          out += `<div style="padding:6px 10px;border-radius:7px;background:rgba(255,255,255,.05);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;font-size:.83rem;">
-            <span>${opt.text}${decoyBadge}</span>
-            <strong style="color:#f59e0b;flex-shrink:0;margin-left:8px;">${voteCount} 🗳️</strong>
-          </div>`;
-        }
-        out += `</div>`;
-      }
-    } else if (answerMode === 'vote_revealed') {
-      // Phase 3 : résultats révélés
-      const options = voteState?.options || [];
-      const votes = voteState?.votes || {};
-      out += `<p class="muted" style="font-size:.8rem;margin-bottom:8px;text-align:center;">✅ Résultats révélés</p>`;
-      if (options.length) {
-        const sorted = [...options].sort((a, b) => {
-          const vA = Object.values(votes).filter(v => v === a.idx).length;
-          const vB = Object.values(votes).filter(v => v === b.idx).length;
-          return vB - vA;
-        });
-        out += `<div>`;
-        for (const opt of sorted) {
-          const voteCount = Object.values(votes).filter(v => v === opt.idx).length;
-          const decoyBadge = opt.isDecoy ? `<span style="background:#eb334920;color:#eb3349;border-radius:4px;padding:1px 5px;font-size:.65rem;margin-left:4px;">LEURRE</span>` : '';
-          out += `<div style="padding:6px 10px;border-radius:7px;background:rgba(255,255,255,.05);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;font-size:.83rem;">
-            <span>${opt.text}${decoyBadge}</span>
-            <strong style="color:${voteCount>0?'#38ef7d':'#aaa'};flex-shrink:0;margin-left:8px;">${voteCount} 🗳️</strong>
-          </div>`;
-        }
-        out += `</div>`;
-      }
-    }
-
     out += `</div>`;
   }
 
@@ -1654,26 +1394,19 @@ function renderHostPilotageTab(gs, phase) {
     if (!fc) {
       out += `<div class="host-section" style="text-align:center;">
         <p class="muted" style="margin-bottom:12px;">Lancez la cérémonie pour révéler le classement progressivement</p>
-        <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" onclick="hostAction('final_ceremony_init')">🎊 Cérémonie finale</button>
-        <div class="host-ctrl-row" style="margin-top:10px;">
-          <button class="hbtn hbtn-secondary" onclick="hostAction('reset_game')">🔁 Nouvelle partie</button>
-          <button class="hbtn hbtn-danger" onclick="if(confirm('Terminer et retourner à l\\'accueil ?'))hostAction('stop_session');navigate('home');">🚪 Fermer</button>
-        </div>
+        <button class="hbtn hbtn-primary hbtn-wide" onclick="hostAction('final_ceremony_init')">🎊 Cérémonie finale</button>
+        <button class="hbtn hbtn-secondary" style="margin-top:8px;" onclick="hostAction('reset_game')">🔁 Nouvelle partie</button>
       </div>`;
     } else {
       const remaining = fc.revealOrder.length - fc.revealCursor;
       out += `<div class="host-section">
         <div class="host-section-label">🎊 CÉRÉMONIE FINALE</div>
         <div class="host-ctrl-row">
-          ${remaining > 0 ? `<button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('final_ceremony_reveal_next')">▶ Révéler (${remaining} restant${remaining>1?'s':''})</button>` : ''}
+          ${remaining > 0 ? `<button class="hbtn hbtn-success hbtn-wide" onclick="hostAction('final_ceremony_reveal_next')">▶ Révéler (${remaining} restant${remaining>1?'s':''})</button>` : ''}
           ${fc.winnerTeam && fc.stage !== 'team_winner' ? `<button class="hbtn hbtn-primary" onclick="hostAction('final_ceremony_show_team_winner')">🏆 Équipe</button>` : ''}
           <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('final_ceremony_reset')">↩</button>
         </div>
         <p class="muted" style="font-size:.75rem;margin-top:8px;">${fc.revealCursor}/${fc.revealOrder.length} révélé(s)</p>
-        <div class="host-ctrl-row" style="margin-top:10px;">
-          <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reset_game')">🔁 Nouvelle partie</button>
-          <button class="hbtn hbtn-danger hbtn-sm" onclick="if(confirm('Terminer et retourner à l\\'accueil ?')){hostAction('stop_session');navigate('home');}">🚪 Fermer l'application</button>
-        </div>
       </div>`;
       out += renderFinalCeremony(gs, state.leaderboardPlayers);
     }
@@ -2012,39 +1745,13 @@ function renderDisplay() {
     content += renderDisplayQuestion(gs);
   } else if (phase === 'answer_reveal') {
     const revealed = gs?.revealedAnswer;
-    const isBuzzerReveal = gs?.phaseMeta?.answerMode === 'buzzer' || (gs?.buzzerState?.firstPseudo && !gs?.phaseMeta?.finalCeremony);
-    const isTrueFalseReveal = gs?.phaseMeta?.answerMode === 'true_false';
-    const isVoteReveal = gs?.phaseMeta?.answerMode === 'vote_revealed';
-
-    if (isVoteReveal && gs?.voteState) {
-      content += renderDisplayVoteResults(gs);
-    } else if (isBuzzerReveal) {
-      // Pour le buzzer : on affiche la réponse mais PAS les scores
-      content += `
-        <div class="card" style="text-align:center;padding:40px;">
-          <h2>📋 Bonne réponse</h2>
-          <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${revealed?.correctAnswer ?? '—'}</div>
-        </div>
-        ${renderAnswerList(revealed?.answers || [])}`;
-    } else {
-      // Mode standard : afficher la réponse + les scores
-      content += `
-        <div class="card" style="text-align:center;padding:40px;">
-          <h2>📋 Bonne réponse</h2>
-          <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${revealed?.correctAnswer ?? '—'}</div>
-        </div>
-        ${renderAnswerList(revealed?.answers || [])}
-        ${isTrueFalseReveal ? '' : renderScoreboard(state.leaderboardPlayers, 'Classement')}`;
-    }
-  } else if (phase === 'round_end') {
-    const round = gs?.currentRound;
     content += `
-      <div class="card" style="text-align:center;padding:80px 20px;">
-        <div style="font-size:5rem;margin-bottom:20px;">🏁</div>
-        <h1>Manche terminée !</h1>
-        <p class="muted" style="font-size:1.3rem;margin-top:16px;">${round?.title || ''}</p>
-        <div class="waiting-dots" style="margin-top:30px;"><span></span><span></span><span></span></div>
-      </div>`;
+      <div class="card" style="text-align:center;padding:40px;">
+        <h2>📋 Bonne réponse</h2>
+        <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${revealed?.correctAnswer ?? '—'}</div>
+      </div>
+      ${renderAnswerList(revealed?.answers || [])}
+      ${renderScoreboard(state.leaderboardPlayers, 'Classement')}`;
   } else if (phase === 'results') {
     content += renderScoreboard(state.leaderboardPlayers, '📊 Classement de la manche');
     if (state.leaderboardTeams.length) {
@@ -2199,26 +1906,10 @@ function renderDisplayQuestion(gs) {
       </div>`;
   }
 
-  // Vote : affichage selon la phase
-  let voteDisplay = '';
-  if (pm.answerMode === 'vote_input') {
-    const answered = gs.answers?.[q.id] ? Object.keys(gs.answers[q.id]).length : 0;
-    const connected = state.players.filter(p => p.connected).length;
-    voteDisplay = `
-      <div class="card" style="text-align:center;padding:30px;">
-        <div style="font-size:2.5rem;margin-bottom:12px;">✍️</div>
-        <h2>Répondez maintenant !</h2>
-        <p class="muted" style="margin-top:10px;font-size:1rem;">${answered}/${connected} réponse(s) reçue(s)</p>
-        <div class="progress-bar" style="margin-top:12px;"><div class="fill" style="width:${connected > 0 ? Math.round(answered/connected*100) : 0}%"></div></div>
-      </div>`;
-  } else if (pm.answerMode === 'vote_voting') {
-    voteDisplay = renderDisplayVoteVoting(gs);
-  }
-
-  // Compteur de réponses (pas pour burger/buzzer/vote)
+  // Compteur de réponses (pas pour burger/buzzer)
   const answered = gs.answers?.[q.id] ? Object.keys(gs.answers[q.id]).length : 0;
   const connected = state.players.filter(p => p.connected).length;
-  const showCounter = pm.answerMode !== 'buzzer' && pm.answerMode !== 'vote_input' && pm.answerMode !== 'vote_voting' && q.type !== 'burger' && q.type !== 'rapidite';
+  const showCounter = pm.answerMode !== 'buzzer' && q.type !== 'burger' && q.type !== 'rapidite';
 
   return `
     ${timerHtml}
@@ -2230,66 +1921,7 @@ function renderDisplayQuestion(gs) {
     ${opts}
     ${votes}
     ${buzzerDisplay}
-    ${burgerDisplay}
-    ${voteDisplay}`;
-}
-
-// ── Affichage des résultats de vote sur le display ────────────
-function renderDisplayVoteResults(gs) {
-  const vs = gs?.voteState;
-  if (!vs || !vs.options) return '<div class="card" style="text-align:center;padding:40px;"><p class="muted">Résultats du vote…</p></div>';
-
-  const maxVotes = Math.max(...vs.options.map(o => o.voteCount || 0), 1);
-
-  const optionRows = vs.options
-    .sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0))
-    .map((opt, i) => {
-      const votes = opt.voteCount || 0;
-      const pct = Math.round((votes / maxVotes) * 100);
-      const isDecoy = opt.isDecoy;
-      const bgColor = isDecoy ? 'rgba(235,51,73,.15)' : 'rgba(56,239,125,.1)';
-      const borderColor = isDecoy ? 'rgba(235,51,73,.4)' : 'rgba(56,239,125,.3)';
-      return `
-        <div style="padding:14px 16px;border-radius:12px;background:${bgColor};border:1px solid ${borderColor};margin-bottom:8px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <span style="font-weight:600;font-size:1rem;">${opt.text}</span>
-            <div style="display:flex;align-items:center;gap:8px;">
-              ${isDecoy ? '<span style="color:#eb3349;font-size:.75rem;font-weight:700;">🎭 LEURRE</span>' : ''}
-              <strong style="font-size:1.3rem;color:${isDecoy?'#eb3349':'#38ef7d'};">${votes} 🗳️</strong>
-            </div>
-          </div>
-          <div class="progress-bar"><div class="fill" style="width:${pct}%;background:${isDecoy?'linear-gradient(90deg,#eb3349,#ff6b7a)':'linear-gradient(90deg,#38ef7d,#00b09b)'}"></div></div>
-        </div>`;
-    }).join('');
-
-  return `
-    <div class="card" style="padding:30px;">
-      <h2 style="text-align:center;margin-bottom:20px;">🗳️ Résultats du vote</h2>
-      ${optionRows}
-    </div>`;
-}
-
-// ── Affichage du vote en cours sur le display (pendant vote_voting) ──
-function renderDisplayVoteVoting(gs) {
-  const vs = gs?.voteState;
-  if (!vs) return '';
-
-  const totalPlayers = state.players.filter(p => p.connected).length;
-  const totalVotes = Object.keys(vs.votes || {}).length;
-
-  const options = vs.options || [];
-  return `
-    <div class="card" style="padding:30px;">
-      <h2 style="text-align:center;margin-bottom:6px;">🗳️ Votez !</h2>
-      <p class="muted" style="text-align:center;margin-bottom:20px;">${totalVotes}/${totalPlayers} votes enregistrés</p>
-      <div style="display:grid;gap:10px;">
-        ${options.map((opt, i) => `
-          <div style="padding:16px 20px;border-radius:12px;background:rgba(255,255,255,.07);
-            border:1px solid rgba(255,255,255,.12);font-size:1.1rem;font-weight:600;text-align:center;">
-            ${opt.text}
-          </div>`).join('')}
-      </div>
-    </div>`;
+    ${burgerDisplay}`;
 }
 
 function renderAnswerList(answers) {
@@ -2518,14 +2150,6 @@ function emptyQuestion(type = 'qcm') {
       })),
     };
   }
-  // Vote — les joueurs proposent une réponse, puis votent parmi toutes les réponses + leurres
-  if (type === 'vote') {
-    return {
-      ...base,
-      type: 'vote',
-      fakeAnswers: ['Leurre 1', 'Leurre 2', 'Leurre 3'],
-    };
-  }
   return { ...base, type: type };
 }
 
@@ -2616,7 +2240,6 @@ function renderRoundBlock(round, ri) {
     { v:'rapidite',  l:'⚡ Rapidité (buzzer)' },
     { v:'true_false',l:'✅ Vrai / Faux' },
     { v:'burger',    l:'🍔 Burger (liste révélée)' },
-    { v:'vote',      l:'🗳️ Vote (propositions + votes)' },
   ];
 
   const bgPreview = round.backgroundUrl
@@ -2813,27 +2436,6 @@ function renderQuestionRow(q, qi, roundId, roundType) {
       </div>`;
   }
 
-  // ── VOTE ─────────────────────────────────────────────────
-  if (effectiveType === 'vote') {
-    const fakeAnswers = Array.isArray(q.fakeAnswers) ? q.fakeAnswers : ['', '', ''];
-    body = `
-      <div style="margin:8px 0 4px 28px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:10px;">
-        <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">🗳️ Leurres pré-enregistrés (réponses piège)</div>
-        <p style="font-size:.78rem;color:rgba(255,255,255,.5);margin-bottom:8px;">Ces réponses seront mélangées avec celles des joueurs. Voter pour un leurre = -1 point.</p>
-        <div style="display:grid;gap:6px;">
-          ${fakeAnswers.map((fa, i) => `
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:.78rem;color:#eb3349;min-width:22px;flex-shrink:0;">🎭${i+1}</span>
-              <input value="${(fa||'').replace(/"/g,'&quot;')}" placeholder="Leurre ${i+1}"
-                oninput="updateFakeAnswer('${roundId}','${q.id}',${i},this.value)"
-                style="flex:1;font-size:.82rem;padding:5px 8px;">
-            </div>`).join('')}
-        </div>
-        <button class="btn-secondary" style="margin-top:8px;padding:4px 10px;font-size:.78rem;" onclick="addFakeAnswer('${roundId}','${q.id}')">+ Ajouter un leurre</button>
-        <div style="margin-top:10px;font-size:.75rem;color:rgba(255,255,255,.4);">📋 Déroulement : 1. Les joueurs écrivent une réponse · 2. Toutes les réponses + leurres sont affichés anonymement · 3. Les joueurs votent · 4. +1pt par vote reçu, -1pt si vote pour un leurre</div>
-      </div>`;
-  }
-
   return `
     <div class="question-row" id="question-${q.id}" style="flex-direction:column;align-items:stretch;gap:4px;margin-bottom:10px;">
       ${headerRow}
@@ -2868,23 +2470,6 @@ function updateBurgerItem(roundId, qId, itemIndex, value) {
   const q = round?.questions?.find(q => q.id === qId);
   if (!q || !Array.isArray(q.items)) return;
   if (q.items[itemIndex]) q.items[itemIndex].text = value;
-}
-
-function updateFakeAnswer(roundId, qId, idx, value) {
-  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
-  const q = round?.questions?.find(q => q.id === qId);
-  if (!q) return;
-  if (!Array.isArray(q.fakeAnswers)) q.fakeAnswers = [];
-  q.fakeAnswers[idx] = value;
-}
-
-function addFakeAnswer(roundId, qId) {
-  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
-  const q = round?.questions?.find(q => q.id === qId);
-  if (!q) return;
-  if (!Array.isArray(q.fakeAnswers)) q.fakeAnswers = [];
-  q.fakeAnswers.push('');
-  renderQuizEditor();
 }
 
 function addRound() {
@@ -3247,241 +2832,7 @@ function copyToClipboard(text, alertId = '') {
 }
 
 // ── Bootstrap ────────────────────────────────────────────────
-// ════════════════════════════════════════════════════════════
-// SYSTÈME DE THÈMES
-// ════════════════════════════════════════════════════════════
-
-const THEMES = {
-  default: {
-    label: '🌌 Default',
-    name:  'Classique',
-    brand: '🎮 Quiz Live',
-    desc:  'Sombre & violet',
-  },
-  corporate: {
-    label: '💼 Corporate',
-    name:  'Corporate',
-    brand: '📊 QuizzGeek Pro',
-    desc:  'Enterprise SaaS',
-  },
-  party: {
-    label: '🎉 Party',
-    name:  'Party',
-    brand: '🎉 QuizzGeek Party!',
-    desc:  'Néons & fiesta',
-  },
-  tvshow: {
-    label: '📺 TV Show',
-    name:  'TV Show',
-    brand: '⭐ QUIZZGEEK',
-    desc:  'Dorée & dramatique',
-  },
-};
-
-let _currentTheme = 'default';
-
-function setTheme(themeKey) {
-  if (!THEMES[themeKey]) themeKey = 'default';
-  _currentTheme = themeKey;
-
-  // Appliquer sur body
-  document.body.setAttribute('data-theme', themeKey === 'default' ? '' : themeKey);
-
-  // Mettre à jour le brand
-  const brandEl = document.querySelector('.nav-brand');
-  if (brandEl) brandEl.textContent = THEMES[themeKey].brand;
-
-  // Sauvegarder
-  try { localStorage.setItem('quiz_theme', themeKey); } catch(e) {}
-
-  // Jouer un son de confirmation de thème
-  playThemeSound(themeKey);
-
-  // Mettre à jour le picker si visible
-  renderThemePicker();
-}
-
-function renderThemePicker() {
-  const container = document.getElementById('theme-picker-container');
-  if (!container) return;
-
-  const entries = Object.entries(THEMES);
-  container.innerHTML = entries.map(([key, t]) => `
-    <button
-      onclick="setTheme('${key}');closeThemePicker();"
-      style="
-        display:flex;align-items:center;gap:12px;
-        width:100%;padding:12px 14px;border-radius:10px;
-        border:${_currentTheme===key ? '2px solid rgba(240,147,251,0.8)' : '1px solid rgba(255,255,255,0.1)'};
-        background:${_currentTheme===key ? 'rgba(240,147,251,0.12)' : 'rgba(255,255,255,0.05)'};
-        cursor:pointer;text-align:left;color:#fff;font-family:inherit;
-        transition:all 0.15s;margin-bottom:6px;
-      "
-      onmouseover="this.style.background='rgba(255,255,255,0.1)'"
-      onmouseout="this.style.background='${_currentTheme===key ? 'rgba(240,147,251,0.12)' : 'rgba(255,255,255,0.05)'}'">
-      <span style="font-size:1.5rem;">${t.label.split(' ')[0]}</span>
-      <div>
-        <div style="font-weight:700;font-size:.92rem;">${t.name}${_currentTheme===key ? ' ✓' : ''}</div>
-        <div style="font-size:.75rem;opacity:.55;">${t.desc}</div>
-      </div>
-    </button>`).join('');
-}
-
-function openThemePicker() {
-  if (document.getElementById('theme-modal')) return;
-  const modal = document.createElement('div');
-  modal.id = 'theme-modal';
-  modal.style.cssText = `
-    position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;
-    display:flex;align-items:center;justify-content:center;padding:20px;
-  `;
-  modal.innerHTML = `
-    <div style="
-      background:#1a1740;border:1px solid rgba(255,255,255,.15);
-      border-radius:18px;padding:22px;width:100%;max-width:380px;
-    ">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
-        <h3 style="margin:0;font-size:1.1rem;">🎨 Choisir un thème</h3>
-        <button onclick="closeThemePicker()" style="
-          background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);
-          border-radius:8px;color:#fff;padding:5px 10px;cursor:pointer;font-size:.85rem;
-          font-family:inherit;font-weight:600;
-        ">✕</button>
-      </div>
-      <div id="theme-picker-container"></div>
-      <p style="margin-top:14px;font-size:.72rem;color:rgba(255,255,255,.35);text-align:center;">
-        Le thème s'applique à tous les écrans (joueur, host, display)
-      </p>
-    </div>`;
-  modal.addEventListener('click', (e) => { if (e.target === modal) closeThemePicker(); });
-  document.body.appendChild(modal);
-  renderThemePicker();
-}
-
-function closeThemePicker() {
-  const el = document.getElementById('theme-modal');
-  if (el) el.remove();
-}
-
-// ── Sons thématiques via Web Audio API ────────────────────
-function playThemeSound(themeKey) {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-
-    if (themeKey === 'corporate') {
-      // Son corporate : 2 bips propres et précis
-      playNote(ctx, 660, 0,    0.06, 'sine',   0.15);
-      playNote(ctx, 880, 0.12, 0.06, 'sine',   0.15);
-    } else if (themeKey === 'party') {
-      // Son party : fanfare montante arpégée
-      [523, 659, 784, 1047].forEach((f, i) => {
-        playNote(ctx, f, i * 0.08, 0.12, 'triangle', 0.22);
-      });
-    } else if (themeKey === 'tvshow') {
-      // Son TV show : accord dramatique descendant + roulement
-      playNote(ctx, 880, 0,    0.1,  'sawtooth', 0.12);
-      playNote(ctx, 698, 0.1,  0.1,  'sawtooth', 0.12);
-      playNote(ctx, 523, 0.2,  0.25, 'sawtooth', 0.14);
-    } else {
-      // Default : bip simple
-      playNote(ctx, 440, 0, 0.08, 'sine', 0.12);
-    }
-    setTimeout(() => { try { ctx.close(); } catch(e) {} }, 1500);
-  } catch(e) {}
-}
-
-function playNote(ctx, freq, startDelay, duration, type, gain) {
-  try {
-    const osc = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-    osc.type = type;
-    osc.frequency.value = freq;
-    gainNode.gain.setValueAtTime(gain, ctx.currentTime + startDelay);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startDelay + duration);
-    osc.connect(gainNode);
-    gainNode.connect(ctx.destination);
-    osc.start(ctx.currentTime + startDelay);
-    osc.stop(ctx.currentTime + startDelay + duration + 0.01);
-  } catch(e) {}
-}
-
-// ── Sons de jeu thématiques ────────────────────────────────
-// Appelés depuis les actions clés (buzz, bonne/mauvaise réponse, timer, etc.)
-function playGameSound(type) {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const theme = _currentTheme;
-
-    if (type === 'buzz') {
-      if (theme === 'corporate') {
-        playNote(ctx, 880, 0, 0.08, 'sine', 0.2);
-      } else if (theme === 'party') {
-        [440, 550, 660].forEach((f, i) => playNote(ctx, f, i*0.05, 0.1, 'triangle', 0.25));
-      } else if (theme === 'tvshow') {
-        playNote(ctx, 440, 0,    0.06, 'sawtooth', 0.2);
-        playNote(ctx, 880, 0.07, 0.08, 'square',   0.15);
-      } else {
-        playNote(ctx, 660, 0, 0.1, 'sine', 0.2);
-      }
-    } else if (type === 'correct') {
-      if (theme === 'corporate') {
-        [523, 659].forEach((f, i) => playNote(ctx, f, i*0.1, 0.12, 'sine', 0.15));
-      } else if (theme === 'party') {
-        [523, 659, 784, 1047].forEach((f, i) => playNote(ctx, f, i*0.06, 0.12, 'triangle', 0.2));
-      } else if (theme === 'tvshow') {
-        [440, 554, 659, 880].forEach((f, i) => playNote(ctx, f, i*0.09, 0.15, 'sawtooth', 0.15));
-      } else {
-        [440, 660].forEach((f, i) => playNote(ctx, f, i*0.12, 0.12, 'sine', 0.18));
-      }
-    } else if (type === 'wrong') {
-      if (theme === 'corporate') {
-        playNote(ctx, 220, 0, 0.2, 'sine', 0.15);
-      } else if (theme === 'party') {
-        [400, 300, 200].forEach((f, i) => playNote(ctx, f, i*0.08, 0.1, 'triangle', 0.2));
-      } else if (theme === 'tvshow') {
-        [300, 220, 165].forEach((f, i) => playNote(ctx, f, i*0.1, 0.14, 'sawtooth', 0.15));
-      } else {
-        playNote(ctx, 220, 0, 0.2, 'sine', 0.18);
-      }
-    } else if (type === 'timer_end') {
-      if (theme === 'party') {
-        [880, 660, 440, 330].forEach((f, i) => playNote(ctx, f, i*0.07, 0.1, 'triangle', 0.18));
-      } else if (theme === 'tvshow') {
-        playNote(ctx, 440, 0, 0.05, 'square', 0.2);
-        playNote(ctx, 440, 0.08, 0.05, 'square', 0.2);
-        playNote(ctx, 330, 0.16, 0.3, 'sawtooth', 0.15);
-      } else {
-        playNote(ctx, 330, 0, 0.25, 'sine', 0.15);
-      }
-    }
-    setTimeout(() => { try { ctx.close(); } catch(e) {} }, 1500);
-  } catch(e) {}
-}
-
 document.addEventListener('DOMContentLoaded', () => {
-  // Charger le thème sauvegardé
-  try {
-    const savedTheme = localStorage.getItem('quiz_theme') || 'default';
-    if (savedTheme && savedTheme !== 'default') {
-      _currentTheme = savedTheme;
-      document.body.setAttribute('data-theme', savedTheme);
-      const brandEl = document.querySelector('.nav-brand');
-      if (brandEl) brandEl.textContent = THEMES[savedTheme]?.brand || '🎮 Quiz Live';
-    }
-  } catch(e) {}
-
-  // Ajouter le bouton thème dans la nav
-  const nav = document.querySelector('nav');
-  if (nav) {
-    const themeBtn = document.createElement('button');
-    themeBtn.id = 'theme-toggle-btn';
-    themeBtn.innerHTML = '🎨';
-    themeBtn.title = 'Changer de thème';
-    themeBtn.style.cssText = 'margin-left:auto;flex-shrink:0;padding:6px 10px;font-size:1rem;';
-    themeBtn.onclick = openThemePicker;
-    nav.appendChild(themeBtn);
-  }
-
   initSocket();
 
   // Navigation hash

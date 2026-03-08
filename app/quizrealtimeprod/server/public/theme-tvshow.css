@@ -1,0 +1,726 @@
+/* ============================================================
+   THEME : TV GAME SHOW 📺
+   Vibe : Qui veut gagner des millions / Jeopardy / The Voice
+   Metallic gold, dramatic spotlight, stadium energy
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap');
+
+/* ── Animations ──────────────────────────────────────────── */
+@keyframes tv-spotlight {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 0.65; }
+}
+@keyframes tv-gold-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes tv-scan-line {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+@keyframes tv-pulse-gold {
+  0%, 100% { box-shadow: 0 0 15px rgba(255,215,0,0.4), 0 0 0 3px rgba(255,215,0,0.15); }
+  50%       { box-shadow: 0 0 35px rgba(255,215,0,0.7), 0 0 0 6px rgba(255,215,0,0.1); }
+}
+@keyframes tv-dramatic-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 30px rgba(255,30,30,0.6), 0 0 0 10px rgba(255,30,30,0.15); }
+  50%       { transform: scale(1.04); box-shadow: 0 0 60px rgba(255,80,0,0.9), 0 0 0 18px rgba(255,0,0,0.1); }
+}
+
+/* ── CSS Variables ───────────────────────────────────────── */
+[data-theme="tvshow"] {
+  --tv-bg:       #02050f;
+  --tv-bg2:      #050914;
+  --tv-surface:  rgba(255,255,255,0.05);
+  --tv-gold:     #ffd700;
+  --tv-gold2:    #ff8c00;
+  --tv-silver:   #c0c0c0;
+  --tv-bronze:   #cd7f32;
+  --tv-blue:     #00d4ff;
+  --tv-red:      #ff1744;
+  --tv-green:    #00e676;
+  --tv-grad-gold: linear-gradient(135deg, #ffd700, #ff8c00, #ffd700);
+  --tv-grad-spotlight: radial-gradient(ellipse at 50% 0%, rgba(255,215,0,0.12) 0%, transparent 65%);
+  --tv-radius:   6px;
+  --tv-radius-lg: 10px;
+  --tv-radius-xl: 14px;
+  --tv-glow-gold: 0 0 20px rgba(255,215,0,0.5), 0 0 40px rgba(255,140,0,0.25);
+  --tv-glow-blue: 0 0 20px rgba(0,212,255,0.5), 0 0 40px rgba(0,212,255,0.2);
+}
+
+/* ── Base ────────────────────────────────────────────────── */
+[data-theme="tvshow"] html,
+[data-theme="tvshow"] body {
+  font-family: 'Barlow', 'Inter', sans-serif !important;
+  background: var(--tv-bg) !important;
+  background-attachment: fixed !important;
+  color: #fff !important;
+}
+
+/* Spotlight background effect */
+[data-theme="tvshow"] body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: var(--tv-grad-spotlight) !important;
+  pointer-events: none;
+  z-index: 0;
+  animation: tv-spotlight 4s ease-in-out infinite;
+}
+/* Subtle scan line */
+[data-theme="tvshow"] body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(255,215,0,0.08), transparent);
+  pointer-events: none;
+  z-index: 0;
+  animation: tv-scan-line 8s linear infinite;
+}
+
+/* ── Navigation ──────────────────────────────────────────── */
+[data-theme="tvshow"] nav {
+  background: rgba(2,5,15,0.97) !important;
+  border-bottom: 2px solid var(--tv-gold) !important;
+  box-shadow: 0 2px 20px rgba(255,215,0,0.15), inset 0 -1px 0 rgba(255,140,0,0.2) !important;
+  backdrop-filter: blur(0) !important;
+  padding: 10px 16px !important;
+  gap: 4px !important;
+}
+[data-theme="tvshow"] nav .nav-brand {
+  font-family: 'Barlow Condensed', sans-serif !important;
+  font-size: 1.3rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  background: var(--tv-grad-gold) !important;
+  background-size: 200% auto !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  animation: tv-gold-shimmer 3s linear infinite !important;
+}
+[data-theme="tvshow"] nav button {
+  border-radius: var(--tv-radius) !important;
+  border: 1px solid rgba(255,215,0,0.25) !important;
+  background: rgba(255,215,0,0.06) !important;
+  color: rgba(255,215,0,0.75) !important;
+  font-weight: 700 !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  padding: 5px 12px !important;
+  transition: all 0.18s !important;
+}
+[data-theme="tvshow"] nav button:hover,
+[data-theme="tvshow"] nav button.active {
+  background: var(--tv-grad-gold) !important;
+  border-color: transparent !important;
+  color: #000 !important;
+  font-weight: 900 !important;
+  box-shadow: var(--tv-glow-gold) !important;
+}
+
+/* ── Cards ───────────────────────────────────────────────── */
+[data-theme="tvshow"] .card {
+  background: rgba(255,255,255,0.04) !important;
+  border: 1px solid rgba(255,215,0,0.2) !important;
+  border-radius: var(--tv-radius-lg) !important;
+  backdrop-filter: blur(8px) !important;
+  box-shadow: inset 0 1px 0 rgba(255,215,0,0.08) !important;
+}
+[data-theme="tvshow"] .card:hover {
+  border-color: rgba(255,215,0,0.5) !important;
+  box-shadow: 0 0 20px rgba(255,215,0,0.1), inset 0 1px 0 rgba(255,215,0,0.15) !important;
+}
+
+/* ── Typography ──────────────────────────────────────────── */
+[data-theme="tvshow"] h1 {
+  font-family: 'Barlow Condensed', sans-serif !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+}
+[data-theme="tvshow"] h2 {
+  font-family: 'Barlow Condensed', sans-serif !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.03em !important;
+}
+[data-theme="tvshow"] .muted { color: rgba(255,215,0,0.45) !important; }
+
+/* ── Form controls ───────────────────────────────────────── */
+[data-theme="tvshow"] input,
+[data-theme="tvshow"] select,
+[data-theme="tvshow"] textarea {
+  background: rgba(255,215,0,0.04) !important;
+  border: 1px solid rgba(255,215,0,0.2) !important;
+  border-radius: var(--tv-radius) !important;
+  color: #fff !important;
+}
+[data-theme="tvshow"] input:focus,
+[data-theme="tvshow"] select:focus,
+[data-theme="tvshow"] textarea:focus {
+  border-color: var(--tv-gold) !important;
+  background: rgba(255,215,0,0.07) !important;
+  box-shadow: 0 0 0 3px rgba(255,215,0,0.15) !important;
+  outline: none !important;
+}
+[data-theme="tvshow"] select option { background: var(--tv-bg2) !important; }
+
+/* ── Buttons global ──────────────────────────────────────── */
+[data-theme="tvshow"] button {
+  font-family: 'Barlow', sans-serif !important;
+  border-radius: var(--tv-radius) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  font-size: 0.84rem !important;
+}
+[data-theme="tvshow"] button:hover { transform: translateY(-1px) !important; }
+[data-theme="tvshow"] button:active { transform: scale(0.97) !important; }
+
+[data-theme="tvshow"] .btn-primary {
+  background: var(--tv-grad-gold) !important;
+  background-size: 200% auto !important;
+  color: #000 !important;
+  font-weight: 900 !important;
+  animation: tv-gold-shimmer 3s linear infinite !important;
+}
+[data-theme="tvshow"] .btn-primary:hover { box-shadow: var(--tv-glow-gold) !important; }
+[data-theme="tvshow"] .btn-success {
+  background: linear-gradient(135deg, #00b300, #00e676) !important;
+  color: #000 !important;
+}
+[data-theme="tvshow"] .btn-danger {
+  background: linear-gradient(135deg, #c62828, #ff1744) !important;
+  color: #fff !important;
+}
+[data-theme="tvshow"] .btn-warning {
+  background: linear-gradient(135deg, #e65100, #ff8c00) !important;
+  color: #fff !important;
+}
+[data-theme="tvshow"] .btn-secondary {
+  background: rgba(255,255,255,0.06) !important;
+  border: 1px solid rgba(255,215,0,0.25) !important;
+  color: rgba(255,215,0,0.8) !important;
+}
+[data-theme="tvshow"] .btn-secondary:hover {
+  background: rgba(255,215,0,0.1) !important;
+  border-color: var(--tv-gold) !important;
+  color: var(--tv-gold) !important;
+}
+
+/* Host buttons */
+[data-theme="tvshow"] .hbtn {
+  font-family: 'Barlow', sans-serif !important;
+  border-radius: var(--tv-radius) !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+}
+[data-theme="tvshow"] .hbtn:hover { transform: translateY(-1px) !important; }
+[data-theme="tvshow"] .hbtn:active { transform: scale(0.97) !important; }
+
+[data-theme="tvshow"] .hbtn-primary {
+  background: var(--tv-grad-gold) !important;
+  background-size: 200% auto !important;
+  color: #000 !important;
+  font-weight: 900 !important;
+  animation: tv-gold-shimmer 3s linear infinite !important;
+}
+[data-theme="tvshow"] .hbtn-primary:hover { box-shadow: var(--tv-glow-gold) !important; }
+[data-theme="tvshow"] .hbtn-success {
+  background: linear-gradient(135deg, #005c00, #00e676) !important;
+  color: #fff !important;
+}
+[data-theme="tvshow"] .hbtn-success:hover { box-shadow: 0 0 18px rgba(0,230,118,0.4) !important; }
+[data-theme="tvshow"] .hbtn-danger {
+  background: linear-gradient(135deg, #c62828, #ff1744) !important;
+  color: #fff !important;
+}
+[data-theme="tvshow"] .hbtn-warning {
+  background: linear-gradient(135deg, #e65100, #ff8c00) !important;
+  color: #fff !important;
+}
+[data-theme="tvshow"] .hbtn-secondary {
+  background: rgba(255,255,255,0.05) !important;
+  border: 1px solid rgba(255,215,0,0.2) !important;
+  color: rgba(255,215,0,0.75) !important;
+}
+[data-theme="tvshow"] .hbtn-secondary:hover {
+  background: rgba(255,215,0,0.1) !important;
+  border-color: var(--tv-gold) !important;
+  color: var(--tv-gold) !important;
+}
+[data-theme="tvshow"] .hbtn-nav {
+  background: rgba(0,212,255,0.08) !important;
+  border: 1px solid rgba(0,212,255,0.3) !important;
+  color: var(--tv-blue) !important;
+  font-size: 0.78rem !important;
+}
+[data-theme="tvshow"] .hbtn-nav:hover {
+  background: rgba(0,212,255,0.18) !important;
+  border-color: var(--tv-blue) !important;
+  box-shadow: var(--tv-glow-blue) !important;
+  color: #fff !important;
+}
+[data-theme="tvshow"] .hbtn-nav-fwd {
+  background: rgba(0,212,255,0.14) !important;
+  border-color: rgba(0,212,255,0.45) !important;
+  color: #fff !important;
+}
+
+/* Pulse animation – dramatic gold for TV show */
+[data-theme="tvshow"] .hbtn-pulse {
+  animation: tv-pulse-gold 1.2s ease-in-out infinite !important;
+}
+
+/* ── Badges ──────────────────────────────────────────────── */
+[data-theme="tvshow"] .badge {
+  border-radius: var(--tv-radius) !important;
+  font-family: 'Barlow Condensed', sans-serif !important;
+  font-size: 0.78rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+}
+[data-theme="tvshow"] .badge.green {
+  background: rgba(0,230,118,0.15) !important;
+  color: var(--tv-green) !important;
+  border: 1px solid rgba(0,230,118,0.4) !important;
+}
+[data-theme="tvshow"] .badge.orange {
+  background: rgba(255,140,0,0.15) !important;
+  color: var(--tv-gold2) !important;
+  border: 1px solid rgba(255,140,0,0.4) !important;
+}
+[data-theme="tvshow"] .badge.red {
+  background: rgba(255,23,68,0.15) !important;
+  color: #ff6e6e !important;
+  border: 1px solid rgba(255,23,68,0.35) !important;
+}
+[data-theme="tvshow"] .badge.blue {
+  background: rgba(0,212,255,0.12) !important;
+  color: var(--tv-blue) !important;
+  border: 1px solid rgba(0,212,255,0.35) !important;
+  box-shadow: 0 0 8px rgba(0,212,255,0.2) !important;
+}
+
+/* ── Tabs ────────────────────────────────────────────────── */
+[data-theme="tvshow"] .tab-btn {
+  border-radius: var(--tv-radius) !important;
+  border: 1px solid rgba(255,215,0,0.2) !important;
+  background: rgba(255,215,0,0.04) !important;
+  color: rgba(255,215,0,0.6) !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.04em !important;
+}
+[data-theme="tvshow"] .tab-btn.active {
+  background: var(--tv-grad-gold) !important;
+  background-size: 200% auto !important;
+  color: #000 !important;
+  border-color: transparent !important;
+  font-weight: 900 !important;
+  animation: tv-gold-shimmer 3s linear infinite !important;
+}
+[data-theme="tvshow"] .host-main-tabs {
+  background: rgba(2,5,15,0.9) !important;
+  border-bottom: 2px solid rgba(255,215,0,0.2) !important;
+}
+[data-theme="tvshow"] .host-main-tab {
+  font-family: 'Barlow', sans-serif !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  color: rgba(255,215,0,0.5) !important;
+  font-size: 0.8rem !important;
+}
+[data-theme="tvshow"] .host-main-tab:hover { color: rgba(255,215,0,0.85) !important; }
+[data-theme="tvshow"] .host-main-tab.active {
+  color: var(--tv-gold) !important;
+  border-bottom-color: var(--tv-gold) !important;
+  background: rgba(255,215,0,0.06) !important;
+}
+
+/* ── Answer tiles ────────────────────────────────────────── */
+[data-theme="tvshow"] .answer-tile {
+  border-radius: var(--tv-radius-lg) !important;
+  background: rgba(255,215,0,0.04) !important;
+  border: 2px solid rgba(255,215,0,0.2) !important;
+  font-family: 'Barlow', sans-serif !important;
+  font-weight: 700 !important;
+  transition: all 0.2s !important;
+}
+[data-theme="tvshow"] .answer-tile:hover {
+  background: rgba(255,215,0,0.1) !important;
+  border-color: var(--tv-gold) !important;
+  box-shadow: var(--tv-glow-gold) !important;
+  transform: translateY(-2px) !important;
+}
+[data-theme="tvshow"] .answer-tile.selected {
+  background: rgba(255,215,0,0.14) !important;
+  border-color: var(--tv-gold) !important;
+  box-shadow: var(--tv-glow-gold) !important;
+}
+[data-theme="tvshow"] .answer-tile:active { transform: scale(0.96) !important; }
+[data-theme="tvshow"] .answer-tile-true {
+  background: rgba(0,230,118,0.08) !important;
+  border-color: rgba(0,230,118,0.4) !important;
+}
+[data-theme="tvshow"] .answer-tile-true:hover {
+  background: rgba(0,230,118,0.16) !important;
+  border-color: var(--tv-green) !important;
+  box-shadow: 0 0 20px rgba(0,230,118,0.3) !important;
+}
+[data-theme="tvshow"] .answer-tile-false {
+  background: rgba(255,23,68,0.08) !important;
+  border-color: rgba(255,23,68,0.4) !important;
+}
+[data-theme="tvshow"] .answer-tile-false:hover {
+  background: rgba(255,23,68,0.16) !important;
+  border-color: var(--tv-red) !important;
+  box-shadow: 0 0 20px rgba(255,23,68,0.3) !important;
+}
+
+/* ── Buzzer button ───────────────────────────────────────── */
+[data-theme="tvshow"] .buzzer-btn {
+  border-radius: 50% !important;
+  background: radial-gradient(circle at 35% 35%, #ff5252, #c62828, #7f0000) !important;
+  box-shadow:
+    0 0 0 8px rgba(255,23,68,0.12),
+    0 0 0 16px rgba(255,23,68,0.06),
+    0 0 40px rgba(255,23,68,0.5),
+    inset 0 4px 12px rgba(255,200,200,0.3),
+    inset 0 -4px 8px rgba(0,0,0,0.4) !important;
+  animation: tv-dramatic-pulse 2s ease-in-out infinite !important;
+  font-family: 'Barlow Condensed', sans-serif !important;
+  font-size: 1.4rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5) !important;
+}
+[data-theme="tvshow"] .buzzer-btn:hover {
+  box-shadow:
+    0 0 0 10px rgba(255,23,68,0.15),
+    0 0 0 20px rgba(255,23,68,0.08),
+    0 0 70px rgba(255,23,68,0.8) !important;
+  transform: scale(1.08) !important;
+}
+[data-theme="tvshow"] .buzzer-btn.buzzer-disabled {
+  background: radial-gradient(circle at 35% 35%, #444, #222, #111) !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+
+/* ── Session code ────────────────────────────────────────── */
+[data-theme="tvshow"] .session-code {
+  color: var(--tv-gold) !important;
+  text-shadow: 0 0 15px rgba(255,215,0,0.5) !important;
+  font-family: 'Barlow Condensed', sans-serif !important;
+  letter-spacing: 8px !important;
+}
+[data-theme="tvshow"] .session-banner {
+  background: rgba(2,5,15,0.9) !important;
+  border-bottom: 1px solid rgba(255,215,0,0.2) !important;
+}
+
+/* ── Host sections ───────────────────────────────────────── */
+[data-theme="tvshow"] .host-section {
+  background: rgba(255,255,255,0.03) !important;
+  border: 1px solid rgba(255,215,0,0.15) !important;
+  border-radius: var(--tv-radius-lg) !important;
+}
+[data-theme="tvshow"] .host-section-primary {
+  border-left: 3px solid var(--tv-gold) !important;
+  background: rgba(255,215,0,0.03) !important;
+}
+[data-theme="tvshow"] .host-section-nav {
+  border-left: 3px solid var(--tv-blue) !important;
+  background: rgba(0,212,255,0.03) !important;
+}
+[data-theme="tvshow"] .host-section-display {
+  border-left: 3px solid var(--tv-gold2) !important;
+  background: rgba(255,140,0,0.03) !important;
+}
+[data-theme="tvshow"] .host-section-buzzer {
+  border-left: 3px solid var(--tv-red) !important;
+  background: rgba(255,23,68,0.03) !important;
+}
+[data-theme="tvshow"] .host-section-label {
+  font-family: 'Barlow Condensed', sans-serif !important;
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.12em !important;
+  color: rgba(255,215,0,0.45) !important;
+}
+[data-theme="tvshow"] .host-status-bar {
+  background: rgba(2,5,15,0.8) !important;
+  border: 1px solid rgba(255,215,0,0.15) !important;
+  border-radius: var(--tv-radius) !important;
+}
+
+/* ── Home cards ──────────────────────────────────────────── */
+[data-theme="tvshow"] .home-card {
+  background: rgba(255,255,255,0.04) !important;
+  border: 1px solid rgba(255,215,0,0.2) !important;
+  border-radius: var(--tv-radius-xl) !important;
+  transition: all 0.2s !important;
+}
+[data-theme="tvshow"] .home-card:hover {
+  background: rgba(255,215,0,0.06) !important;
+  border-color: var(--tv-gold) !important;
+  transform: translateY(-3px) !important;
+  box-shadow: var(--tv-glow-gold) !important;
+}
+
+/* ── Progress bar ────────────────────────────────────────── */
+[data-theme="tvshow"] .progress-bar {
+  background: rgba(255,215,0,0.1) !important;
+  border-radius: var(--tv-radius) !important;
+  height: 14px !important;
+  border: 1px solid rgba(255,215,0,0.2) !important;
+}
+[data-theme="tvshow"] .progress-bar .fill {
+  background: var(--tv-grad-gold) !important;
+  background-size: 200% auto !important;
+  border-radius: var(--tv-radius) !important;
+  animation: tv-gold-shimmer 2s linear infinite !important;
+  box-shadow: 0 0 8px rgba(255,215,0,0.4) !important;
+}
+
+/* ── Modal ───────────────────────────────────────────────── */
+[data-theme="tvshow"] .modal-box {
+  background: var(--tv-bg2) !important;
+  border: 1px solid rgba(255,215,0,0.3) !important;
+  border-radius: var(--tv-radius-xl) !important;
+  box-shadow: 0 0 50px rgba(255,215,0,0.12) !important;
+}
+
+/* ── Display question ────────────────────────────────────── */
+[data-theme="tvshow"] .display-question-card {
+  background: rgba(2,5,15,0.9) !important;
+  border: 2px solid rgba(255,215,0,0.35) !important;
+  border-radius: var(--tv-radius-xl) !important;
+  box-shadow: 0 0 40px rgba(255,215,0,0.12), inset 0 1px 0 rgba(255,215,0,0.1) !important;
+}
+[data-theme="tvshow"] .display-question-text {
+  font-family: 'Barlow Condensed', sans-serif !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.02em !important;
+  text-shadow: 0 0 30px rgba(255,215,0,0.3) !important;
+}
+[data-theme="tvshow"] .display-option {
+  border-radius: var(--tv-radius-lg) !important;
+  background: rgba(255,215,0,0.05) !important;
+  border-color: rgba(255,215,0,0.25) !important;
+  font-family: 'Barlow', sans-serif !important;
+  font-weight: 700 !important;
+}
+[data-theme="tvshow"] .display-option-label {
+  background: var(--tv-grad-gold) !important;
+  background-size: 200% auto !important;
+  animation: tv-gold-shimmer 3s linear infinite !important;
+  color: #000 !important;
+  font-weight: 900 !important;
+  border-radius: var(--tv-radius) !important;
+}
+
+/* ── Waiting screen ──────────────────────────────────────── */
+[data-theme="tvshow"] .waiting-host-label {
+  font-family: 'Barlow Condensed', sans-serif !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  background: var(--tv-grad-gold) !important;
+  background-size: 200% auto !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  animation: tv-gold-shimmer 3s linear infinite !important;
+}
+[data-theme="tvshow"] .waiting-dots span {
+  background: var(--tv-gold) !important;
+  box-shadow: 0 0 8px rgba(255,215,0,0.6) !important;
+}
+
+/* ── Timer presets ───────────────────────────────────────── */
+[data-theme="tvshow"] .timer-preset-btn {
+  border-radius: var(--tv-radius) !important;
+  border-color: rgba(255,215,0,0.25) !important;
+  background: rgba(255,215,0,0.05) !important;
+  color: rgba(255,215,0,0.7) !important;
+  font-weight: 700 !important;
+}
+[data-theme="tvshow"] .timer-preset-btn:hover {
+  background: var(--tv-grad-gold) !important;
+  border-color: transparent !important;
+  color: #000 !important;
+  box-shadow: var(--tv-glow-gold) !important;
+}
+
+/* ── Round accordion ─────────────────────────────────────── */
+[data-theme="tvshow"] .round-accordion { border-color: rgba(255,215,0,0.2) !important; border-radius: var(--tv-radius-lg) !important; }
+[data-theme="tvshow"] .round-acc-hdr { background: rgba(255,215,0,0.04) !important; }
+[data-theme="tvshow"] .round-acc-hdr.cur-round {
+  background: rgba(255,215,0,0.08) !important;
+  border-left-color: var(--tv-gold) !important;
+}
+[data-theme="tvshow"] .round-acc-body { background: rgba(2,5,15,0.5) !important; }
+[data-theme="tvshow"] .q-line.q-active {
+  background: rgba(255,215,0,0.07) !important;
+  border-color: rgba(255,215,0,0.3) !important;
+}
+
+/* ── Podium / ceremony ───────────────────────────────────── */
+[data-theme="tvshow"] .podium-card.rank-1-card {
+  background: linear-gradient(135deg, rgba(255,215,0,.25), rgba(255,140,0,.12)) !important;
+  border-color: var(--tv-gold) !important;
+  box-shadow: 0 0 40px rgba(255,215,0,0.3), inset 0 1px 0 rgba(255,215,0,0.2) !important;
+}
+[data-theme="tvshow"] .podium-card.rank-2-card {
+  background: linear-gradient(135deg, rgba(192,192,192,.2), rgba(150,150,150,.08)) !important;
+  border-color: rgba(192,192,192,.5) !important;
+  box-shadow: 0 0 20px rgba(192,192,192,0.2) !important;
+}
+[data-theme="tvshow"] .podium-card.rank-3-card {
+  background: linear-gradient(135deg, rgba(205,127,50,.2), rgba(160,100,40,.08)) !important;
+  border-color: rgba(205,127,50,.5) !important;
+}
+[data-theme="tvshow"] .podium-score { color: var(--tv-gold) !important; text-shadow: 0 0 10px rgba(255,215,0,0.4) !important; }
+[data-theme="tvshow"] .winner-team-card {
+  background: linear-gradient(135deg, rgba(255,215,0,.15), rgba(255,140,0,.08)) !important;
+  border-color: var(--tv-gold) !important;
+  box-shadow: 0 0 50px rgba(255,215,0,0.25) !important;
+}
+
+/* ── Player question bubble ──────────────────────────────── */
+[data-theme="tvshow"] .player-question-bubble {
+  background: rgba(255,215,0,0.04) !important;
+  border: 1px solid rgba(255,215,0,0.2) !important;
+  border-radius: var(--tv-radius-lg) !important;
+}
+[data-theme="tvshow"] .player-question-text {
+  font-family: 'Barlow', sans-serif !important;
+  font-weight: 700 !important;
+}
+
+/* ── Buzzer player display ───────────────────────────────── */
+[data-theme="tvshow"] .buzzer-player-display {
+  border-color: rgba(255,23,68,0.5) !important;
+  border-radius: var(--tv-radius-lg) !important;
+  box-shadow: 0 0 30px rgba(255,23,68,0.2) !important;
+}
+[data-theme="tvshow"] .buzzer-player-pseudo {
+  font-family: 'Barlow Condensed', sans-serif !important;
+  font-size: 1.7rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.03em !important;
+  text-transform: uppercase !important;
+}
+
+/* ── Buzzer host card ────────────────────────────────────── */
+[data-theme="tvshow"] .buzzer-host-card {
+  border-color: rgba(255,23,68,0.3) !important;
+  border-radius: var(--tv-radius-lg) !important;
+}
+[data-theme="tvshow"] .buzzer-host-card.buzzer-host-correct {
+  border-color: rgba(0,230,118,0.5) !important;
+  background: rgba(0,230,118,0.06) !important;
+  box-shadow: 0 0 20px rgba(0,230,118,0.2) !important;
+}
+
+/* ── Text answer area ────────────────────────────────────── */
+[data-theme="tvshow"] .text-answer-area {
+  background: rgba(255,215,0,0.04) !important;
+  border-color: rgba(255,215,0,0.2) !important;
+  border-radius: var(--tv-radius-lg) !important;
+}
+[data-theme="tvshow"] .text-answer-area:focus {
+  border-color: var(--tv-gold) !important;
+  box-shadow: 0 0 0 3px rgba(255,215,0,0.15) !important;
+}
+
+/* ── Player point cards ──────────────────────────────────── */
+[data-theme="tvshow"] .player-point-card {
+  background: rgba(255,215,0,0.04) !important;
+  border: 1px solid rgba(255,215,0,0.15) !important;
+  border-radius: var(--tv-radius-lg) !important;
+}
+[data-theme="tvshow"] .player-point-card .p-score { color: var(--tv-gold) !important; text-shadow: 0 0 8px rgba(255,215,0,0.4) !important; }
+[data-theme="tvshow"] .pt-btn-plus { background: linear-gradient(135deg, #005c00, #00e676) !important; }
+[data-theme="tvshow"] .pt-btn-minus { background: linear-gradient(135deg, #c62828, #ff1744) !important; }
+
+/* ── Recap modal ─────────────────────────────────────────── */
+[data-theme="tvshow"] .recap-modal {
+  background: var(--tv-bg2) !important;
+  border-top: 3px solid var(--tv-gold) !important;
+}
+[data-theme="tvshow"] .recap-my-score {
+  background: rgba(255,215,0,0.06) !important;
+  border-color: rgba(255,215,0,0.25) !important;
+}
+[data-theme="tvshow"] .recap-my-pts { color: var(--tv-gold) !important; text-shadow: 0 0 12px rgba(255,215,0,0.5) !important; }
+
+/* ── Avatar options ──────────────────────────────────────── */
+[data-theme="tvshow"] .avatar-opt.active {
+  border-color: var(--tv-gold) !important;
+  background: rgba(255,215,0,0.15) !important;
+  box-shadow: 0 0 12px rgba(255,215,0,0.3) !important;
+}
+
+/* ── Burger player btn ───────────────────────────────────── */
+[data-theme="tvshow"] .burger-player-btn {
+  border-radius: var(--tv-radius-lg) !important;
+  border-color: rgba(255,215,0,0.2) !important;
+  background: rgba(255,215,0,0.04) !important;
+}
+[data-theme="tvshow"] .burger-player-btn.selected {
+  border-color: var(--tv-gold) !important;
+  background: rgba(255,215,0,0.1) !important;
+  box-shadow: var(--tv-glow-gold) !important;
+}
+
+/* ── Btn recap mini ──────────────────────────────────────── */
+[data-theme="tvshow"] .btn-recap-mini {
+  border-radius: var(--tv-radius) !important;
+  border-color: rgba(255,215,0,0.35) !important;
+  background: rgba(255,215,0,0.07) !important;
+  color: rgba(255,215,0,0.85) !important;
+}
+[data-theme="tvshow"] .btn-recap-mini:hover {
+  background: var(--tv-grad-gold) !important;
+  border-color: transparent !important;
+  color: #000 !important;
+}
+
+/* ── Buzzer result badges ────────────────────────────────── */
+[data-theme="tvshow"] .buzzer-correct-badge {
+  border-radius: var(--tv-radius) !important;
+  background: rgba(0,230,118,0.15) !important;
+  border-color: rgba(0,230,118,0.5) !important;
+  color: var(--tv-green) !important;
+  box-shadow: 0 0 12px rgba(0,230,118,0.3) !important;
+}
+[data-theme="tvshow"] .buzzer-wrong-badge {
+  border-radius: var(--tv-radius) !important;
+  background: rgba(255,23,68,0.15) !important;
+  border-color: rgba(255,23,68,0.5) !important;
+  color: var(--tv-red) !important;
+}
+
+/* ── Tables ──────────────────────────────────────────────── */
+[data-theme="tvshow"] th { color: rgba(255,215,0,0.5) !important; text-transform: uppercase !important; letter-spacing: 0.06em !important; }
+[data-theme="tvshow"] th, [data-theme="tvshow"] td { border-bottom-color: rgba(255,215,0,0.1) !important; }
+
+/* ── Display – stage bg overlay ─────────────────────────── */
+[data-theme="tvshow"] .display-bg-overlay {
+  background: rgba(2,5,15,0.70) !important;
+}
+
+/* ── Alert messages ──────────────────────────────────────── */
+[data-theme="tvshow"] .alert-error { background: rgba(255,23,68,0.12) !important; color: #ff6e6e !important; border-color: rgba(255,23,68,0.3) !important; }
+[data-theme="tvshow"] .alert-success { background: rgba(0,230,118,0.1) !important; color: var(--tv-green) !important; border-color: rgba(0,230,118,0.3) !important; }
+[data-theme="tvshow"] .alert-info { background: rgba(0,212,255,0.1) !important; color: var(--tv-blue) !important; border-color: rgba(0,212,255,0.3) !important; }
