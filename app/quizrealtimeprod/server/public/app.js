@@ -1184,7 +1184,7 @@ function renderHostGestionTab(gs, phase, sc) {
       <div class="card" style="text-align:center;padding:28px;border:2px solid rgba(56,239,125,.2);background:rgba(56,239,125,.04);margin-bottom:14px;">
         <h2 style="margin-bottom:8px;">🚀 Prêt à lancer ?</h2>
         <p class="muted" style="margin-bottom:18px;">${state.players.length} joueur(s) connecté(s) · Quiz : <strong>${quizTitle}</strong></p>
-        <button class="btn-success" style="font-size:1.1rem;padding:14px 36px;" onclick="hostAction('start_quiz')">
+        <button class="btn-success hbtn-pulse" style="font-size:1.1rem;padding:14px 36px;" onclick="hostAction('start_quiz')">
           ▶️ Lancer la partie
         </button>
         <div class="row" style="justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap;">
@@ -1417,7 +1417,7 @@ function renderHostPilotageTab(gs, phase) {
             </div>
           </div>
           <div class="host-ctrl-row">
-            <button class="hbtn hbtn-success" style="flex:1;" onclick="hostAction('buzzer_mark_correct')">✅ Bonne (+1)</button>
+            <button class="hbtn hbtn-success hbtn-pulse" style="flex:1;" onclick="hostAction('buzzer_mark_correct')">✅ Bonne (+1)</button>
             <button class="hbtn hbtn-danger" style="flex:1;" onclick="hostAction('buzzer_mark_wrong')">❌ Mauvaise</button>
           </div>
           <div class="host-ctrl-row" style="margin-top:6px;">
@@ -2033,8 +2033,7 @@ function renderDisplay() {
           <h2>📋 Bonne réponse</h2>
           <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${revealed?.correctAnswer ?? '—'}</div>
         </div>
-        ${renderAnswerList(revealed?.answers || [])}
-        ${isTrueFalseReveal ? '' : renderScoreboard(state.leaderboardPlayers, 'Classement')}`;
+        ${renderAnswerList(revealed?.answers || [])}`;
     }
   } else if (phase === 'round_end') {
     const round = gs?.currentRound;

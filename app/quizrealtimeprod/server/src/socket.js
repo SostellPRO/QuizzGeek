@@ -342,7 +342,7 @@ export function setupSocketHandlers(io) {
         persistAndEmit(io, session);
 
         if (res.autoReveal) {
-          revealAnswer(session);
+          // Pas d'auto-révélation — le MJ révèle manuellement
           persistAndEmit(io, session);
           return;
         }
@@ -352,7 +352,7 @@ export function setupSocketHandlers(io) {
           scheduleAutoRevealAfterAllAnswered(session, {
             emitNow: (s) => persistAndEmit(io, s),
             onAutoReveal: (s) => {
-              revealAnswer(s);
+              // Pas d'auto-révélation — les joueurs restent en attente, le MJ agit
               persistAndEmit(io, s);
             },
           });
