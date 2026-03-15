@@ -996,8 +996,9 @@ function openDisplayPopup() {
   const sc = state.host.sessionCode;
   if (!sc) { alert$('host-alert', 'Pas de session active', 'error'); return; }
   const url = `${window.location.origin}/?display-session=${encodeURIComponent(sc)}#display`;
-  const popup = window.open(url, 'quiz_display', 'width=1280,height=760,toolbar=no,menubar=no,location=no,status=no,scrollbars=yes,resizable=yes');
-  if (!popup) alert$('host-alert', '🚫 Popup bloqué — autorisez les popups pour ce site dans votre navigateur.', 'error');
+  // Ouverture dans un nouvel onglet (_blank) pour éviter le blocage des popups
+  const tab = window.open(url, '_blank');
+  if (!tab) alert$('host-alert', '🚫 Ouverture bloquée — autorisez les fenêtres contextuelles pour ce site.', 'error');
 }
 
 function renderHostGame() {
@@ -1294,10 +1295,6 @@ function renderHostPilotageTab(gs, phase) {
     if (phase === 'answer_reveal') {
       out += `<button class="hbtn hbtn-secondary" onclick="hostAction('reveal_answer')">📋 Réafficher solution</button>`;
       out += `<button class="hbtn hbtn-primary hbtn-pulse" onclick="hostAction('return_to_question')">↩ Retour question</button>`;
-    }
-
-    if (phase === 'round_end') {
-      out += `<button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('next_round')">▶ Passer à la manche suivante</button>`;
     }
 
     out += `</div></div>`;
@@ -1842,6 +1839,14 @@ function hostAction(action, extra = {}) {
   const gs = state.gameState;
 
   // Actions spéciales rapidité buzzer
+  if (action === 'buzzer_mark_wrong') {
+    // Marquer mauvais + passer au joueur suivant immédiatement (géré côté serveur)
+    state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'buzzer_mark_wrong' }, (res) => {
+      if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
+      playSound('wrong');
+    });
+    return;
+  }
   if (action === 'award_buzzer_correct') {
     const buzzerId = gs?.buzzerState?.firstPlayerId;
     if (!buzzerId) { alert$('host-alert', 'Aucun joueur n\'a buzzé', 'error'); return; }
@@ -1857,17 +1862,10 @@ function hostAction(action, extra = {}) {
     return;
   }
   if (action === 'award_buzzer_wrong') {
-    const buzzerId = gs?.buzzerState?.firstPlayerId;
-    // 1. Marquer comme mauvais (feedback visuel)
+    // buzzer_mark_wrong marque la mauvaise réponse ET passe au joueur suivant (ou réouvre les buzzers)
     state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'buzzer_mark_wrong' }, (res) => {
       if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
       playSound('wrong');
-      // 2. Après 1.5s, passer au joueur suivant dans la file
-      setTimeout(() => {
-        state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'buzzer_next' }, (res2) => {
-          if (!res2?.ok) alert$('host-alert', res2?.error || 'Erreur', 'error');
-        });
-      }, 1500);
     });
     return;
   }
@@ -2692,7 +2690,7 @@ function renderRoundBlock(round, ri) {
       <div>
         <div class="row" style="justify-content:space-between;margin-bottom:8px;">
           <span style="font-size:.85rem;color:rgba(255,255,255,.6);">${qLabel} (${nbQ})</span>
-          <button class="btn-secondary" style="padding:4px 10px;font-size:.8rem;" onclick="addQuestion('${round.id}','${round.type||'qcm'}')">+ Question</button>
+          <button class="btn-secondary" style="padding:4px 10px;font-size:.8rem;" onclick="addQuestion('${round.id}')">+ Question</button>
         </div>
         <div id="questions-${round.id}">
           ${(round.questions || []).map((q, qi) => renderQuestionRow(q, qi, round.id, round.type || 'qcm')).join('')}
@@ -2902,12 +2900,16 @@ function removeRound(roundId) {
 
 function updateRound(roundId, field, value) {
   const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
-  if (round) round[field] = value;
+  if (round) {
+    round[field] = value;
+    renderQuizEditor();
+  }
 }
 
-function addQuestion(roundId, roundType = 'questionnaire') {
+function addQuestion(roundId) {
   const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
   if (!round) return;
+  const roundType = round.type || 'qcm';
   round.questions = round.questions || [];
   round.questions.push(emptyQuestion(roundType));
   renderQuizEditor();
@@ -3100,9 +3102,12 @@ function renderFinalCeremony(gs, leaderboard) {
   const first = revealed.find(p => p.rank === 1);
   const confettiJs = first ? '<script>if(window.launchConfetti)launchConfetti();<\/script>' : '';
 
+  const newestRevealIndex = sorted.length - 1; // le dernier de sorted = le plus récemment révélé
   const podiumCards = sorted.map((p, i) => {
-    const delay = i * 0.12;
-    return `<div class="podium-card ${rankClass(p.rank)}" style="animation-delay:${delay}s;">
+    // Seule la carte nouvellement révélée obtient l'animation d'entrée
+    const isNew = i === newestRevealIndex;
+    const animStyle = isNew ? 'animation-delay:0s;' : 'animation:none;';
+    return `<div class="podium-card ${rankClass(p.rank)}" style="${animStyle}">
       <span class="podium-rank">${rankEmoji(p.rank)}</span>
       <div class="podium-pseudo">${p.pseudo}</div>
       ${p.teamName ? `<div class="muted" style="font-size:.78rem;margin-top:2px;">⚽ ${p.teamName}</div>` : ''}

@@ -1346,7 +1346,11 @@ export function startVotePhase(session) {
 
   const q = getCurrentQuestion(session);
   if (!q) return { ok: false, error: "Aucune question active" };
-  if ((q.type || "") !== "vote") return { ok: false, error: "Question non de type vote" };
+  const currentRound = getCurrentRound(session);
+  // Accepter si la question OU la manche est de type "vote"
+  if ((q.type || "") !== "vote" && (currentRound?.type || "") !== "vote") {
+    return { ok: false, error: "Question non de type vote" };
+  }
 
   const answerMap = getQuestionAnswersMap(session, q.id);
   const playerAnswers = Object.values(answerMap)

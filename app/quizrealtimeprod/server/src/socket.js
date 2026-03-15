@@ -614,7 +614,7 @@ export function setupSocketHandlers(io) {
           }
 
           case "buzzer_mark_wrong": {
-            // Marquer le buzzer courant comme incorrect (avec son sur le display)
+            // Marquer le buzzer courant comme incorrect puis passer au joueur suivant
             const buzzerWrongId = session.gameState.buzzerState?.firstPlayerId;
             session.gameState.buzzerLastResult = {
               result: "wrong",
@@ -622,7 +622,8 @@ export function setupSocketHandlers(io) {
               pseudo: session.gameState.buzzerState?.firstPseudo || null,
               at: new Date().toISOString(),
             };
-            res = { ok: true };
+            // Passe au joueur suivant dans la queue (ou réouvre les buzzers si personne)
+            res = buzzerNextPlayer(session);
             break;
           }
 
