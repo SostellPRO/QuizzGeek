@@ -228,31 +228,39 @@ async function apiFetch(path, opts = {}) {
 // ── Page : HOME ──────────────────────────────────────────────
 pageInits.home = function() {
   html('page-home', `
-    <div class="card" style="text-align:center;padding:40px 20px;">
-      <h1 style="font-size:3rem;margin-bottom:8px;">🎮 Quiz Live</h1>
-      <p class="muted">Application de quiz en temps réel</p>
+    <div class="home-hero">
+      <div class="home-hero-logo">🎮</div>
+      <h1 class="home-hero-title">QuizzGeek</h1>
+      <p class="home-hero-sub">Quiz en temps réel · Buzzers · Votes · Podium</p>
     </div>
-    <div class="home-grid">
-      <div class="home-card" onclick="navigate('player')">
-        <span class="icon">📱</span>
-        <h3>Jouer</h3>
-        <p>Rejoindre une partie et répondre aux questions</p>
-      </div>
-      <div class="home-card" onclick="navigate('host')">
-        <span class="icon">🎮</span>
-        <h3>Maître de jeu</h3>
-        <p>Contrôler le déroulement de la partie</p>
-      </div>
-      <div class="home-card" onclick="navigate('display')">
-        <span class="icon">📺</span>
-        <h3>Écran TV</h3>
-        <p>Afficher la partie sur grand écran</p>
-      </div>
-      <div class="home-card" onclick="navigate('admin')">
-        <span class="icon">⚙️</span>
-        <h3>Admin</h3>
-        <p>Créer et gérer les quiz</p>
-      </div>
+    <div class="home-roles">
+      <button class="home-role-btn home-role-player" onclick="navigate('player');playSound('nav')">
+        <span class="home-role-icon">📱</span>
+        <span class="home-role-label">Jouer</span>
+        <span class="home-role-sub">Rejoindre une partie</span>
+      </button>
+      <button class="home-role-btn home-role-host" onclick="navigate('host');playSound('nav')">
+        <span class="home-role-icon">🎤</span>
+        <span class="home-role-label">Maître de jeu</span>
+        <span class="home-role-sub">Animer et piloter</span>
+      </button>
+      <button class="home-role-btn home-role-display" onclick="navigate('display');playSound('nav')">
+        <span class="home-role-icon">📺</span>
+        <span class="home-role-label">Écran TV</span>
+        <span class="home-role-sub">Affichage grand écran</span>
+      </button>
+      <button class="home-role-btn home-role-admin" onclick="navigate('admin');playSound('nav')">
+        <span class="home-role-icon">⚙️</span>
+        <span class="home-role-label">Admin</span>
+        <span class="home-role-sub">Créer les quiz</span>
+      </button>
+    </div>
+    <div class="home-round-types">
+      <div class="home-rt home-rt-qcm">🔘 QCM</div>
+      <div class="home-rt home-rt-rapide">⚡ Rapidité</div>
+      <div class="home-rt home-rt-tf">✅ Vrai/Faux</div>
+      <div class="home-rt home-rt-burger">🍔 Burger</div>
+      <div class="home-rt home-rt-vote">🗳️ Vote</div>
     </div>
   `);
 };
@@ -431,13 +439,17 @@ function renderPlayerGame() {
   const myPlayer = state.players.find(p => p.id === s.playerId || p.playerId === s.playerId);
   const phase = gs?.status || 'lobby';
 
+  const roundType = gs?.currentRound?.type || gs?.currentQuestion?.type || 'qcm';
+  const roundTypeIcons = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', burger:'🍔', vote:'🗳️' };
+  const rtIcon = roundTypeIcons[roundType] || '🎯';
+
   let content = `
     <div class="session-banner">
       <span>Session : <strong class="session-code">${s.sessionCode}</strong></span>
       <span>${s.avatar || '🎮'} <strong>${s.pseudo}</strong>${s.teamName ? ` · ${s.teamName}` : ''}</span>
       <span style="margin-left:auto;color:#38ef7d;font-weight:700;">Score : ${myPlayer?.scoreTotal ?? 0}</span>
     </div>
-    <div style="padding:16px;">
+    <div class="player-game-wrap" data-round-type="${roundType}">
     <div id="player-alert"></div>
   `;
 
@@ -462,11 +474,15 @@ function renderPlayerGame() {
       </div>`;
   } else if (phase === 'round_intro') {
     const round = gs.currentRound;
+    const rtLabels = { qcm:'QCM', rapidite:'Rapidité', speed:'Rapidité', true_false:'Vrai / Faux', burger:'Burger', vote:'Vote' };
+    const rtLabel = rtLabels[round?.type] || round?.type || 'Quiz';
     content += `
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:3rem;">📢</div>
-        <h2>${round?.title || 'Nouvelle manche'}</h2>
-        <p class="muted">${round?.shortRules || 'Préparez-vous !'}</p>
+      <div class="player-round-intro">
+        <div class="round-intro-icon">${rtIcon}</div>
+        <div class="round-intro-type-badge">${rtLabel}</div>
+        <h2 class="round-intro-title">${round?.title || 'Nouvelle manche'}</h2>
+        <p class="muted round-intro-rules">${round?.shortRules || 'Préparez-vous !'}</p>
+        <div class="waiting-dots" style="margin-top:24px;"><span></span><span></span><span></span></div>
       </div>`;
   } else if (phase === 'question' || phase === 'waiting') {
     // Burger : seul le joueur sélectionné joue, les autres attendent
@@ -509,12 +525,12 @@ function renderPlayerGame() {
   } else if (phase === 'round_end') {
     const round = gs?.currentRound;
     content += `
-      <div class="card" style="text-align:center;padding:50px 20px;border:2px solid rgba(56,239,125,.3);background:rgba(56,239,125,.05);">
-        <div style="font-size:4rem;margin-bottom:16px;">🏁</div>
-        <h2 style="margin-bottom:8px;">Manche terminée !</h2>
-        <p class="muted" style="font-size:1rem;">${round?.title || 'Cette manche est terminée'}</p>
-        <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
-        <p class="muted" style="margin-top:16px;font-size:.9rem;">En attente du maître de jeu pour la suite…</p>
+      <div class="player-round-end">
+        <div class="round-end-icon">🏁</div>
+        <h2 class="round-end-title">Manche terminée !</h2>
+        <p class="muted" style="font-size:1rem;margin-top:6px;">${round?.title || ''}</p>
+        <div class="waiting-dots" style="margin-top:24px;"><span></span><span></span><span></span></div>
+        <p class="muted" style="margin-top:16px;font-size:.9rem;">En attente du maître de jeu…</p>
       </div>`;
   } else if (phase === 'results') {
     content += renderScoreboard(state.leaderboardPlayers, '📊 Classement');
@@ -525,8 +541,8 @@ function renderPlayerGame() {
   }
 
   content += `
-    <div style="text-align:center;margin-top:20px;">
-      <button class="btn-secondary" onclick="logoutPlayer()">Quitter la partie</button>
+    <div style="text-align:center;margin-top:20px;padding-bottom:16px;">
+      <button class="btn-outline-danger btn-sm" onclick="logoutPlayer()">Quitter la partie</button>
     </div>
     </div>`;
 
@@ -578,7 +594,9 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
       </div>`;
   }
 
-  if (locked || answered) {
+  // En phase de vote (vote_voting), ne pas bloquer avec l'écran d'attente
+  // même si le joueur a déjà soumis sa proposition lors de vote_input
+  if ((locked || answered) && answerMode !== 'vote_voting') {
     return `
       ${timer}
       <div class="player-waiting-screen">
@@ -618,11 +636,11 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
   } else if (answerMode === 'true_false') {
     answerUI = `
       <div class="answer-tiles answer-tiles-tf">
-        <button class="answer-tile answer-tile-true" onclick="sendAnswer('${gs.sessionCode || ''}','${playerId}','vrai')">
+        <button class="answer-tile answer-tile-true" onclick="playSound('answer');sendAnswer('${gs.sessionCode || ''}','${playerId}','vrai')">
           <span class="answer-tile-icon">✅</span>
           <span class="answer-tile-label">VRAI</span>
         </button>
-        <button class="answer-tile answer-tile-false" onclick="sendAnswer('${gs.sessionCode || ''}','${playerId}','faux')">
+        <button class="answer-tile answer-tile-false" onclick="playSound('answer');sendAnswer('${gs.sessionCode || ''}','${playerId}','faux')">
           <span class="answer-tile-icon">❌</span>
           <span class="answer-tile-label">FAUX</span>
         </button>
@@ -644,7 +662,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
                       isAudio ? `<audio controls src="${optMedia}" style="height:28px;margin-bottom:6px;"></audio>` : '';
       const c = tileColors[i] || tileColors[0];
       return `<button class="answer-tile answer-tile-mcq" style="background:${c.bg};border-color:${c.border};"
-        onclick="sendAnswerByIndex(${i})">
+        onclick="playSound('answer');sendAnswerByIndex(${i})">
         ${mediaEl}
         <span class="answer-tile-letter" style="color:${c.label};">${labels[i]}</span>
         <span class="answer-tile-text">${label}</span>
@@ -710,7 +728,8 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
             "${opt.text}" <span style="font-size:.75rem;">(votre réponse)</span>
           </div>`;
         return `
-          <button class="answer-tile answer-tile-vote" onclick="sendVote(${idx})">
+          <button class="answer-tile answer-tile-vote" onclick="playSound('answer');sendVote(${idx})">
+            <span class="vote-tile-idx">${String.fromCharCode(65 + idx)}</span>
             <span class="answer-tile-text">${opt.text}</span>
           </button>`;
       }).join('');
@@ -2887,7 +2906,15 @@ function addFakeAnswer(roundId, qId) {
 function addRound() {
   const q = state.admin.editingQuiz;
   q.rounds = q.rounds || [];
-  q.rounds.push(emptyRound(q.rounds.length));
+  const newRound = emptyRound(q.rounds.length);
+  // Pour une manche QCM, ajouter une première question par défaut
+  // Pour les autres types (vote, burger, true_false, rapidite…), laisser vide
+  if (newRound.type === 'qcm') {
+    newRound.questions = [emptyQuestion('qcm')];
+  } else {
+    newRound.questions = [];
+  }
+  q.rounds.push(newRound);
   state.admin.activeRoundIndex = q.rounds.length - 1;
   renderQuizEditor();
 }
@@ -2902,6 +2929,16 @@ function updateRound(roundId, field, value) {
   const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
   if (round) {
     round[field] = value;
+    // Quand le type de manche change, réinitialiser les questions :
+    // - QCM → ajouter une question vide adaptée
+    // - autres types → vider (chaque question est unique à ce type)
+    if (field === 'type') {
+      if (value === 'qcm') {
+        round.questions = [emptyQuestion('qcm')];
+      } else {
+        round.questions = [];
+      }
+    }
     renderQuizEditor();
   }
 }
