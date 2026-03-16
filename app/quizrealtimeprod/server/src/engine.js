@@ -460,6 +460,8 @@ export function startQuiz(session) {
   session.gameState.buzzerState = null;
   session.gameState.burgerState = null;
   session.gameState.buzzerQueue = [];
+  session.gameState.buzzerCooldowns = {};
+  session.gameState.burgerFinalScore = null;
 
   // Aller directement à round_intro si des manches existent
   const rounds = getRounds(session);
@@ -557,15 +559,21 @@ export function nextQuestion(session) {
   });
   setAnswerModeFromQuestion(session);
 
-  // Pour les questions buzzer : démarrer en état verrouillé (buzzer gris)
-  // Le host doit cliquer "Activer les buzzers" pour les rendre actifs
+  // Buzzer : en mode rapidité les buzzers sont déjà actifs dès le début.
+  // Pour les autres modes buzzer (non utilisés pour l'instant), on verrouille
+  // et le host doit cliquer "Activer les buzzers".
   const newAnswerMode = session.gameState.phaseMeta?.answerMode;
-  if (newAnswerMode === "buzzer") {
+  const currentRoundForBuzzer = getCurrentRound(session);
+  const isRapiditRound =
+    currentRoundForBuzzer?.type === "rapidite" ||
+    currentRoundForBuzzer?.type === "speed";
+  if (newAnswerMode === "buzzer" && !isRapiditRound) {
     setPhaseMeta(session, { playerScreenLocked: true, allowAnswer: false });
   }
 
-  // Réinitialiser le dernier résultat buzzer
+  // Réinitialiser le dernier résultat buzzer et les cooldowns
   session.gameState.buzzerLastResult = null;
+  session.gameState.buzzerCooldowns = {};
 
   setStatus(session, "question");
   return { ok: true };
@@ -980,6 +988,21 @@ export function recordBuzzer(session, { player } = {}) {
 
   if (!isQuestionPhaseOpen(session)) {
     return { ok: false, error: "Buzzer fermé" };
+  }
+
+  // Vérifier le cooldown (rapidité : après mauvaise réponse, 5s de pénalité)
+  const nowMs = Date.now();
+  if (!session.gameState.buzzerCooldowns) session.gameState.buzzerCooldowns = {};
+  const cooldownExpiry = session.gameState.buzzerCooldowns[player.id] || 0;
+  if (cooldownExpiry > nowMs) {
+    const remainingSec = Math.ceil((cooldownExpiry - nowMs) / 1000);
+    return { ok: false, error: `Buzzer bloqué encore ${remainingSec}s` };
+  }
+  // Nettoyer les cooldowns expirés
+  for (const pid of Object.keys(session.gameState.buzzerCooldowns)) {
+    if (session.gameState.buzzerCooldowns[pid] <= nowMs) {
+      delete session.gameState.buzzerCooldowns[pid];
+    }
   }
 
   // Gestion rotation buzzerQueue : un joueur ne peut rebuzzer que si tous ont participé
@@ -1481,6 +1504,64 @@ export function resetEngineRuntime(session) {
     session._runtime.timerStartedAt = null;
   }
   return { ok: true };
+}
+
+/**
+ * Rapidité : après une mauvaise réponse, rouvre les buzzers pour tous
+ * et applique un cooldown de 5s au joueur fautif.
+ */
+export function resetBuzzerRapidite(session, wrongPlayerId, cooldownMs = 5000) {
+  ensureSessionRuntime(session);
+  const gs = session.gameState;
+
+  // Enregistrer le résultat
+  gs.buzzerLastResult = {
+    result: "wrong",
+    playerId: wrongPlayerId || null,
+    pseudo: gs.buzzerState?.firstPseudo || null,
+    at: new Date().toISOString(),
+  };
+
+  // Mettre le joueur fautif en cooldown
+  if (wrongPlayerId) {
+    if (!gs.buzzerCooldowns) gs.buzzerCooldowns = {};
+    gs.buzzerCooldowns[wrongPlayerId] = Date.now() + cooldownMs;
+  }
+
+  // Réinitialiser le buzzer → tout le monde peut re-buzzer
+  gs.buzzerState = null;
+  // Retirer le joueur fautif de la queue mais garder les autres
+  if (Array.isArray(gs.buzzerQueue)) {
+    gs.buzzerQueue = gs.buzzerQueue.filter((id) => id !== wrongPlayerId);
+  }
+
+  // Rouvrir les buzzers
+  setPhaseMeta(session, { playerScreenLocked: false, allowAnswer: true });
+  setStatus(session, "question");
+  touch(session);
+  return { ok: true, cooldownMs };
+}
+
+/**
+ * Burger : l'admin saisit le score final du joueur (0-10).
+ */
+export function setBurgerScore(session, score) {
+  ensureSessionRuntime(session);
+  const n = Number(score);
+  if (!Number.isFinite(n) || n < 0 || n > 10) {
+    return { ok: false, error: "Le score doit être entre 0 et 10" };
+  }
+  const selectedId = session.gameState.burgerSelectedPlayerId;
+  if (!selectedId) return { ok: false, error: "Aucun joueur sélectionné pour l'épreuve burger" };
+
+  awardPointsToPlayer(session, selectedId, n);
+  const selectedPseudo = session.gameState.burgerSelectedPseudo || selectedId;
+  session.gameState.burgerFinalScore = { playerId: selectedId, pseudo: selectedPseudo, score: n };
+
+  // Transition vers answer_reveal pour afficher le résultat sur la TV
+  setStatus(session, "answer_reveal");
+  touch(session);
+  return { ok: true, score: n, pseudo: selectedPseudo };
 }
 
 export function getEngineDebugState(session) {

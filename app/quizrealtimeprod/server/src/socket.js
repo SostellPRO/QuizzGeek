@@ -34,6 +34,7 @@ import {
   revealAnswer,
   scheduleAutoRevealAfterAllAnswered,
   setBurgerPlayer,
+  setBurgerScore,
   showResults,
   shouldAutoRevealNow,
   startQuiz,
@@ -45,6 +46,7 @@ import {
   recordVoteCast,
   revealVoteResults,
   returnToQuestion,
+  resetBuzzerRapidite,
 } from "./engine.js";
 
 function sessionRoom(code) {
@@ -614,16 +616,42 @@ export function setupSocketHandlers(io) {
           }
 
           case "buzzer_mark_wrong": {
-            // Marquer le buzzer courant comme incorrect puis passer au joueur suivant
             const buzzerWrongId = session.gameState.buzzerState?.firstPlayerId;
-            session.gameState.buzzerLastResult = {
-              result: "wrong",
-              playerId: buzzerWrongId || null,
-              pseudo: session.gameState.buzzerState?.firstPseudo || null,
-              at: new Date().toISOString(),
-            };
-            // Passe au joueur suivant dans la queue (ou réouvre les buzzers si personne)
-            res = buzzerNextPlayer(session);
+            const wrongRound = session.gameState.currentRound;
+            const isRapiditWrong =
+              wrongRound?.type === "rapidite" || wrongRound?.type === "speed";
+
+            if (isRapiditWrong) {
+              // Rapidité : cooldown 5s pour le joueur fautif, buzzers rouverts pour tous
+              res = resetBuzzerRapidite(session, buzzerWrongId, 5000);
+              if (res.ok && buzzerWrongId) {
+                // Retirer le cooldown automatiquement après 5s et broadcaster
+                const _sessionCode = session.sessionCode;
+                const _playerId = buzzerWrongId;
+                setTimeout(() => {
+                  const s = getSession(_sessionCode);
+                  if (s && s.gameState.buzzerCooldowns) {
+                    delete s.gameState.buzzerCooldowns[_playerId];
+                    s.gameState.updatedAt = new Date().toISOString();
+                    emitSessionState(io, s);
+                  }
+                }, 5000);
+              }
+            } else {
+              // Autre buzzer : comportement classique (file d'attente)
+              session.gameState.buzzerLastResult = {
+                result: "wrong",
+                playerId: buzzerWrongId || null,
+                pseudo: session.gameState.buzzerState?.firstPseudo || null,
+                at: new Date().toISOString(),
+              };
+              res = buzzerNextPlayer(session);
+            }
+            break;
+          }
+
+          case "burger_set_score": {
+            res = setBurgerScore(session, payload?.score);
             break;
           }
 
@@ -647,7 +675,9 @@ export function setupSocketHandlers(io) {
               session.gameState.buzzerState = null;
               session.gameState.buzzerQueue = [];
               session.gameState.buzzerLastResult = null;
+              session.gameState.buzzerCooldowns = {};
               session.gameState.burgerState = null;
+              session.gameState.burgerFinalScore = null;
               session.gameState.voteState = null;
               session.gameState.updatedAt = new Date().toISOString();
             }
@@ -676,7 +706,9 @@ export function setupSocketHandlers(io) {
             session.gameState.buzzerState = null;
             session.gameState.buzzerQueue = [];
             session.gameState.buzzerLastResult = null;
+            session.gameState.buzzerCooldowns = {};
             session.gameState.burgerState = null;
+            session.gameState.burgerFinalScore = null;
             session.gameState.voteState = null;
             session.gameState.revealedAnswer = null;
             session.gameState.updatedAt = new Date().toISOString();

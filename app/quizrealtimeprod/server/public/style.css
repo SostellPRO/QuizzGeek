@@ -852,6 +852,32 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
   100% { transform: translateY(0) scale(1); opacity: 1; }
 }
 .ceremony-container { padding: 10px 0; }
+/* ── Podium stage (marches visuelles) ── */
+.podium-stage {
+  display: flex; align-items: flex-end; justify-content: center;
+  gap: 8px; padding: 24px 16px 0; margin-bottom: 4px;
+}
+.podium-stage-slot {
+  flex: 1; max-width: 160px; border-radius: 14px 14px 0 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  padding: 14px 8px 18px; text-align: center;
+  transition: all 0.4s ease;
+}
+.podium-slot-filled {
+  border: 2px solid rgba(255,255,255,.25);
+  animation: podium-entry 0.55s ease forwards;
+}
+.podium-slot-empty {
+  border: 2px dashed rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
+}
+/* Buzzer cooldown */
+.buzzer-cooldown {
+  background: radial-gradient(circle at 50% 40%, #550000, #1a0000) !important;
+  box-shadow: 0 0 30px rgba(235,51,73,.3) !important;
+  animation: none !important;
+  cursor: not-allowed;
+}
 .podium-revealed-list { display: flex; flex-direction: column; gap: 12px; }
 .podium-card {
   border-radius: 18px; padding: 20px 18px; text-align: center;

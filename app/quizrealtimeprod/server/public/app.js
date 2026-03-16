@@ -488,16 +488,28 @@ function renderPlayerGame() {
     // Burger : seul le joueur sélectionné joue, les autres attendent
     const burgerSelectedId = gs?.burgerSelectedPlayerId;
     const isBurgerRound = gs?.currentRound?.type === 'burger' || gs?.currentQuestion?.type === 'burger';
-    if (isBurgerRound && burgerSelectedId && burgerSelectedId !== s.playerId) {
-      const burgerPseudo = gs?.burgerSelectedPseudo || 'Un joueur';
-      content += `
-        <div class="card" style="text-align:center;padding:40px;">
-          <div style="font-size:3rem;margin-bottom:14px;">🍔</div>
-          <h2>Épreuve Burger</h2>
-          <p class="muted" style="margin-top:8px;font-size:1rem;"><strong style="color:#fff;">${burgerPseudo}</strong> passe l'épreuve</p>
-          <p class="muted" style="margin-top:10px;">Regardez l'écran principal !</p>
-          <div class="waiting-dots"><span></span><span></span><span></span></div>
-        </div>`;
+    if (isBurgerRound && burgerSelectedId) {
+      if (burgerSelectedId === s.playerId) {
+        // Le joueur sélectionné : écran "c'est ton tour"
+        content += `
+          <div class="card" style="text-align:center;padding:50px 20px;background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
+            <div style="font-size:4rem;margin-bottom:16px;animation:end-bounce 1s ease-in-out infinite;">🍔</div>
+            <h2 style="color:#f7971e;">C'est ton tour !</h2>
+            <p style="margin-top:12px;font-size:1.1rem;">Regarde l'écran principal et mémorise les éléments.</p>
+            <p class="muted" style="margin-top:8px;">Quand c'est fini, récite-les tous dans l'ordre !</p>
+          </div>`;
+      } else {
+        // Les autres joueurs attendent
+        const burgerPseudo = gs?.burgerSelectedPseudo || 'Un joueur';
+        content += `
+          <div class="card" style="text-align:center;padding:40px;">
+            <div style="font-size:3rem;margin-bottom:14px;">🍔</div>
+            <h2>Épreuve Burger</h2>
+            <p class="muted" style="margin-top:8px;font-size:1rem;"><strong style="color:#fff;">${burgerPseudo}</strong> passe l'épreuve</p>
+            <p class="muted" style="margin-top:10px;">Regardez l'écran principal !</p>
+            <div class="waiting-dots" style="margin-top:16px;"><span></span><span></span><span></span></div>
+          </div>`;
+      }
     } else {
       content += renderPlayerQuestionContent(gs, s.playerId, gs.phaseMeta?.playerScreenLocked);
     }
@@ -614,9 +626,23 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
   const queueCount = Array.isArray(gs.buzzerQueue) ? gs.buzzerQueue.length : 0;
   const allBuzzed = queueCount >= connectedCount && connectedCount > 0;
 
+  // Cooldown (rapidité : pénalité 5s après mauvaise réponse)
+  const cooldownExpiry = gs?.buzzerCooldowns?.[playerId] || 0;
+  const isCooldown = cooldownExpiry > Date.now();
+  const cooldownSec = isCooldown ? Math.ceil((cooldownExpiry - Date.now()) / 1000) : 0;
+
   let answerUI = '';
   if (answerMode === 'buzzer') {
-    if (myInQueue && !allBuzzed) {
+    if (isCooldown) {
+      // Joueur en pénalité — buzzer bloqué avec compte à rebours
+      answerUI = `
+        <div class="buzzer-wrap">
+          <button class="buzzer-btn buzzer-cooldown" disabled>
+            ❌<br>BLOQUÉ<br><span style="font-size:1.4rem;font-weight:900;">${cooldownSec}s</span>
+          </button>
+          <p class="muted" style="margin-top:12px;color:#eb3349;font-size:.9rem;">⏳ Mauvaise réponse — patientez ${cooldownSec}s</p>
+        </div>`;
+    } else if (myInQueue && !allBuzzed) {
       answerUI = `
         <div class="player-question-bubble" style="text-align:center;">
           <div style="font-size:2.2rem;">⏳</div>
@@ -1543,20 +1569,44 @@ function renderHostPilotageTab(gs, phase) {
   // ═══════════════════════════════════════════════════════════
   if (isBurger && ['question','waiting','manual_scoring'].includes(phase)) {
     const selectedId = gs?.burgerSelectedPlayerId || null;
+    const burgerState = gs?.burgerState;
+    const totalItems = gs?.currentQuestion?.items?.length || 10;
+    const allItemsShown = burgerState && burgerState.currentItemIndex >= totalItems - 1;
+    const burgerFinalScore = gs?.burgerFinalScore;
+
     const playerBtns = state.players.filter(p => p.connected).map(p => `
       <button class="burger-player-btn ${p.id === selectedId ? 'selected' : ''}"
         onclick="hostAction('burger_select_player',{playerId:'${p.id}'})">
         <span style="font-size:1.4rem;display:block;margin-bottom:4px;">${p.avatar || '🎮'}</span>
         ${p.pseudo}
       </button>`).join('');
+
     out += `
       <div class="host-section">
-        <div class="host-section-label">🍔 BURGER — JOUEUR ACTIF</div>
-        <div class="burger-player-grid">${playerBtns || '<p class="muted">Aucun joueur connecté</p>'}</div>
-        ${selectedId ? `<button class="hbtn hbtn-secondary hbtn-sm" style="margin-top:8px;" onclick="hostAction('burger_select_player',{playerId:null})">✕ Désélectionner</button>` : ''}
-        <div class="host-ctrl-row" style="margin-top:10px;">
-          <button class="hbtn hbtn-success" onclick="hostAction('burger_next_item')">🍔 Élément suivant</button>
-        </div>
+        <div class="host-section-label">🍔 BURGER — PILOTAGE</div>
+        ${!selectedId ? `
+          <p class="muted" style="font-size:.82rem;margin-bottom:8px;">Sélectionnez d'abord le joueur qui passe l'épreuve :</p>
+          <div class="burger-player-grid">${playerBtns || '<p class="muted">Aucun joueur connecté</p>'}</div>
+        ` : `
+          <div class="burger-player-grid">${playerBtns}</div>
+          <button class="hbtn hbtn-secondary hbtn-sm" style="margin-top:8px;" onclick="hostAction('burger_select_player',{playerId:null})">✕ Désélectionner</button>
+          ${!allItemsShown ? `
+            <div class="host-ctrl-row" style="margin-top:10px;">
+              <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('burger_next_item')">
+                🍔 Élément suivant ${burgerState && burgerState.currentItemIndex >= 0 ? `(${burgerState.currentItemIndex+1}/${totalItems})` : '(démarrer)'}
+              </button>
+            </div>` : `
+            <div style="margin-top:12px;padding:14px;background:rgba(247,151,30,.1);border:1px solid rgba(247,151,30,.4);border-radius:12px;">
+              <p style="font-size:.88rem;color:#f7971e;margin-bottom:10px;font-weight:600;">🎯 Tous les éléments ont été affichés — saisissez le score :</p>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <input type="number" min="0" max="10" id="burger-score-input" placeholder="0-10"
+                  style="width:80px;text-align:center;font-size:1.5rem;font-weight:700;padding:8px;border-radius:10px;
+                  background:rgba(255,255,255,.1);border:2px solid rgba(247,151,30,.6);color:#fff;">
+                <button class="hbtn hbtn-success hbtn-wide" onclick="submitBurgerScore()">✅ Valider le score</button>
+              </div>
+              ${burgerFinalScore ? `<p style="margin-top:8px;font-size:.85rem;color:#38ef7d;">✓ Score de ${burgerFinalScore.score}/10 attribué à ${burgerFinalScore.pseudo}</p>` : ''}
+            </div>`}
+        `}
       </div>`;
   }
 
@@ -1903,6 +1953,22 @@ function awardPoints(playerId, points) {
   hostAction('award_manual_points', { playerId, points });
 }
 
+function submitBurgerScore() {
+  const input = document.getElementById('burger-score-input');
+  const val = input ? Number(input.value) : NaN;
+  if (!Number.isFinite(val) || val < 0 || val > 10) {
+    alert$('host-alert', 'Entrez un score entre 0 et 10', 'error');
+    return;
+  }
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  if (!sc || !hk) { alert$('host-alert', 'Session non active', 'error'); return; }
+  state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'burger_set_score', score: val }, (res) => {
+    if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
+    playSound('correct');
+  });
+}
+
 function addBot() {
   const name = ($('#bot-name')?.value || '').trim();
   const teamId = $('#bot-team')?.value || null;
@@ -2069,12 +2135,29 @@ function renderDisplay() {
   } else if (phase === 'end') {
     content += renderFinalCeremony(gs, state.leaderboardPlayers);
   } else if (phase === 'manual_scoring') {
-    content += `
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:3rem;">⚖️</div>
-        <h2>Notation en cours…</h2>
-        ${gs?.buzzerState?.firstPseudo ? `<p style="margin-top:16px;font-size:1.5rem;">🔔 <strong>${gs.buzzerState.firstPseudo}</strong> a buzzé en premier</p>` : ''}
-      </div>`;
+    const isBurgerManual = gs?.currentRound?.type === 'burger' || gs?.currentQuestion?.type === 'burger';
+    if (isBurgerManual) {
+      const bfScore = gs?.burgerFinalScore;
+      const bPseudo = gs?.burgerSelectedPseudo || '?';
+      content += bfScore ? `
+        <div class="card" style="text-align:center;padding:60px 20px;background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
+          <div style="font-size:4rem;margin-bottom:16px;">🍔</div>
+          <h2 style="color:#f7971e;">${bfScore.pseudo}</h2>
+          <div style="font-size:6rem;font-weight:900;color:#f7971e;">${bfScore.score}<span style="font-size:2.5rem;color:rgba(255,255,255,.4);">/10</span></div>
+        </div>` : `
+        <div class="card" style="text-align:center;padding:80px 20px;background:rgba(247,151,30,.07);border-color:rgba(247,151,30,.3);">
+          <div style="font-size:10rem;font-weight:900;color:#f7971e;line-height:1;">?</div>
+          <p style="margin-top:20px;font-size:1.3rem;"><strong style="color:#f7971e;">${bPseudo}</strong> récite les 10 éléments !</p>
+          <p class="muted" style="margin-top:10px;">Le maître de jeu va attribuer le score.</p>
+        </div>`;
+    } else {
+      content += `
+        <div class="card" style="text-align:center;padding:40px;">
+          <div style="font-size:3rem;">⚖️</div>
+          <h2>Notation en cours…</h2>
+          ${gs?.buzzerState?.firstPseudo ? `<p style="margin-top:16px;font-size:1.5rem;">🔔 <strong>${gs.buzzerState.firstPseudo}</strong> a buzzé en premier</p>` : ''}
+        </div>`;
+    }
   }
 
   // Message de diffusion hôte
@@ -2195,24 +2278,50 @@ function renderDisplayQuestion(gs) {
     }
   }
 
-  // Burger : afficher l'item courant
+  // Burger : afficher l'item courant (ou message d'attente / grand "?")
   let burgerDisplay = '';
-  if ((q.type === 'burger' || gs?.currentRound?.type === 'burger') && gs.burgerState) {
+  const isBurgerQ = q.type === 'burger' || gs?.currentRound?.type === 'burger';
+  if (isBurgerQ) {
     const bs = gs.burgerState;
     const items = q.items || [];
-    const curItem = bs.currentItemIndex >= 0 ? items[bs.currentItemIndex] : null;
-    const itemUrl = curItem?.mediaUrl ? resolveMedia(curItem.mediaUrl) : '';
-    const isImg = itemUrl && /\.(jpg|jpeg|png|gif|webp)$/i.test(itemUrl);
-    const isAudio = itemUrl && /\.(mp3|wav|ogg)$/i.test(itemUrl);
-    burgerDisplay = `
-      <div class="card" style="text-align:center;padding:30px;">
-        <div style="font-size:.85rem;color:rgba(255,255,255,.4);margin-bottom:12px;">🍔 Élément ${bs.currentItemIndex+1} / ${items.length}</div>
-        ${curItem ? `
-          ${isImg ? `<img src="${itemUrl}" style="max-height:200px;border-radius:10px;margin-bottom:14px;">` : ''}
+    const selectedPseudo = gs?.burgerSelectedPseudo || null;
+    const burgerFinalScore = gs?.burgerFinalScore;
+
+    if (burgerFinalScore) {
+      // Score validé — afficher le résultat
+      burgerDisplay = `
+        <div class="card" style="text-align:center;padding:50px 20px;background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
+          <div style="font-size:4rem;margin-bottom:16px;">🍔</div>
+          <h2 style="color:#f7971e;">${burgerFinalScore.pseudo}</h2>
+          <div style="font-size:5rem;font-weight:900;color:#f7971e;margin:16px 0;">${burgerFinalScore.score}<span style="font-size:2rem;color:rgba(255,255,255,.4);">/10</span></div>
+          <p class="muted">Score attribué par le maître de jeu</p>
+        </div>`;
+    } else if (!bs || bs.currentItemIndex < 0) {
+      // Pas encore commencé — message "Prêts ?"
+      burgerDisplay = `
+        <div class="card" style="text-align:center;padding:60px 20px;background:rgba(247,151,30,.07);border-color:rgba(247,151,30,.3);">
+          <div style="font-size:5rem;margin-bottom:20px;">🍔</div>
+          <h2 style="font-size:2rem;">Épreuve Burger</h2>
+          ${selectedPseudo ? `<p style="font-size:1.3rem;margin-top:12px;"><strong style="color:#f7971e;">${selectedPseudo}</strong> passe l'épreuve</p>` : '<p class="muted" style="margin-top:12px;">En attente de la sélection du joueur…</p>'}
+          <p class="muted" style="margin-top:16px;font-size:1rem;">Le maître de jeu va dévoiler les éléments un par un.</p>
+          <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
+        </div>`;
+    } else {
+      const curItem = items[bs.currentItemIndex];
+      const itemUrl = curItem?.mediaUrl ? resolveMedia(curItem.mediaUrl) : '';
+      const isImg = itemUrl && /\.(jpg|jpeg|png|gif|webp)$/i.test(itemUrl);
+      const isAudio = itemUrl && /\.(mp3|wav|ogg)$/i.test(itemUrl);
+      burgerDisplay = `
+        <div class="card" style="text-align:center;padding:30px;background:rgba(247,151,30,.07);border-color:rgba(247,151,30,.3);">
+          <div style="font-size:.85rem;color:rgba(255,255,255,.4);margin-bottom:14px;letter-spacing:1px;">🍔 ÉLÉMENT ${bs.currentItemIndex+1} / ${items.length}</div>
+          ${isImg ? `<img src="${itemUrl}" style="max-height:220px;border-radius:12px;margin-bottom:16px;">` : ''}
           ${isAudio ? `<audio controls autoplay src="${itemUrl}" style="margin-bottom:14px;"></audio>` : ''}
-          <p style="font-size:1.6rem;font-weight:700;">${curItem.text || ''}</p>
-        ` : '<p class="muted">En attente du maître de jeu…</p>'}
-      </div>`;
+          ${curItem ? `<p style="font-size:clamp(1.6rem,5vw,2.4rem);font-weight:700;line-height:1.2;">${curItem.text || ''}</p>` : ''}
+          <div style="margin-top:16px;display:flex;justify-content:center;gap:6px;">
+            ${items.map((_, i) => `<span style="width:10px;height:10px;border-radius:50%;background:${i <= bs.currentItemIndex ? '#f7971e' : 'rgba(255,255,255,.2)'}; display:inline-block;"></span>`).join('')}
+          </div>
+        </div>`;
+    }
   }
 
   // Vote : affichage selon la phase
@@ -2539,7 +2648,7 @@ function emptyQuestion(type = 'qcm') {
     return {
       ...base,
       type: 'vote',
-      fakeAnswers: ['Leurre 1', 'Leurre 2', 'Leurre 3'],
+      fakeAnswers: [''],  // 1 leurre vide par défaut (non affiché si non modifié)
     };
   }
   return { ...base, type: type };
@@ -2831,22 +2940,26 @@ function renderQuestionRow(q, qi, roundId, roundType) {
 
   // ── VOTE ─────────────────────────────────────────────────
   if (effectiveType === 'vote') {
-    const fakeAnswers = Array.isArray(q.fakeAnswers) ? q.fakeAnswers : ['', '', ''];
+    const fakeAnswers = Array.isArray(q.fakeAnswers) && q.fakeAnswers.length > 0 ? q.fakeAnswers : [''];
     body = `
       <div style="margin:8px 0 4px 28px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:10px;">
-        <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">🗳️ Leurres pré-enregistrés (réponses piège)</div>
-        <p style="font-size:.78rem;color:rgba(255,255,255,.5);margin-bottom:8px;">Ces réponses seront mélangées avec celles des joueurs. Voter pour un leurre = -1 point.</p>
+        <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">🗳️ Leurres (facultatifs — réponses piège)</div>
+        <p style="font-size:.78rem;color:rgba(255,255,255,.5);margin-bottom:8px;">
+          Ces réponses seront mélangées avec celles des joueurs. Voter pour un leurre = -1 point.<br>
+          <em>Laissez vide pour ne pas afficher ce leurre.</em>
+        </p>
         <div style="display:grid;gap:6px;">
           ${fakeAnswers.map((fa, i) => `
             <div style="display:flex;align-items:center;gap:6px;">
               <span style="font-size:.78rem;color:#eb3349;min-width:22px;flex-shrink:0;">🎭${i+1}</span>
-              <input value="${(fa||'').replace(/"/g,'&quot;')}" placeholder="Leurre ${i+1}"
+              <input value="${(fa||'').replace(/"/g,'&quot;')}" placeholder="Leurre ${i+1} (laisser vide pour ignorer)"
                 oninput="updateFakeAnswer('${roundId}','${q.id}',${i},this.value)"
                 style="flex:1;font-size:.82rem;padding:5px 8px;">
+              ${fakeAnswers.length > 1 ? `<button class="btn-secondary" style="padding:3px 7px;font-size:.75rem;color:#eb3349;" onclick="removeFakeAnswer('${roundId}','${q.id}',${i})">✕</button>` : ''}
             </div>`).join('')}
         </div>
         <button class="btn-secondary" style="margin-top:8px;padding:4px 10px;font-size:.78rem;" onclick="addFakeAnswer('${roundId}','${q.id}')">+ Ajouter un leurre</button>
-        <div style="margin-top:10px;font-size:.75rem;color:rgba(255,255,255,.4);">📋 Déroulement : 1. Les joueurs écrivent une réponse · 2. Toutes les réponses + leurres sont affichés anonymement · 3. Les joueurs votent · 4. +1pt par vote reçu, -1pt si vote pour un leurre</div>
+        <div style="margin-top:10px;font-size:.75rem;color:rgba(255,255,255,.4);">📋 Déroulement : 1. Les joueurs écrivent une réponse · 2. Toutes les réponses + leurres non-vides sont affichés anonymement · 3. Les joueurs votent · 4. +1pt par vote reçu, -1pt si vote pour un leurre</div>
       </div>`;
   }
 
@@ -2900,6 +3013,15 @@ function addFakeAnswer(roundId, qId) {
   if (!q) return;
   if (!Array.isArray(q.fakeAnswers)) q.fakeAnswers = [];
   q.fakeAnswers.push('');
+  renderQuizEditor();
+}
+
+function removeFakeAnswer(roundId, qId, idx) {
+  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+  const q = round?.questions?.find(q => q.id === qId);
+  if (!q || !Array.isArray(q.fakeAnswers)) return;
+  q.fakeAnswers.splice(idx, 1);
+  if (q.fakeAnswers.length === 0) q.fakeAnswers = [''];
   renderQuizEditor();
 }
 
@@ -3124,9 +3246,44 @@ function renderScoreboard(leaderboard, title = 'Classement') {
     </div>`;
 }
 
+function renderPodiumStage(revealed, total) {
+  // Affichage visuel du podium (3 marches) avec les places selon révélation
+  const p1 = revealed.find(p => p.rank === 1);
+  const p2 = revealed.find(p => p.rank === 2);
+  const p3 = revealed.find(p => p.rank === 3);
+  const podiumSlot = (player, label, height, color, shadow) => player
+    ? `<div class="podium-stage-slot podium-slot-filled" style="height:${height}px;background:${color};box-shadow:0 0 30px ${shadow};">
+        <span style="font-size:1.8rem;">${label}</span>
+        <div style="font-size:.95rem;font-weight:700;margin-top:4px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${player.pseudo}</div>
+        <div style="font-size:.85rem;opacity:.8;">${player.scoreTotal ?? 0} pts</div>
+       </div>`
+    : `<div class="podium-stage-slot podium-slot-empty" style="height:${height}px;">
+        <span style="font-size:2rem;opacity:.2;">${label}</span>
+       </div>`;
+  return `
+    <div class="podium-stage">
+      ${podiumSlot(p2, '🥈', 120, 'linear-gradient(180deg,rgba(192,192,192,.35),rgba(150,150,150,.15))', 'rgba(192,192,192,.3)')}
+      ${podiumSlot(p1, '🥇', 160, 'linear-gradient(180deg,rgba(255,215,0,.4),rgba(255,170,0,.2))', 'rgba(255,215,0,.5)')}
+      ${podiumSlot(p3, '🥉', 90, 'linear-gradient(180deg,rgba(205,127,50,.35),rgba(160,100,40,.15))', 'rgba(205,127,50,.3)')}
+    </div>
+    ${total > 3 && revealed.length === 0 ? `<p class="muted" style="text-align:center;margin-top:8px;font-size:.85rem;">Le maître de jeu va révéler les résultats…</p>` : ''}`;
+}
+
 function renderFinalCeremony(gs, leaderboard) {
   const fc = gs?.phaseMeta?.finalCeremony;
-  if (!fc) return renderScoreboard(leaderboard, '🏆 Résultats finaux');
+
+  // Pas de cérémonie lancée : afficher le podium vide en attente
+  if (!fc) {
+    return `
+      <div class="ceremony-container">
+        <div class="card" style="text-align:center;padding:24px;margin-bottom:16px;">
+          <div style="font-size:3.5rem;margin-bottom:10px;">🏆</div>
+          <h2>Fin du Quiz !</h2>
+          <p class="muted" style="margin-top:6px;">En attente de la cérémonie…</p>
+        </div>
+        ${renderPodiumStage([], leaderboard?.length || 0)}
+      </div>`;
+  }
 
   const revealed = fc.revealOrder.filter(p => p.revealed);
   // Tri podium : 1ère place en dernier (affichage du bas vers le haut)
@@ -3139,9 +3296,8 @@ function renderFinalCeremony(gs, leaderboard) {
   const first = revealed.find(p => p.rank === 1);
   const confettiJs = first ? '<script>if(window.launchConfetti)launchConfetti();<\/script>' : '';
 
-  const newestRevealIndex = sorted.length - 1; // le dernier de sorted = le plus récemment révélé
+  const newestRevealIndex = sorted.length - 1;
   const podiumCards = sorted.map((p, i) => {
-    // Seule la carte nouvellement révélée obtient l'animation d'entrée
     const isNew = i === newestRevealIndex;
     const animStyle = isNew ? 'animation-delay:0s;' : 'animation:none;';
     return `<div class="podium-card ${rankClass(p.rank)}" style="${animStyle}">
@@ -3163,12 +3319,8 @@ function renderFinalCeremony(gs, leaderboard) {
   return `
     <div class="ceremony-container">
       ${confettiJs}
-      <div class="card" style="text-align:center;padding:20px;margin-bottom:12px;">
-        <div style="font-size:3rem;margin-bottom:8px;">🎊</div>
-        <h2>Cérémonie finale</h2>
-        <p class="muted">${fc.revealCursor}/${fc.revealOrder.length} révélé(s)</p>
-      </div>
-      ${revealed.length ? `<div class="podium-revealed-list">${podiumCards}</div>` : ''}
+      ${renderPodiumStage(revealed, fc.revealOrder.length)}
+      ${revealed.length ? `<div class="podium-revealed-list" style="margin-top:16px;">${podiumCards}</div>` : ''}
       ${teamWinner}
     </div>`;
 }
