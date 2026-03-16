@@ -54,7 +54,7 @@ function hydrateSession(raw) {
 
   const defaultTeams =
     quiz?.teamsConfig?.enabled !== false
-      ? (quiz.teamsConfig.teamNames || []).map((name, idx) => ({
+      ? (quiz.teamsConfig?.teamNames || []).map((name, idx) => ({
           id: `team_${idx + 1}`,
           name: name || `Équipe ${idx + 1}`,
           scoreTotal: 0,
