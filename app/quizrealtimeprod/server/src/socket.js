@@ -9,6 +9,7 @@ import {
   getOrCreateDemoSession,
   getPublicPlayers,
   getPublicTeams,
+  getQuiz,
   getSession,
   persistSessions,
   saveQuiz,
@@ -489,6 +490,23 @@ export function setupSocketHandlers(io) {
           case "finish_quiz":
             res = finishQuiz(session);
             break;
+          case "set_session_quiz": {
+            // Changer le quiz associé à la session (uniquement en lobby)
+            if (session.gameState?.status !== "lobby") {
+              res = { ok: false, error: "Impossible de changer de quiz pendant une partie" };
+              break;
+            }
+            const newQuizId = payload?.quizId;
+            if (!newQuizId) { res = { ok: false, error: "quizId requis" }; break; }
+            const newQuiz = getQuiz(newQuizId);
+            if (!newQuiz) { res = { ok: false, error: "Quiz introuvable" }; break; }
+            session.quiz = newQuiz;
+            session.gameState.quizId = newQuiz.id;
+            session.gameState.quizTitle = newQuiz.title || "Quiz Live";
+            session.gameState.updatedAt = new Date().toISOString();
+            res = { ok: true, quizTitle: newQuiz.title };
+            break;
+          }
           case "award_points_manual":
           case "award_manual_points":
             res = awardManualPoints(session, {
@@ -681,6 +699,44 @@ export function setupSocketHandlers(io) {
               session.gameState.voteState = null;
               session.gameState.updatedAt = new Date().toISOString();
             }
+            res = { ok: true };
+            break;
+          }
+
+          case "eject_players": {
+            // Éjecter tous les joueurs vers l'écran de connexion
+            // Les joueurs sont conservés mais éjectés de la partie active
+            io.to(sessionRoom(session.sessionCode)).emit("game:players_ejected", {
+              sessionCode: session.sessionCode,
+            });
+            // Remettre le statut à lobby pour l'admin
+            cancelPendingAutoReveal(session);
+            session.gameState.status = "lobby";
+            session.gameState.currentRoundIndex = -1;
+            session.gameState.currentQuestionIndex = -1;
+            session.gameState.currentRound = null;
+            session.gameState.currentQuestion = null;
+            session.gameState.answers = {};
+            session.gameState.phaseMeta = {
+              playerScreenLocked: false,
+              allowAnswer: false,
+              answerMode: "none",
+              timer: null,
+              finalCeremony: null,
+            };
+            session.gameState.trueFalseVotes = { yes: [], no: [] };
+            session.gameState.buzzerState = null;
+            session.gameState.buzzerQueue = [];
+            session.gameState.buzzerLastResult = null;
+            session.gameState.buzzerCooldowns = {};
+            session.gameState.burgerState = null;
+            session.gameState.burgerFinalScore = null;
+            session.gameState.voteState = null;
+            session.gameState.revealedAnswer = null;
+            session.gameState.updatedAt = new Date().toISOString();
+            // Réinitialiser les scores joueurs
+            for (const p of session.players || []) p.scoreTotal = 0;
+            for (const t of session.teams || []) t.scoreTotal = 0;
             res = { ok: true };
             break;
           }

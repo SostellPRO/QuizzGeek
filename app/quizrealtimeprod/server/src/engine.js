@@ -246,6 +246,11 @@ function resetQuestionTransient(session) {
   // Réinitialiser l'état de vote pour la nouvelle question
   session.gameState.voteState = null;
 
+  // Réinitialiser l'état burger lié à la question précédente
+  session.gameState.burgerSelectedPlayerId = null;
+  session.gameState.burgerSelectedPseudo = null;
+  session.gameState.burgerFinalScore = null;
+
   // on conserve answers globaux par question, mais on réinitialise le timer + écrans
   setPhaseMeta(session, {
     timer: null,

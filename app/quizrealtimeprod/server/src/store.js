@@ -118,12 +118,41 @@ export function persistAll() {
   return { ok: q.ok && s.ok, quizzes: q, sessions: s };
 }
 
+/**
+ * Migration : répare les questions burger dont le champ "items" a été supprimé par
+ * l'ancienne version de normalizeQuiz. Si items est absent/vide, on recrée 10 slots vides.
+ */
+function migrateBurgerItems(quiz) {
+  if (!quiz?.rounds) return quiz;
+  const rounds = quiz.rounds.map((round) => {
+    if (round.type !== 'burger') return round;
+    const questions = (round.questions || []).map((q) => {
+      if (q.type !== 'burger') return q;
+      if (Array.isArray(q.items) && q.items.length > 0) return q;
+      // Recréer 10 items vides (le contenu doit être ressaisi par l'admin)
+      return {
+        ...q,
+        items: Array.from({ length: 10 }, (_, i) => ({
+          id: `item_migrated_${i}`,
+          text: `Élément ${i + 1}`,
+          mediaUrl: '',
+        })),
+      };
+    });
+    return { ...round, questions };
+  });
+  return { ...quiz, rounds };
+}
+
 export function loadAllPersistedData() {
   // quizzes
   const quizzes = loadPersistedQuizzes();
   store.quizzes.clear();
   for (const q of quizzes) {
-    if (q?.id) store.quizzes.set(q.id, q);
+    if (q?.id) {
+      // Migration des items burger supprimés par l'ancienne version
+      store.quizzes.set(q.id, migrateBurgerItems(q));
+    }
   }
 
   // sessions
@@ -259,7 +288,9 @@ function normalizeQuiz(quiz) {
           : [];
 
       const questions = rawQuestions.map((q) => {
-        const { questionType, items: _qi, ...rest } = q;
+        // On normalise uniquement questionType → type
+        // IMPORTANT : on NE supprime PAS "items" car c'est le champ des éléments burger
+        const { questionType, ...rest } = q;
         return {
           ...rest,
           // Normalise questionType → type

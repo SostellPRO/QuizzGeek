@@ -29,7 +29,7 @@ const state = {
   display: { sessionCode: '', connected: false },
 
   // Admin: quiz en cours d'édition
-  admin: { quizzes: [], editingQuiz: null, activeRoundIndex: 0 },
+  admin: { quizzes: [], editingQuiz: null, activeRoundIndex: 0, ceremonyView: 'players' },
 };
 
 // ── Utilitaires DOM ──────────────────────────────────────────
@@ -168,6 +168,19 @@ function initSocket() {
   state.socket.on('player:message', (bm) => {
     // Message ciblé direct (vers un joueur ou une équipe spécifique)
     showPlayerDirectMessage(bm);
+  });
+
+  // Éjection de tous les joueurs vers l'écran de connexion
+  state.socket.on('game:players_ejected', () => {
+    // Si le joueur est en partie, le renvoyer vers l'écran de rejoindre
+    if (state.currentPage === 'player') {
+      state.playerSession = null;
+      state.gameState = null;
+      state.players = [];
+      state.teams = [];
+      localStorage.removeItem('quiz_player_session');
+      navigate('player');  // l'écran player affiche le formulaire de connexion si playerSession = null
+    }
   });
 
   state.socket.on('game:state', (payload) => {
@@ -782,9 +795,6 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
   return `
     ${media}
     ${timer}
-    <div class="player-question-bubble">
-      <p class="player-question-text">${q.content || ''}</p>
-    </div>
     ${answerUI}`;
 }
 
@@ -1234,6 +1244,7 @@ function renderHostGestionTab(gs, phase, sc) {
           ▶️ Lancer la partie
         </button>
         <div class="row" style="justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap;">
+          <button class="btn-secondary btn-sm" onclick="showChangeQuizModal()">🔄 Changer de quiz</button>
           <button class="btn-secondary btn-sm" onclick="hostAction('reset_game')">🔁 Reset partie</button>
           <button class="btn-outline-danger btn-sm" onclick="if(confirm('Réinitialiser TOUT ? (joueurs, scores, progression)'))hostAction('reset_all')">💥 Reset général</button>
         </div>
@@ -1334,7 +1345,11 @@ function renderHostPilotageTab(gs, phase) {
           out += `<button class="hbtn hbtn-secondary hbtn-pulse" onclick="hostAction('reveal_answer')">📋 Montrer la solution</button>`;
         }
       }
-      out += `<button class="hbtn hbtn-secondary" onclick="hostAction('refresh_question')">🔁 Reset Q</button>`;
+      // Masquer "Reset Q" pendant les phases de vote (évite de vider les réponses accidentellement)
+      const isVotePhaseNow = gs?.phaseMeta?.answerMode === 'vote_input' || gs?.phaseMeta?.answerMode === 'vote_voting';
+      if (!isVotePhaseNow) {
+        out += `<button class="hbtn hbtn-secondary" onclick="hostAction('refresh_question')">🔁 Reset Q</button>`;
+      }
     }
 
     if (phase === 'answer_reveal') {
@@ -1522,7 +1537,6 @@ function renderHostPilotageTab(gs, phase) {
       out += `
         <div style="text-align:center;padding:6px 8px 12px;">
           <p class="muted" style="font-size:.8rem;margin-bottom:10px;">Vote en cours — <strong>${voterCount}/${connectedCount}</strong> ont voté</p>
-          <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('vote_reveal')">📋 Révéler les résultats</button>
         </div>`;
       if (options.length) {
         out += `<div style="border-top:1px solid rgba(255,255,255,.08);padding-top:8px;">
@@ -1723,25 +1737,32 @@ function renderHostPilotageTab(gs, phase) {
         <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" onclick="hostAction('final_ceremony_init')">🎊 Cérémonie finale</button>
         <div class="host-ctrl-row" style="margin-top:10px;">
           <button class="hbtn hbtn-secondary" onclick="hostAction('reset_game')">🔁 Nouvelle partie</button>
-          <button class="hbtn hbtn-danger" onclick="if(confirm('Terminer et retourner à l\\'accueil ?'))hostAction('stop_session');navigate('home');">🚪 Fermer</button>
+          <button class="hbtn hbtn-warning hbtn-sm" onclick="if(confirm('Éjecter tous les joueurs et changer de quiz ?')){hostAction('eject_players');}">🚪 Éjecter & changer quiz</button>
+          <button class="hbtn hbtn-danger" onclick="if(confirm('Terminer et retourner à l\\'accueil ?'))hostAction('stop_session');navigate('home');">✕ Fermer</button>
         </div>
       </div>`;
     } else {
       const remaining = fc.revealOrder.length - fc.revealCursor;
+      const cvPlayers = state.admin.ceremonyView !== 'teams';
+      const hasTeams = state.leaderboardTeams && state.leaderboardTeams.length > 0;
       out += `<div class="host-section">
         <div class="host-section-label">🎊 CÉRÉMONIE FINALE</div>
+        ${hasTeams ? `<div class="host-ctrl-row" style="margin-bottom:8px;">
+          <button class="hbtn hbtn-sm ${cvPlayers ? 'hbtn-primary' : 'hbtn-secondary'}" onclick="toggleCeremonyView('players')">👤 Joueurs</button>
+          <button class="hbtn hbtn-sm ${!cvPlayers ? 'hbtn-primary' : 'hbtn-secondary'}" onclick="toggleCeremonyView('teams')">⚽ Équipes</button>
+        </div>` : ''}
         <div class="host-ctrl-row">
-          ${remaining > 0 ? `<button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('final_ceremony_reveal_next')">▶ Révéler (${remaining} restant${remaining>1?'s':''})</button>` : ''}
-          ${fc.winnerTeam && fc.stage !== 'team_winner' ? `<button class="hbtn hbtn-primary" onclick="hostAction('final_ceremony_show_team_winner')">🏆 Équipe</button>` : ''}
+          ${cvPlayers && remaining > 0 ? `<button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('final_ceremony_reveal_next')">▶ Révéler (${remaining} restant${remaining>1?'s':''})</button>` : ''}
           <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('final_ceremony_reset')">↩</button>
         </div>
-        <p class="muted" style="font-size:.75rem;margin-top:8px;">${fc.revealCursor}/${fc.revealOrder.length} révélé(s)</p>
+        ${cvPlayers ? `<p class="muted" style="font-size:.75rem;margin-top:8px;">${fc.revealCursor}/${fc.revealOrder.length} révélé(s)</p>` : ''}
         <div class="host-ctrl-row" style="margin-top:10px;">
           <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reset_game')">🔁 Nouvelle partie</button>
-          <button class="hbtn hbtn-danger hbtn-sm" onclick="if(confirm('Terminer et retourner à l\\'accueil ?')){hostAction('stop_session');navigate('home');}">🚪 Fermer l'application</button>
+          <button class="hbtn hbtn-warning hbtn-sm" onclick="if(confirm('Éjecter tous les joueurs et changer de quiz ?')){hostAction('eject_players');}">🚪 Éjecter & changer quiz</button>
+          <button class="hbtn hbtn-danger hbtn-sm" onclick="if(confirm('Terminer et retourner à l\\'accueil ?')){hostAction('stop_session');navigate('home');}">✕ Fermer l'application</button>
         </div>
       </div>`;
-      out += renderFinalCeremony(gs, state.leaderboardPlayers);
+      out += renderFinalCeremony(gs, state.leaderboardPlayers, state.leaderboardTeams);
     }
   }
 
@@ -3269,7 +3290,13 @@ function renderPodiumStage(revealed, total) {
     ${total > 3 && revealed.length === 0 ? `<p class="muted" style="text-align:center;margin-top:8px;font-size:.85rem;">Le maître de jeu va révéler les résultats…</p>` : ''}`;
 }
 
-function renderFinalCeremony(gs, leaderboard) {
+function toggleCeremonyView(view) {
+  state.admin.ceremonyView = view || (state.admin.ceremonyView === 'players' ? 'teams' : 'players');
+  renderHostGame();
+}
+window.toggleCeremonyView = toggleCeremonyView;
+
+function renderFinalCeremony(gs, leaderboard, leaderboardTeams) {
   const fc = gs?.phaseMeta?.finalCeremony;
 
   // Pas de cérémonie lancée : afficher le podium vide en attente
@@ -3285,9 +3312,37 @@ function renderFinalCeremony(gs, leaderboard) {
       </div>`;
   }
 
+  // Mode équipes : afficher le classement par équipes
+  const showTeams = state.admin?.ceremonyView === 'teams';
+  if (showTeams && leaderboardTeams && leaderboardTeams.length > 0) {
+    const teamRows = leaderboardTeams.map((t, i) => {
+      const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
+      return `<div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:12px;
+        background:${i<3 ? 'rgba(255,255,255,.07)' : 'rgba(255,255,255,.03)'};
+        border:1px solid rgba(255,255,255,${i<3 ? '.12' : '.06'});margin-bottom:8px;">
+        <span style="font-size:1.6rem;min-width:36px;">${rankEmoji}</span>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:1rem;">${t.name || '—'}</div>
+        </div>
+        <div style="font-size:1.1rem;font-weight:700;color:#f7971e;">${t.scoreTotal ?? 0} <span style="font-size:.7rem;opacity:.6;">pts</span></div>
+      </div>`;
+    }).join('');
+    return `
+      <div class="ceremony-container">
+        <div style="text-align:center;padding:16px 8px 8px;">
+          <div style="font-size:2.5rem;margin-bottom:8px;">⚽</div>
+          <h2>Classement par équipes</h2>
+        </div>
+        <div style="margin-top:16px;">${teamRows}</div>
+      </div>`;
+  }
+
+  // Mode joueurs : révélation progressive avec podium
   const revealed = fc.revealOrder.filter(p => p.revealed);
-  // Tri podium : 1ère place en dernier (affichage du bas vers le haut)
-  const sorted = [...revealed].sort((a, b) => b.rank - a.rank);
+
+  // Séparer : 4e+ et podium (top 3)
+  const revealedTop3 = revealed.filter(p => p.rank <= 3);
+  const revealedOthers = revealed.filter(p => p.rank > 3).sort((a, b) => a.rank - b.rank); // ordre croissant de rang
 
   const rankEmoji = r => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : `#${r}`;
   const rankClass = r => r === 1 ? 'rank-1-card' : r === 2 ? 'rank-2-card' : r === 3 ? 'rank-3-card' : 'rank-other-card';
@@ -3296,8 +3351,27 @@ function renderFinalCeremony(gs, leaderboard) {
   const first = revealed.find(p => p.rank === 1);
   const confettiJs = first ? '<script>if(window.launchConfetti)launchConfetti();<\/script>' : '';
 
-  const newestRevealIndex = sorted.length - 1;
-  const podiumCards = sorted.map((p, i) => {
+  // Liste 4e et au-delà (triée du dernier vers le 4e = ordre croissant de rang)
+  const othersListHtml = revealedOthers.length ? `
+    <div style="margin-bottom:20px;">
+      <p class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;text-align:center;">Classement</p>
+      ${revealedOthers.map((p, i) => {
+        const isNew = i === revealedOthers.length - 1 && revealedTop3.length === 0;
+        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;
+          background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:6px;
+          ${isNew ? 'animation:podium-entry .45s ease forwards;' : ''}">
+          <span style="font-size:1.1rem;min-width:32px;text-align:center;">${rankEmoji(p.rank)}</span>
+          <div style="flex:1;font-weight:600;font-size:.95rem;">${p.pseudo}</div>
+          ${p.teamName ? `<span style="font-size:.75rem;color:rgba(255,255,255,.4);">⚽ ${p.teamName}</span>` : ''}
+          <span style="font-size:.95rem;font-weight:700;color:rgba(255,255,255,.7);">${p.scoreTotal ?? 0} pts</span>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  // Cartes podium (top 3, révélées progressivement)
+  const sortedTop3 = [...revealedTop3].sort((a, b) => b.rank - a.rank);
+  const newestRevealIndex = sortedTop3.length - 1;
+  const podiumCards = sortedTop3.map((p, i) => {
     const isNew = i === newestRevealIndex;
     const animStyle = isNew ? 'animation-delay:0s;' : 'animation:none;';
     return `<div class="podium-card ${rankClass(p.rank)}" style="${animStyle}">
@@ -3309,19 +3383,12 @@ function renderFinalCeremony(gs, leaderboard) {
     </div>`;
   }).join('');
 
-  const teamWinner = fc.stage === 'team_winner' && fc.winnerTeam ? `
-    <div class="winner-team-card" style="margin-top:14px;">
-      <div style="font-size:3rem;margin-bottom:10px;">🏆</div>
-      <h2>${fc.winnerTeam.name}</h2>
-      <p class="muted" style="margin-top:6px;">Équipe gagnante · ${fc.winnerTeam.scoreTotal ?? 0} pts</p>
-    </div>` : '';
-
   return `
     <div class="ceremony-container">
       ${confettiJs}
-      ${renderPodiumStage(revealed, fc.revealOrder.length)}
-      ${revealed.length ? `<div class="podium-revealed-list" style="margin-top:16px;">${podiumCards}</div>` : ''}
-      ${teamWinner}
+      ${othersListHtml}
+      ${renderPodiumStage(revealedTop3, fc.revealOrder.length)}
+      ${revealedTop3.length ? `<div class="podium-revealed-list" style="margin-top:16px;">${podiumCards}</div>` : ''}
     </div>`;
 }
 
@@ -3346,6 +3413,63 @@ function launchConfetti() {
   }
 }
 window.launchConfetti = launchConfetti;
+
+// ── Modal de changement de quiz ────────────────────────────────
+async function showChangeQuizModal() {
+  closeModal('change-quiz-modal');
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'change-quiz-modal';
+  modal.innerHTML = `
+    <div class="modal-box" style="max-width:480px;">
+      <div class="row" style="justify-content:space-between;margin-bottom:16px;">
+        <h2>🔄 Changer de quiz</h2>
+        <button class="btn-secondary btn-sm" onclick="closeModal('change-quiz-modal')">✕</button>
+      </div>
+      <div id="change-quiz-list"><p class="muted">Chargement…</p></div>
+    </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal('change-quiz-modal'); });
+  document.body.appendChild(modal);
+
+  try {
+    const d = await apiFetch('/api/quizzes');
+    const quizzes = d.quizzes || [];
+    const currentId = state.gameState?.quizId;
+    const listHtml = quizzes.length
+      ? quizzes.map(q => `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;
+            padding:10px 14px;border-radius:10px;margin-bottom:8px;
+            background:${q.id === currentId ? 'rgba(56,239,125,.08)' : 'rgba(255,255,255,.04)'};
+            border:1px solid ${q.id === currentId ? 'rgba(56,239,125,.3)' : 'rgba(255,255,255,.08)'};">
+            <div>
+              <div style="font-weight:600;font-size:.95rem;">${q.title || 'Sans titre'}</div>
+              <div style="font-size:.75rem;color:rgba(255,255,255,.4);">${(q.rounds||[]).length} manche(s)</div>
+            </div>
+            ${q.id === currentId
+              ? `<span style="font-size:.75rem;color:#38ef7d;">✓ Actuel</span>`
+              : `<button class="hbtn hbtn-primary hbtn-sm" onclick="confirmChangeQuiz('${q.id}','${(q.title||'').replace(/'/g,"\\'")}')">Sélectionner</button>`}
+          </div>`).join('')
+      : '<p class="muted">Aucun quiz disponible</p>';
+    const el = document.getElementById('change-quiz-list');
+    if (el) el.innerHTML = listHtml;
+  } catch (e) {
+    const el = document.getElementById('change-quiz-list');
+    if (el) el.innerHTML = `<p class="muted" style="color:#eb3349;">Erreur : ${e.message}</p>`;
+  }
+}
+window.showChangeQuizModal = showChangeQuizModal;
+
+function confirmChangeQuiz(quizId, quizTitle) {
+  if (!confirm(`Changer le quiz pour "${quizTitle}" ?`)) return;
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'set_session_quiz', quizId }, (res) => {
+    closeModal('change-quiz-modal');
+    if (!res?.ok) { alert('Erreur : ' + (res?.error || 'Inconnue')); return; }
+    renderHostGame();
+  });
+}
+window.confirmChangeQuiz = confirmChangeQuiz;
 
 // ── Modal de diffusion ─────────────────────────────────────────
 function showBroadcastModal() {
