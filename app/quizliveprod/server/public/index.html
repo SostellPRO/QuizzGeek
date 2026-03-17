@@ -6,16 +6,25 @@
   <title>Quiz Live</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Exo+2:wght@700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
-  <!-- Socket.IO servi automatiquement par le serveur Express -->
+  <link rel="stylesheet" href="/theme-corporate.css">
+  <link rel="stylesheet" href="/theme-party.css">
+  <link rel="stylesheet" href="/theme-tvshow.css">
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
 
   <!-- Barre de navigation -->
   <nav>
-    <span class="nav-brand" onclick="navigate('home')" style="cursor:pointer;">🎮 Quiz Live</span>
+    <span class="nav-brand" onclick="navigate('home')">🎮 Quiz Live</span>
+
+    <!-- Info session active (visible quand connecté) -->
+    <div id="nav-session-info">
+      <span id="nav-session-code">----</span>
+      <span id="nav-session-pseudo" style="color:rgba(255,255,255,.6);font-size:.78rem;"></span>
+    </div>
+
     <button data-page="player"  onclick="navigate('player')">📱 Jouer</button>
     <button data-page="host"    onclick="navigate('host')">🎮 Host</button>
     <button data-page="display" onclick="navigate('display')">📺 Écran</button>

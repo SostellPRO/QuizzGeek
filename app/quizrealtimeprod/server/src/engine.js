@@ -697,7 +697,10 @@ export function startTimer(session, seconds, hooks = {}) {
       return;
     }
 
-    timer.remainingSec = Math.max(0, Number(timer.remainingSec || 0) - 1);
+    // BUG FIX: Calcul basé sur le temps écoulé réel (plus précis que le décrément cumulatif)
+    // Évite la dérive de setInterval qui allonge la dernière seconde
+    const elapsedSec = Math.floor((Date.now() - rt.timerStartedAt) / 1000);
+    timer.remainingSec = Math.max(0, totalSec - elapsedSec);
     touch(session);
 
     if (emitNow) {

@@ -29,7 +29,7 @@ const state = {
   display: { sessionCode: '', connected: false },
 
   // Admin: quiz en cours d'édition
-  admin: { quizzes: [], editingQuiz: null, activeRoundIndex: 0 },
+  admin: { quizzes: [], editingQuiz: null, activeRoundIndex: 0, ceremonyView: 'players' },
 };
 
 // ── Utilitaires DOM ──────────────────────────────────────────
@@ -66,6 +66,11 @@ function uid(pre = 'id') { return `${pre}_${Math.random().toString(36).slice(2,9
 
 function randCode() { return Math.floor(1000 + Math.random() * 9000).toString(); }
 
+// ── Tracking état local ───────────────────────────────────────
+let _lastBuzzerResultAt   = null;
+let _currentMusicUrl      = null;
+let _buzzerCooldownTimer  = null;  // setInterval pour le compte à rebours du cooldown
+
 // ── P6 : Sons d'interaction (Web Audio API) ───────────────────
 let _audioCtx = null;
 function getAudioCtx() {
@@ -101,8 +106,50 @@ function playSound(type) {
       gain.gain.setValueAtTime(0.12, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
       osc.start(now); osc.stop(now + 0.09);
+    } else if (type === 'correct') {
+      // Son victoire: arpège montant
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc.connect(gain); osc2.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine'; osc2.type = 'sine';
+      osc.frequency.setValueAtTime(523, now);
+      osc.frequency.setValueAtTime(659, now + 0.12);
+      osc.frequency.setValueAtTime(784, now + 0.24);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      osc.start(now); osc.stop(now + 0.5);
+    } else if (type === 'wrong') {
+      // Son erreur: descente
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(400, now);
+      osc.frequency.exponentialRampToValueAtTime(150, now + 0.35);
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc.start(now); osc.stop(now + 0.4);
     }
   } catch { /* noop si Web Audio non supporté */ }
+}
+
+// ── Musique de fond (gestion persistante – ne redémarre pas au re-render) ──
+function updateRoundMusic(url) {
+  let el = document.getElementById('bg-round-music');
+  if (!url) {
+    if (el) { el.pause(); el.src = ''; }
+    _currentMusicUrl = null;
+    return;
+  }
+  if (url === _currentMusicUrl) return; // déjà en cours → ne pas repartir de zéro
+  _currentMusicUrl = url;
+  if (!el) {
+    el = document.createElement('audio');
+    el.id   = 'bg-round-music';
+    el.loop = true;
+    el.style.display = 'none';
+    document.body.appendChild(el);
+  }
+  el.src = url;
+  el.play().catch(() => {/* autoplay bloqué – l'utilisateur doit interagir d'abord */});
 }
 
 function closeModal(id) { const m = document.getElementById(id); if (m) m.remove(); }
@@ -119,6 +166,24 @@ function initSocket() {
     console.log('[socket] déconnecté');
   });
 
+  state.socket.on('player:message', (bm) => {
+    // Message ciblé direct (vers un joueur ou une équipe spécifique)
+    showPlayerDirectMessage(bm);
+  });
+
+  // Éjection de tous les joueurs vers l'écran de connexion
+  state.socket.on('game:players_ejected', () => {
+    // Si le joueur est en partie, le renvoyer vers l'écran de rejoindre
+    if (state.currentPage === 'player') {
+      state.playerSession = null;
+      state.gameState = null;
+      state.players = [];
+      state.teams = [];
+      localStorage.removeItem('quiz_player_session');
+      navigate('player');  // l'écran player affiche le formulaire de connexion si playerSession = null
+    }
+  });
+
   state.socket.on('game:state', (payload) => {
     state.gameState      = payload?.gameState      || null;
     state.players        = payload?.players        || [];
@@ -126,8 +191,29 @@ function initSocket() {
     state.leaderboardPlayers = payload?.leaderboardPlayers || [];
     state.leaderboardTeams   = payload?.leaderboardTeams   || [];
 
+    // Fermer le récap joueur si nouvelle question
+    checkAndCloseRecapOnNewQuestion();
+
+    // Détecter changement de résultat buzzer pour jouer un son (côté display)
+    const blr = state.gameState?.buzzerLastResult;
+    if (blr && blr.at && blr.at !== _lastBuzzerResultAt) {
+      _lastBuzzerResultAt = blr.at;
+      if (state.currentPage === 'display' || state.currentPage === 'player') {
+        playSound(blr.result === 'correct' ? 'correct' : 'wrong');
+      }
+    }
+
     // Mettre à jour la page courante si elle est active
-    if (state.currentPage === 'player')  renderPlayerGame();
+    if (state.currentPage === 'player') {
+      // BUG FIX: Préserver le brouillon de la textarea (vote/saisie texte)
+      // pour éviter que la soumission d'un autre joueur efface le texte en cours
+      const _draftAnswer = document.getElementById('text-answer')?.value || '';
+      renderPlayerGame();
+      if (_draftAnswer) {
+        const _ta = document.getElementById('text-answer');
+        if (_ta) _ta.value = _draftAnswer;
+      }
+    }
     if (state.currentPage === 'host')    renderHostGame();
     if (state.currentPage === 'display') renderDisplay();
   });
@@ -165,31 +251,39 @@ async function apiFetch(path, opts = {}) {
 // ── Page : HOME ──────────────────────────────────────────────
 pageInits.home = function() {
   html('page-home', `
-    <div class="card" style="text-align:center;padding:40px 20px;">
-      <h1 style="font-size:3rem;margin-bottom:8px;">🎮 Quiz Live</h1>
-      <p class="muted">Application de quiz en temps réel</p>
+    <div class="home-hero">
+      <div class="home-hero-logo">🎮</div>
+      <h1 class="home-hero-title">QuizzGeek</h1>
+      <p class="home-hero-sub">Quiz en temps réel · Buzzers · Votes · Podium</p>
     </div>
-    <div class="home-grid">
-      <div class="home-card" onclick="navigate('player')">
-        <span class="icon">📱</span>
-        <h3>Jouer</h3>
-        <p>Rejoindre une partie et répondre aux questions</p>
-      </div>
-      <div class="home-card" onclick="navigate('host')">
-        <span class="icon">🎮</span>
-        <h3>Maître de jeu</h3>
-        <p>Contrôler le déroulement de la partie</p>
-      </div>
-      <div class="home-card" onclick="navigate('display')">
-        <span class="icon">📺</span>
-        <h3>Écran TV</h3>
-        <p>Afficher la partie sur grand écran</p>
-      </div>
-      <div class="home-card" onclick="navigate('admin')">
-        <span class="icon">⚙️</span>
-        <h3>Admin</h3>
-        <p>Créer et gérer les quiz</p>
-      </div>
+    <div class="home-roles">
+      <button class="home-role-btn home-role-player" onclick="navigate('player');playSound('nav')">
+        <span class="home-role-icon">📱</span>
+        <span class="home-role-label">Jouer</span>
+        <span class="home-role-sub">Rejoindre une partie</span>
+      </button>
+      <button class="home-role-btn home-role-host" onclick="navigate('host');playSound('nav')">
+        <span class="home-role-icon">🎤</span>
+        <span class="home-role-label">Maître de jeu</span>
+        <span class="home-role-sub">Animer et piloter</span>
+      </button>
+      <button class="home-role-btn home-role-display" onclick="navigate('display');playSound('nav')">
+        <span class="home-role-icon">📺</span>
+        <span class="home-role-label">Écran TV</span>
+        <span class="home-role-sub">Affichage grand écran</span>
+      </button>
+      <button class="home-role-btn home-role-admin" onclick="navigate('admin');playSound('nav')">
+        <span class="home-role-icon">⚙️</span>
+        <span class="home-role-label">Admin</span>
+        <span class="home-role-sub">Créer les quiz</span>
+      </button>
+    </div>
+    <div class="home-round-types">
+      <div class="home-rt home-rt-qcm">🔘 QCM</div>
+      <div class="home-rt home-rt-rapide">⚡ Rapidité</div>
+      <div class="home-rt home-rt-tf">✅ Vrai/Faux</div>
+      <div class="home-rt home-rt-burger">🍔 Burger</div>
+      <div class="home-rt home-rt-vote">🗳️ Vote</div>
     </div>
   `);
 };
@@ -368,18 +462,32 @@ function renderPlayerGame() {
   const myPlayer = state.players.find(p => p.id === s.playerId || p.playerId === s.playerId);
   const phase = gs?.status || 'lobby';
 
+  const roundType = gs?.currentRound?.type || gs?.currentQuestion?.type || 'qcm';
+  const roundTypeIcons = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', burger:'🍔', vote:'🗳️' };
+  const rtIcon = roundTypeIcons[roundType] || '🎯';
+
   let content = `
     <div class="session-banner">
       <span>Session : <strong class="session-code">${s.sessionCode}</strong></span>
       <span>${s.avatar || '🎮'} <strong>${s.pseudo}</strong>${s.teamName ? ` · ${s.teamName}` : ''}</span>
       <span style="margin-left:auto;color:#38ef7d;font-weight:700;">Score : ${myPlayer?.scoreTotal ?? 0}</span>
     </div>
-    <div style="padding:16px;">
+    <div class="player-game-wrap" data-round-type="${roundType}">
     <div id="player-alert"></div>
   `;
 
   // Contenu selon la phase
-  if (phase === 'lobby') {
+  const isPaused = gs?.phaseMeta?.paused === true;
+
+  if (isPaused) {
+    content += `
+      <div class="pause-screen">
+        <div class="pause-icon">⏸️</div>
+        <h2>Pause</h2>
+        <p class="muted" style="margin-top:8px;">Le maître de jeu a mis la partie en pause…</p>
+        <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
+      </div>`;
+  } else if (phase === 'lobby') {
     content += `
       <div class="card" style="text-align:center;padding:40px;">
         <div style="font-size:3rem;">⏳</div>
@@ -389,22 +497,80 @@ function renderPlayerGame() {
       </div>`;
   } else if (phase === 'round_intro') {
     const round = gs.currentRound;
+    const rtLabels = { qcm:'QCM', rapidite:'Rapidité', speed:'Rapidité', true_false:'Vrai / Faux', burger:'Burger', vote:'Vote' };
+    const rtLabel = rtLabels[round?.type] || round?.type || 'Quiz';
     content += `
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:3rem;">📢</div>
-        <h2>${round?.title || 'Nouvelle manche'}</h2>
-        <p class="muted">${round?.shortRules || 'Préparez-vous !'}</p>
+      <div class="player-round-intro">
+        <div class="round-intro-icon">${rtIcon}</div>
+        <div class="round-intro-type-badge">${rtIcon} ${rtLabel}</div>
+        <h2 class="round-intro-title">${round?.title || 'Nouvelle manche'}</h2>
+        <p class="muted round-intro-rules">${round?.shortRules || 'Préparez-vous !'}</p>
+        <div class="waiting-dots" style="margin-top:24px;"><span></span><span></span><span></span></div>
       </div>`;
   } else if (phase === 'question' || phase === 'waiting') {
-    content += renderPlayerQuestionContent(gs, s.playerId, gs.phaseMeta?.playerScreenLocked);
+    // Burger : seul le joueur/équipe sélectionné joue, les autres attendent
+    const burgerSelectedId   = gs?.burgerSelectedPlayerId;
+    const burgerSelectedTeam = gs?.burgerSelectedTeamId;
+    const isBurgerRound      = gs?.currentRound?.type === 'burger' || gs?.currentQuestion?.type === 'burger';
+    const isMyTeamSelected   = burgerSelectedTeam && s.teamId === burgerSelectedTeam;
+    const iAmSelected        = burgerSelectedId === s.playerId || isMyTeamSelected;
+    if (isBurgerRound && (burgerSelectedId || burgerSelectedTeam)) {
+      if (iAmSelected) {
+        // Le joueur/équipe sélectionné(e) : écran "c'est ton tour"
+        const isTeam = !!burgerSelectedTeam;
+        content += `
+          <div class="card" style="text-align:center;padding:50px 20px;background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
+            <div style="font-size:4rem;margin-bottom:16px;animation:end-bounce 1s ease-in-out infinite;">🍔</div>
+            <h2 style="color:#f7971e;">${isTeam ? 'C\'est le tour de votre équipe !' : 'C\'est ton tour !'}</h2>
+            <p style="margin-top:12px;font-size:1.1rem;">Regardez l'écran principal et mémorisez les éléments.</p>
+            <p class="muted" style="margin-top:8px;">Quand c'est fini, récitez-les tous dans l'ordre !</p>
+          </div>`;
+      } else {
+        // Les autres joueurs attendent
+        const burgerPseudo = gs?.burgerSelectedPseudo || 'Un joueur';
+        const isTeamMode   = !!burgerSelectedTeam;
+        content += `
+          <div class="card" style="text-align:center;padding:40px;">
+            <div style="font-size:3rem;margin-bottom:14px;">🍔</div>
+            <h2>Épreuve Burger</h2>
+            <p class="muted" style="margin-top:8px;font-size:1rem;">${isTeamMode ? 'L\'équipe' : ''} <strong style="color:#fff;">${burgerPseudo}</strong> passe l'épreuve</p>
+            <p class="muted" style="margin-top:10px;">Regardez l'écran principal !</p>
+            <div class="waiting-dots" style="margin-top:16px;"><span></span><span></span><span></span></div>
+          </div>`;
+      }
+    } else {
+      content += renderPlayerQuestionContent(gs, s.playerId, gs.phaseMeta?.playerScreenLocked);
+    }
   } else if (phase === 'answer_reveal') {
-    content += renderPlayerRevealContent(gs, s.playerId);
+    // L'écran de révélation s'affiche sur la TV, sur le téléphone on attend
+    content += renderPlayerWaitingScreen(gs, s, myPlayer);
   } else if (phase === 'manual_scoring') {
+    if (gs?.buzzerState?.firstPseudo) {
+      content += `
+        <div class="card" style="text-align:center;padding:40px;">
+          <div style="font-size:3rem;">🔔</div>
+          <h2>${gs.buzzerState.firstPseudo} a buzzé !</h2>
+          <p class="muted" style="margin-top:10px;">Le maître de jeu interroge oralement…</p>
+          <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
+        </div>`;
+    } else {
+      content += `
+        <div class="card" style="text-align:center;padding:40px;">
+          <div style="font-size:3rem;">⚖️</div>
+          <h2>Notation en cours…</h2>
+          <p class="muted">Le maître de jeu évalue les réponses</p>
+          <div class="waiting-dots" style="margin-top:16px;"><span></span><span></span><span></span></div>
+        </div>`;
+    }
+  } else if (phase === 'round_end') {
+    const round = gs?.currentRound;
     content += `
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:3rem;">⚖️</div>
-        <h2>Notation en cours…</h2>
-        <p class="muted">Le maître de jeu évalue les réponses</p>
+      <div class="player-round-end">
+        <div class="round-end-icon">🏁</div>
+        <h2 class="round-end-title">Manche terminée !</h2>
+        ${round?.title ? `<p class="muted" style="font-size:1.05rem;margin-top:8px;font-weight:600;padding:8px 18px;border:1px solid rgba(56,239,125,0.25);border-radius:50px;background:rgba(56,239,125,0.06);display:inline-block;">${round.title}</p>` : ''}
+        <div class="waiting-dots" style="margin-top:28px;"><span></span><span></span><span></span></div>
+        <p class="muted" style="margin-top:18px;font-size:.9rem;">En attente du maître de jeu…</p>
       </div>`;
   } else if (phase === 'results') {
     content += renderScoreboard(state.leaderboardPlayers, '📊 Classement');
@@ -415,12 +581,56 @@ function renderPlayerGame() {
   }
 
   content += `
-    <div style="text-align:center;margin-top:20px;">
-      <button class="btn-secondary" onclick="logoutPlayer()">Quitter la partie</button>
+    <div style="text-align:center;margin-top:20px;padding-bottom:16px;">
+      <button class="btn-outline-danger btn-sm" onclick="logoutPlayer()">Quitter la partie</button>
     </div>
     </div>`;
 
   html('page-player', content);
+
+  // Démarrer le compte à rebours live du cooldown buzzer si nécessaire
+  if (state.playerSession) {
+    const gs2 = state.gameState;
+    const expiry = gs2?.buzzerCooldowns?.[state.playerSession.playerId] || 0;
+    if (expiry > Date.now()) {
+      startBuzzerCooldownTick(expiry);
+    } else {
+      stopBuzzerCooldownTick();
+    }
+  }
+}
+
+function stopBuzzerCooldownTick() {
+  if (_buzzerCooldownTimer) {
+    clearInterval(_buzzerCooldownTimer);
+    _buzzerCooldownTimer = null;
+  }
+}
+
+function startBuzzerCooldownTick(expiryTimestamp) {
+  stopBuzzerCooldownTick();
+  // BUG FIX: ne pas démarrer si déjà expiré (évite boucle "1s interminable")
+  if (expiryTimestamp <= Date.now()) return;
+  _buzzerCooldownTimer = setInterval(() => {
+    const remaining = expiryTimestamp - Date.now();
+    if (remaining <= 0) {
+      stopBuzzerCooldownTick();
+      // BUG FIX: ne pas appeler renderPlayerPage() ici — cela provoquait une boucle
+      // où le serveur n'avait pas encore supprimé le cooldown, réaffichant "1s" indéfiniment.
+      // On met à jour directement les éléments DOM ; le prochain game:state du serveur
+      // (qui arrive ~100ms après) fera le vrai re-rendu avec le buzzer actif.
+      const secsEl = document.getElementById('buzzer-cd-secs');
+      const textEl = document.getElementById('buzzer-cd-text');
+      if (secsEl) secsEl.textContent = '0s';
+      if (textEl) textEl.innerHTML = `⏳ Buzzer disponible…`;
+      return;
+    }
+    const secs = Math.ceil(remaining / 1000);
+    const secsEl = document.getElementById('buzzer-cd-secs');
+    const textEl = document.getElementById('buzzer-cd-text');
+    if (secsEl) secsEl.textContent = secs + 's';
+    if (textEl) textEl.innerHTML = `⏳ Mauvaise réponse — patientez <strong>${secs}s</strong>`;
+  }, 250);
 }
 
 function renderPlayerQuestionContent(gs, playerId, locked) {
@@ -453,14 +663,32 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
       </div>`;
   }
 
-  if (locked || answered) {
+  // Buzzer gris initial: afficher le buzzer désactivé (gris) quand verrouillé
+  if (locked && answerMode === 'buzzer') {
     return `
       ${timer}
-      <div class="card" style="text-align:center;padding:34px;">
-        <div class="answer-confirmed-icon">${answered ? '✅' : '🔒'}</div>
-        <p style="margin-top:14px;font-size:1.15rem;font-weight:600;">${answered ? 'Réponse envoyée !' : 'Écran verrouillé'}</p>
-        ${q.content ? `<p class="muted" style="margin-top:6px;">${q.content}</p>` : ''}
-        ${answered ? '<div class="waiting-dots"><span></span><span></span><span></span></div>' : ''}
+      <div class="player-question-bubble">
+        <p class="player-question-text">${q.content || ''}</p>
+      </div>
+      <div class="buzzer-wrap">
+        <button class="buzzer-btn buzzer-disabled" disabled>
+          🔔<br>BUZZER
+        </button>
+        <p class="muted" style="margin-top:10px;font-size:.88rem;">En attente du signal du maître de jeu…</p>
+      </div>`;
+  }
+
+  // En phase de vote (vote_voting), ne pas bloquer avec l'écran d'attente
+  // même si le joueur a déjà soumis sa proposition lors de vote_input
+  if ((locked || answered) && answerMode !== 'vote_voting') {
+    return `
+      ${timer}
+      <div class="player-waiting-screen">
+        <div class="waiting-host-text">⏳</div>
+        <div class="waiting-host-label">EN ATTENTE DU<br>MAÎTRE DE JEU</div>
+        <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
+        ${answered ? '<p class="muted" style="font-size:.9rem;margin-bottom:16px;">Votre réponse a été envoyée ✅</p>' : ''}
+        <button class="btn-recap-mini" onclick="showPlayerRecap()">📊 Voir mes scores</button>
       </div>`;
   }
 
@@ -470,86 +698,285 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
   const queueCount = Array.isArray(gs.buzzerQueue) ? gs.buzzerQueue.length : 0;
   const allBuzzed = queueCount >= connectedCount && connectedCount > 0;
 
+  // Cooldown (rapidité : pénalité 5s après mauvaise réponse)
+  const cooldownExpiry = gs?.buzzerCooldowns?.[playerId] || 0;
+  const isCooldown = cooldownExpiry > Date.now();
+  const cooldownSec = isCooldown ? Math.ceil((cooldownExpiry - Date.now()) / 1000) : 0;
+
   let answerUI = '';
   if (answerMode === 'buzzer') {
-    if (myInQueue && !allBuzzed) {
+    if (isCooldown) {
+      // Joueur en pénalité — buzzer bloqué avec compte à rebours (mis à jour toutes les secondes)
       answerUI = `
-        <div class="card" style="text-align:center;padding:30px;">
-          <div style="font-size:2rem;">⏳</div>
-          <p style="margin-top:10px;">Vous avez déjà participé. Attendez les autres joueurs…</p>
-          <p class="muted" style="margin-top:6px;">${queueCount}/${connectedCount} ont participé</p>
+        <div class="buzzer-wrap">
+          <button class="buzzer-btn buzzer-cooldown" disabled>
+            ❌<br>BLOQUÉ<br><span id="buzzer-cd-secs" style="font-size:1.4rem;font-weight:900;">${cooldownSec}s</span>
+          </button>
+          <p id="buzzer-cd-text" class="muted" style="margin-top:12px;color:#eb3349;font-size:.9rem;">⏳ Mauvaise réponse — patientez <strong>${cooldownSec}s</strong></p>
+        </div>`;
+    } else if (myInQueue && !allBuzzed) {
+      answerUI = `
+        <div class="player-question-bubble" style="text-align:center;">
+          <div style="font-size:2.2rem;">⏳</div>
+          <p style="margin-top:10px;font-weight:600;">Vous avez déjà participé.</p>
+          <p class="muted" style="margin-top:6px;">En attente des autres joueurs…</p>
+          <p class="muted" style="margin-top:4px;font-size:.8rem;">${queueCount}/${connectedCount} ont participé</p>
         </div>`;
     } else {
       answerUI = `
-        <div style="text-align:center;padding:20px 0;">
+        <div class="buzzer-wrap">
           <button class="buzzer-btn" id="buzzer-btn" onclick="sendBuzzer('${gs.sessionCode || ''}')">
             🔔<br>BUZZER
           </button>
-          ${allBuzzed ? '<p class="muted" style="margin-top:10px;">Tour suivant !</p>' : ''}
+          ${allBuzzed ? '<p class="muted" style="margin-top:12px;">Tour suivant !</p>' : ''}
         </div>`;
     }
   } else if (answerMode === 'true_false') {
     answerUI = `
-      <div class="answer-grid" style="grid-template-columns:1fr 1fr;">
-        <button class="answer-btn" style="background:rgba(0,200,81,.15);border-color:#38ef7d;text-align:center;font-size:1.3rem;" onclick="sendAnswer('${gs.sessionCode || ''}','${playerId}','vrai')">✅ VRAI</button>
-        <button class="answer-btn" style="background:rgba(235,51,73,.15);border-color:#eb3349;text-align:center;font-size:1.3rem;" onclick="sendAnswer('${gs.sessionCode || ''}','${playerId}','faux')">❌ FAUX</button>
+      <div class="answer-tiles answer-tiles-tf">
+        <button class="answer-tile answer-tile-true" onclick="playSound('answer');sendAnswer('${gs.sessionCode || ''}','${playerId}','vrai')">
+          <span class="answer-tile-icon">✅</span>
+          <span class="answer-tile-label" style="color:#22c55e;font-weight:900;">VRAI</span>
+        </button>
+        <button class="answer-tile answer-tile-false" onclick="playSound('answer');sendAnswer('${gs.sessionCode || ''}','${playerId}','faux')">
+          <span class="answer-tile-icon">❌</span>
+          <span class="answer-tile-label" style="color:#ef4444;font-weight:900;">FAUX</span>
+        </button>
       </div>`;
   } else if (answerMode === 'mcq' && Array.isArray(q.options) && q.options.length) {
-    const labelColors = ['#4ade80','#60a5fa','#f59e0b','#f87171'];
+    const tileColors = [
+      { bg: 'rgba(74,222,128,.15)', border: '#4ade80', label: '#4ade80' },
+      { bg: 'rgba(96,165,250,.15)', border: '#60a5fa', label: '#60a5fa' },
+      { bg: 'rgba(245,158,11,.15)', border: '#f59e0b', label: '#f59e0b' },
+      { bg: 'rgba(248,113,113,.15)', border: '#f87171', label: '#f87171' },
+    ];
     const labels = ['A','B','C','D'];
     const opts = q.options.map((opt, i) => {
       const label = typeof opt === 'object' ? (opt.text || '') : String(opt || '');
       const optMedia = typeof opt === 'object' && opt.mediaUrl ? resolveMedia(opt.mediaUrl) : '';
       const isImg = optMedia && /\.(jpg|jpeg|png|gif|webp)$/i.test(optMedia);
       const isAudio = optMedia && /\.(mp3|wav|ogg)$/i.test(optMedia);
-      const mediaEl = isImg ? `<img src="${optMedia}" style="max-height:80px;border-radius:6px;margin-bottom:6px;">` :
+      const mediaEl = isImg ? `<img src="${optMedia}" style="max-height:70px;border-radius:8px;margin-bottom:8px;">` :
                       isAudio ? `<audio controls src="${optMedia}" style="height:28px;margin-bottom:6px;"></audio>` : '';
-      return `<button class="answer-btn" style="border-color:${labelColors[i]};flex-direction:column;padding:12px;"
-        onclick="sendAnswerByIndex(${i})">
-        ${mediaEl}<span style="color:${labelColors[i]};font-weight:700;margin-bottom:4px;">${labels[i]}</span>${label}
+      const c = tileColors[i] || tileColors[0];
+      return `<button class="answer-tile answer-tile-mcq" style="background:${c.bg};border-color:${c.border};"
+        onclick="playSound('answer');sendAnswerByIndex(${i})">
+        ${mediaEl}
+        <span class="answer-tile-letter" style="color:${c.label};">${labels[i]}</span>
+        <span class="answer-tile-text">${label}</span>
       </button>`;
     }).join('');
-    answerUI = `<div class="answer-grid" style="grid-template-columns:1fr 1fr;">${opts}</div>`;
+    const cols = q.options.length <= 2 ? 'answer-tiles-2' : 'answer-tiles-mcq-grid';
+    answerUI = `<div class="answer-tiles ${cols}">${opts}</div>`;
   } else if (answerMode === 'burger') {
     answerUI = `
-      <div class="card" style="text-align:center;padding:30px;">
-        <div style="font-size:2.5rem;">🍔</div>
-        <h3 style="margin-top:12px;">Observez bien les éléments…</h3>
-        <p class="muted">Le maître de jeu vous interrogera à la fin</p>
+      <div class="player-question-bubble" style="text-align:center;">
+        <div style="font-size:3rem;margin-bottom:10px;">🍔</div>
+        <h3>Observez bien les éléments…</h3>
+        <p class="muted" style="margin-top:8px;">Le maître de jeu vous interrogera à la fin</p>
       </div>`;
+  } else if (answerMode === 'vote_input') {
+    // Phase 1 du vote : saisie de sa proposition
+    const alreadyAnswered = !!(gs?.answers?.[q?.id]?.[playerId]);
+    if (alreadyAnswered) {
+      const myAnswer = gs?.answers?.[q?.id]?.[playerId]?.answer || '';
+      answerUI = `
+        <div class="player-waiting-screen">
+          <div class="waiting-host-text">✍️</div>
+          <div class="waiting-host-label">RÉPONSE ENVOYÉE !</div>
+          <p class="muted" style="margin-top:12px;font-size:1rem;font-style:italic;">"${myAnswer}"</p>
+          <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
+          <p class="muted" style="font-size:.85rem;">En attente des autres joueurs…</p>
+        </div>`;
+    } else {
+      answerUI = `
+        <div class="text-answer-block">
+          <p class="muted" style="margin-bottom:10px;font-size:.9rem;">🗳️ Proposez votre réponse (elle sera affichée anonymement)</p>
+          <textarea id="text-answer" class="text-answer-area" placeholder="Votre proposition…"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendTextAnswer('${gs.sessionCode || ''}','${playerId}')}"></textarea>
+          <button class="btn-primary btn-full text-answer-send" onclick="sendTextAnswer('${gs.sessionCode || ''}','${playerId}')">
+            ✅ Soumettre ma proposition
+          </button>
+        </div>`;
+    }
+  } else if (answerMode === 'vote_voting') {
+    // Phase 2 du vote : voter pour une réponse parmi les options
+    const vs = gs?.voteState;
+    const myVote = vs?.votes?.[playerId];
+    const hasVoted = myVote !== undefined && myVote !== null;
+
+    if (!vs || !vs.options) {
+      answerUI = `<div class="card" style="text-align:center;padding:30px;"><p class="muted">Chargement des votes…</p></div>`;
+    } else if (hasVoted) {
+      const votedOption = vs.options[myVote];
+      answerUI = `
+        <div class="player-waiting-screen">
+          <div class="waiting-host-text">🗳️</div>
+          <div class="waiting-host-label">VOTE ENVOYÉ !</div>
+          <p class="muted" style="margin-top:12px;font-size:1rem;font-style:italic;">"${votedOption?.text || '—'}"</p>
+          <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
+          <p class="muted" style="font-size:.85rem;">En attente des autres votes…</p>
+        </div>`;
+    } else {
+      const voteButtons = vs.options.map((opt, idx) => {
+        // Ne pas permettre de voter pour sa propre réponse
+        const isMyAnswer = opt.playerId === playerId;
+        if (isMyAnswer) return `
+          <div style="padding:12px 16px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.3);text-align:center;font-style:italic;">
+            "${opt.text}" <span style="font-size:.75rem;">(votre réponse)</span>
+          </div>`;
+        return `
+          <button class="answer-tile answer-tile-vote" onclick="playSound('answer');sendVote(${idx})">
+            <span class="vote-tile-idx">${String.fromCharCode(65 + idx)}</span>
+            <span class="answer-tile-text">${opt.text}</span>
+          </button>`;
+      }).join('');
+      answerUI = `
+        <div style="margin-top:8px;">
+          <p class="muted" style="margin-bottom:12px;font-size:.9rem;">🗳️ Votez pour la réponse qui vous semble la plus juste !</p>
+          <div class="answer-tiles" style="grid-template-columns:1fr;">
+            ${voteButtons}
+          </div>
+        </div>`;
+    }
   } else {
+    // Réponse texte libre – zone de saisie grande
     answerUI = `
-      <div class="card">
-        <label>Votre réponse</label>
-        <div class="row" style="margin-top:6px;">
-          <input id="text-answer" placeholder="Tapez votre réponse…" style="flex:1;" onkeydown="if(event.key==='Enter')sendTextAnswer('${gs.sessionCode || ''}','${playerId}')">
-          <button class="btn-primary" onclick="sendTextAnswer('${gs.sessionCode || ''}','${playerId}')">Envoyer</button>
-        </div>
+      <div class="text-answer-block">
+        <textarea id="text-answer" class="text-answer-area" placeholder="Tapez votre réponse…"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendTextAnswer('${gs.sessionCode || ''}','${playerId}')}"></textarea>
+        <button class="btn-primary btn-full text-answer-send" onclick="sendTextAnswer('${gs.sessionCode || ''}','${playerId}')">
+          ✅ Envoyer ma réponse
+        </button>
       </div>`;
   }
 
   return `
     ${media}
     ${timer}
-    <div class="card">
-      <p style="font-size:1.1rem;font-weight:600;">${q.content || ''}</p>
-    </div>
     ${answerUI}`;
 }
 
 function renderPlayerRevealContent(gs, playerId) {
-  const revealed = gs?.revealedAnswer;
-  const correct  = revealed?.correctAnswer ?? '—';
-  const myAnswer = revealed?.answers?.find(a => a.playerId === playerId);
+  // Deprecated: use renderPlayerWaitingScreen instead for player side
+  return renderPlayerWaitingScreen(gs, state.playerSession, state.players.find(p => p.id === playerId));
+}
 
+// Écran d'attente joueur (affiché après réponse ou pendant la révélation)
+function renderPlayerWaitingScreen(gs, playerSession, myPlayer) {
   return `
-    <div class="card" style="text-align:center;padding:30px;">
-      <h2>📋 Révélation</h2>
-      <p class="muted">Bonne réponse :</p>
-      <div style="font-size:1.8rem;font-weight:700;color:#38ef7d;margin:12px 0;">${correct}</div>
-      ${myAnswer ? `<p class="muted">Votre réponse : <strong style="color:#fff;">${myAnswer.answer}</strong></p>` : ''}
+    <div class="player-waiting-screen">
+      <div class="waiting-host-text">⏳</div>
+      <div class="waiting-host-label">EN ATTENTE DU<br>MAÎTRE DE JEU</div>
+      <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
+      <button class="btn-recap-mini" onclick="showPlayerRecap()">📊 Voir mes scores</button>
+    </div>`;
+}
+
+// Modal plein écran récap des scores joueur
+function showPlayerRecap() {
+  const s = state.playerSession;
+  const myPlayer = state.players.find(p => p.id === s?.playerId || p.playerId === s?.playerId);
+  const myTeamId = s?.teamId || myPlayer?.teamId;
+  const teammates = myTeamId
+    ? state.leaderboardPlayers.filter(p => p.teamId === myTeamId && (p.playerId || p.id) !== s?.playerId)
+    : [];
+
+  // Classement global (top 10)
+  const top10 = state.leaderboardPlayers.slice(0, 10);
+  const myRank = state.leaderboardPlayers.find(p => (p.playerId || p.id) === s?.playerId);
+
+  const teammateRows = teammates.length
+    ? `<div style="margin-bottom:18px;">
+        <div class="recap-section-title">⚽ Coéquipiers — ${s?.teamName || ''}</div>
+        ${teammates.map(p => `
+          <div class="recap-player-row">
+            <span>${p.pseudo}</span>
+            <strong style="color:#f59e0b;">${p.scoreTotal ?? 0} pts</strong>
+          </div>`).join('')}
+      </div>` : '';
+
+  const rankRows = top10.map((p, i) => {
+    const isMine = (p.playerId || p.id) === s?.playerId;
+    return `<div class="recap-player-row ${isMine ? 'recap-mine' : ''}">
+      <span><strong style="color:rgba(255,255,255,.4);">#${i+1}</strong> ${p.pseudo}${isMine ? ' 👈' : ''}</span>
+      <strong style="color:${isMine ? '#38ef7d' : '#f59e0b'};">${p.scoreTotal ?? 0} pts</strong>
+    </div>`;
+  }).join('');
+
+  const existing = document.getElementById('player-recap-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'player-recap-overlay';
+  overlay.className = 'recap-overlay';
+  overlay.innerHTML = `
+    <div class="recap-modal">
+      <div class="recap-header">
+        <h2>📊 Scores en direct</h2>
+        <button class="btn-close-recap" onclick="closePlayerRecap()">✕ Fermer</button>
+      </div>
+      <div class="recap-my-score">
+        <div style="font-size:2.5rem;">${myPlayer?.avatar || s?.avatar || '🎮'}</div>
+        <div class="recap-my-name">${s?.pseudo || '—'}</div>
+        <div class="recap-my-pts">${myPlayer?.scoreTotal ?? 0} pts</div>
+        ${myRank ? `<div class="muted" style="font-size:.85rem;">Rang #${myRank.rank ?? '?'}</div>` : ''}
+      </div>
+      ${teammateRows}
+      <div>
+        <div class="recap-section-title">🏆 Classement général</div>
+        ${rankRows}
+      </div>
+    </div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) closePlayerRecap(); });
+  document.body.appendChild(overlay);
+}
+
+function closePlayerRecap() {
+  document.getElementById('player-recap-overlay')?.remove();
+}
+
+// Affiche un message ciblé directement sur l'écran du joueur
+function showPlayerDirectMessage(bm) {
+  const existing = document.getElementById('player-direct-message');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'player-direct-message';
+  overlay.style.cssText = `
+    position:fixed;bottom:0;left:0;right:0;z-index:9999;
+    background:linear-gradient(135deg,rgba(240,147,251,.95),rgba(245,87,108,.95));
+    padding:20px;border-radius:16px 16px 0 0;
+    box-shadow:0 -4px 24px rgba(0,0,0,.4);
+    animation:slide-up-msg .3s ease;
+  `;
+  overlay.innerHTML = `
+    <style>
+      @keyframes slide-up-msg { from{transform:translateY(100%)} to{transform:translateY(0)} }
+    </style>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+      <div style="flex:1;">
+        <div style="font-size:.72rem;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">📡 Message du maître de jeu</div>
+        ${bm.imageUrl ? `<img src="${bm.imageUrl}" style="max-width:100%;max-height:180px;border-radius:10px;margin-bottom:10px;object-fit:contain;">` : ''}
+        ${bm.text ? `<p style="font-size:1.1rem;font-weight:600;color:#fff;">${bm.text}</p>` : ''}
+      </div>
+      <button onclick="document.getElementById('player-direct-message')?.remove()" style="background:rgba(255,255,255,.2);border:none;border-radius:8px;padding:6px 12px;color:#fff;cursor:pointer;font-size:1rem;flex-shrink:0;">✕</button>
     </div>
-    ${renderScoreboard(state.leaderboardPlayers, 'Classement')}`;
+  `;
+  document.body.appendChild(overlay);
+
+  // Auto-fermer après 12 secondes
+  setTimeout(() => overlay?.remove(), 12000);
+}
+
+// Fermer le récap automatiquement lors d'un changement de question
+let _lastQuestionId = null;
+function checkAndCloseRecapOnNewQuestion() {
+  const qId = state.gameState?.currentQuestion?.id;
+  if (qId && qId !== _lastQuestionId) {
+    _lastQuestionId = qId;
+    closePlayerRecap();
+  }
 }
 
 function sendAnswer(sessionCode, playerId, answer) {
@@ -584,6 +1011,17 @@ function sendAnswerByIndex(optIndex) {
   const label = typeof opt === 'object' ? (opt.text || '') : String(opt || '');
   const s = state.playerSession;
   sendAnswer(s?.sessionCode, s?.playerId, label);
+}
+
+function sendVote(voteIndex) {
+  const s = state.playerSession;
+  state.socket.emit('player:vote', {
+    sessionCode: s?.sessionCode,
+    playerId: s?.playerId,
+    voteIndex,
+  }, (res) => {
+    if (!res?.ok) alert$('player-alert', res?.error || 'Erreur de vote', 'error');
+  });
 }
 
 function logoutPlayer() {
@@ -650,356 +1088,938 @@ function connectHost() {
   });
 }
 
-let hostActiveTab = 'controle';
+// ── Host : Onglets principaux ──────────────────────────────────
+let hostMainTab = 'gestion'; // 'gestion' | 'pilotage'
+const hostExpandedRounds = new Set();
+
+function switchHostMainTab(tab) {
+  hostMainTab = tab;
+  renderHostGame();
+}
+
+function toggleRoundAccordion(idx) {
+  if (hostExpandedRounds.has(idx)) {
+    hostExpandedRounds.delete(idx);
+  } else {
+    hostExpandedRounds.add(idx);
+  }
+  renderHostGame();
+}
+
+function openDisplayPopup() {
+  const sc = state.host.sessionCode;
+  if (!sc) { alert$('host-alert', 'Pas de session active', 'error'); return; }
+  const url = `${window.location.origin}/?display-session=${encodeURIComponent(sc)}#display`;
+  // Ouverture dans un nouvel onglet (_blank) pour éviter le blocage des popups
+  const tab = window.open(url, '_blank');
+  if (!tab) alert$('host-alert', '🚫 Ouverture bloquée — autorisez les fenêtres contextuelles pour ce site.', 'error');
+}
 
 function renderHostGame() {
   if (!state.host.connected) return;
-  const gs   = state.gameState;
+  const gs    = state.gameState;
   const phase = gs?.status || 'lobby';
   const sc    = state.host.sessionCode;
 
+  const joinLink = `${window.location.origin}/?join=${sc}`;
+
   const phaseBadge = {
-    lobby:          '<span class="badge blue">🎪 Salle d\'attente</span>',
+    lobby:          '<span class="badge blue">🎪 Lobby</span>',
     round_intro:    '<span class="badge orange">📢 Présentation manche</span>',
     question:       '<span class="badge orange">❓ Question</span>',
     waiting:        '<span class="badge orange">⏳ Traitement</span>',
     answer_reveal:  '<span class="badge green">📋 Révélation</span>',
-    manual_scoring: '<span class="badge orange">⚖️ Notation manuelle</span>',
+    manual_scoring: '<span class="badge orange">⚖️ Arbitrage</span>',
+    round_end:      '<span class="badge green">🏁 Fin de manche</span>',
     results:        '<span class="badge blue">📊 Résultats</span>',
     end:            '<span class="badge green">🎉 Fin</span>',
   }[phase] || `<span class="badge">${phase}</span>`;
 
-  const actionBtns = buildHostActionButtons(phase);
-
-  const joinLink = `${window.location.origin}/?join=${sc}`;
-
   let html_ = `
+    <style>
+      .host-main-tabs { display:flex; background:rgba(0,0,0,.25); border-bottom:2px solid rgba(255,255,255,.08); }
+      .host-main-tab {
+        flex:1; padding:15px 8px; border:none; border-bottom:3px solid transparent;
+        background:transparent; color:rgba(255,255,255,.5); font-family:inherit;
+        font-size:1rem; font-weight:600; cursor:pointer; transition:all .2s; text-align:center;
+        margin-bottom:-2px;
+      }
+      .host-main-tab:hover { color:rgba(255,255,255,.85); background:rgba(255,255,255,.04); }
+      .host-main-tab.active { color:#fff; border-bottom-color:#f093fb; background:rgba(240,147,251,.08); }
+      @keyframes pulse-scale {
+        0%,100% { transform:scale(1); box-shadow:0 0 0 0 rgba(56,239,125,.4); }
+        50% { transform:scale(1.04); box-shadow:0 0 0 8px rgba(56,239,125,0); }
+      }
+      .hbtn-pulse {
+        animation: pulse-scale 1.4s ease-in-out infinite;
+        border-color: rgba(56,239,125,.6) !important;
+      }
+      .hbtn-pulse.hbtn-success { background:linear-gradient(135deg,#38ef7d,#11998e) !important; color:#fff !important; }
+      .hbtn-pulse.hbtn-primary { background:linear-gradient(135deg,#f093fb,#f5576c) !important; color:#fff !important; }
+      .hbtn-pulse.hbtn-nav-fwd { background:rgba(99,179,237,.2) !important; border-color:rgba(99,179,237,.5) !important; }
+      .answer-tile-vote {
+        display:block; width:100%; padding:16px 20px; text-align:left;
+        background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.15);
+        border-radius:12px; cursor:pointer; transition:all .15s;
+        font-family:inherit; font-size:1rem; font-weight:600; color:#fff;
+      }
+      .answer-tile-vote:hover { background:rgba(240,147,251,.2); border-color:rgba(240,147,251,.5); }
+      .host-tab-body { padding:16px; }
+      .ctrl-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+      @media(min-width:560px){ .ctrl-grid { grid-template-columns:repeat(3,1fr); } }
+      .round-accordion { border:1px solid rgba(255,255,255,.1); border-radius:12px; overflow:hidden; margin-bottom:10px; }
+      .round-acc-hdr {
+        display:flex; align-items:center; gap:10px; padding:13px 16px;
+        background:rgba(255,255,255,.05); cursor:pointer; border:none;
+        width:100%; color:#fff; font-family:inherit; text-align:left; transition:background .15s;
+      }
+      .round-acc-hdr:hover { background:rgba(255,255,255,.09); }
+      .round-acc-hdr.cur-round { background:rgba(240,147,251,.1); border-left:3px solid #f093fb; }
+      .round-acc-body { padding:12px 16px; background:rgba(0,0,0,.15); }
+      .q-line {
+        display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
+        padding:9px 12px; border-radius:8px; margin-bottom:6px;
+        background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07);
+        transition:background .15s;
+      }
+      .q-line.q-active { background:rgba(99,179,237,.12); border-color:rgba(99,179,237,.3); }
+    </style>
     <div class="session-banner">
       <span>Session : <strong class="session-code">${sc}</strong></span>
-      <span>👥 ${state.players.length} joueur(s)</span>
-      <button class="btn-secondary" style="padding:4px 10px;font-size:0.8rem;margin-left:auto;" onclick="copyToClipboard('${joinLink}','host-alert')">📋 Lien joueur</button>
+      ${phaseBadge}
+      <span>👥 ${state.players.length}</span>
+      <button class="btn-secondary" style="padding:4px 10px;font-size:.8rem;margin-left:auto;" onclick="copyToClipboard('${joinLink}','host-alert')">📋 Lien joueurs</button>
     </div>
-    <div style="padding:16px;">
-    <div class="row" style="justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
-      <h1 style="margin:0;">🎮 Maître de jeu</h1>
-      <div class="row">
-        <button class="btn-secondary" onclick="navigate('display')">📺 Écran</button>
-        <button class="btn-secondary" onclick="navigate('home')">Accueil</button>
-      </div>
+    <div id="host-alert" style="padding:0 16px;"></div>
+    <div class="host-main-tabs">
+      <button class="host-main-tab ${hostMainTab==='gestion'?'active':''}" onclick="switchHostMainTab('gestion')">🎯 Gestion de partie</button>
+      <button class="host-main-tab ${hostMainTab==='pilotage'?'active':''}" onclick="switchHostMainTab('pilotage')">🎮 Partie en cours</button>
     </div>
-    <div id="host-alert"></div>
-    <div class="grid2" style="margin-bottom:16px;">
-      <div class="card" style="margin:0;">
-        <div class="muted" style="font-size:.75rem;margin-bottom:6px;">PHASE</div>
-        ${phaseBadge}
-      </div>
-      <div class="card" style="margin:0;">
-        <div class="muted" style="font-size:.75rem;margin-bottom:6px;">QUIZ</div>
-        <span style="font-size:.9rem;">${gs?.quizTitle || '—'} · ${gs?.currentRound?.title || '—'}</span>
-      </div>
-    </div>
-
-    <div class="tabs">
-      <button class="tab-btn ${hostActiveTab==='controle'?'active':''}" onclick="switchHostTab('controle')">🎮 Contrôle</button>
-      <button class="tab-btn ${hostActiveTab==='joueurs'?'active':''}" onclick="switchHostTab('joueurs')">👥 Joueurs</button>
-      <button class="tab-btn ${hostActiveTab==='equipes'?'active':''}" onclick="switchHostTab('equipes')">⚽ Équipes</button>
-      <button class="tab-btn ${hostActiveTab==='scores'?'active':''}" onclick="switchHostTab('scores')">📊 Scores</button>
-    </div>
+    <div class="host-tab-body">
   `;
 
-  // ONGLET CONTRÔLE
-  if (hostActiveTab === 'controle') {
-    html_ += `<div id="host-tab-content">`;
-
-    // Infos question
-    const cq = gs?.currentQuestion;
-    if (cq) {
-      const cqType = cq.type || gs?.currentRound?.type || '';
-      const buzzerQueuePseudos = (gs.buzzerQueue || [])
-        .map(pid => state.players.find(p => (p.id||p.playerId) === pid)?.pseudo || pid)
-        .join(', ');
-      const burgerIdx = gs.burgerState?.currentItemIndex ?? -1;
-      const burgerTotal = Array.isArray(cq.items) ? cq.items.length : 0;
-      const burgerItem = burgerIdx >= 0 && cq.items?.[burgerIdx];
-
-      html_ += `
-        <div class="card">
-          <div class="muted" style="font-size:.75rem;">QUESTION ACTIVE · ${cqType.toUpperCase()}</div>
-          <p style="margin-top:6px;">${cq.content || '—'}</p>
-          ${gs.phaseMeta?.timer ? `
-            <div style="margin-top:10px;">
-              <div class="row" style="justify-content:space-between;margin-bottom:6px;">
-                <span class="muted">Temps restant</span>
-                <strong style="color:#ff9a56;">${gs.phaseMeta.timer.remainingSec}s</strong>
-              </div>
-              <div class="progress-bar"><div class="fill" style="width:${gs.phaseMeta.timer.totalSec>0?Math.round(gs.phaseMeta.timer.remainingSec/gs.phaseMeta.timer.totalSec*100):0}%"></div></div>
-            </div>` : ''}
-          ${gs.buzzerState?.firstPseudo ? `
-            <div style="margin-top:10px;padding:10px;background:rgba(255,165,0,.1);border-radius:8px;border-left:3px solid #ffa500;">
-              🔔 <strong>${gs.buzzerState.firstPseudo}</strong> a buzzé — interrogez-le oralement
-            </div>` : ''}
-          ${cqType === 'rapidite' || cqType === 'speed' ? `
-            <div style="margin-top:8px;font-size:.82rem;color:rgba(255,255,255,.5);">
-              Queue : ${buzzerQueuePseudos || '—'} (${(gs.buzzerQueue||[]).length}/${state.players.filter(p=>p.connected).length})
-            </div>` : ''}
-          ${cqType === 'burger' ? `
-            <div style="margin-top:10px;padding:10px;background:rgba(99,179,237,.08);border-radius:8px;">
-              🍔 Élément ${burgerIdx+1}/${burgerTotal}
-              ${burgerItem ? `<strong style="display:block;margin-top:4px;">${burgerItem.text || ''}${burgerItem.mediaUrl ? ' 🖼️' : ''}</strong>` : '<span class="muted"> — pas encore démarré</span>'}
-            </div>` : ''}
-          <p style="margin-top:8px;font-size:.85rem;">Écrans : ${gs.phaseMeta?.playerScreenLocked ? '<span class="badge red">🔒 Verrouillés</span>' : '<span class="badge green">🔓 Ouverts</span>'}</p>
-        </div>`;
-    }
-
-    // Boutons d'action
-    if (actionBtns.length) {
-      html_ += `
-        <div class="card">
-          <h3>Actions disponibles</h3>
-          <div class="grid2" style="margin-top:12px;">${actionBtns.map(b =>
-            `<button class="btn-${b.style}" onclick="hostAction('${b.action}')">${b.label}</button>`
-          ).join('')}</div>
-        </div>`;
-    }
-
-    // Timer
-    if (phase === 'question' || phase === 'waiting') {
-      html_ += `
-        <div class="card">
-          <h3>⏱️ Chronomètre</h3>
-          <div class="row" style="margin-top:10px;">
-            <input type="number" id="timer-sec" value="30" min="1" max="300" style="width:100px;">
-            <button class="btn-success" onclick="startTimer()">Démarrer</button>
-          </div>
-        </div>`;
-    }
-
-    // P4 — Écran fin de question : révélation détaillée
-    if (phase === 'answer_reveal') {
-      const revealed = gs?.revealedAnswer;
-      if (revealed) {
-        const correctNorm = (revealed.correctAnswer || '').trim().toLowerCase();
-        const answerRows = (revealed.answers || []).map(a => {
-          const isCorrect = (a.answer || '').trim().toLowerCase() === correctNorm;
-          return `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:8px;background:${isCorrect?'rgba(56,239,125,.1)':'rgba(235,51,73,.1)'};margin-bottom:6px;">
-              <span style="font-weight:600;">${a.pseudo || '—'}</span>
-              <span style="color:${isCorrect?'#38ef7d':'#eb3349'};font-size:.9rem;">${a.answer || '—'} ${isCorrect?'✅':'❌'}</span>
-            </div>`;
-        }).join('') || '<p class="muted">Aucune réponse enregistrée</p>';
-        html_ += `
-          <div class="card">
-            <h3>📋 Révélation des réponses</h3>
-            <div style="margin:12px 0;padding:10px;background:rgba(56,239,125,.08);border:1px solid rgba(56,239,125,.25);border-radius:8px;">
-              <p class="muted" style="font-size:.75rem;margin-bottom:4px;">BONNE RÉPONSE</p>
-              <p style="font-size:1.3rem;font-weight:700;color:#38ef7d;">${revealed.correctAnswer || '—'}</p>
-            </div>
-            <div style="margin-top:8px;">${answerRows}</div>
-          </div>`;
-      }
-    }
-
-    // P5 — Écran fin de manche : bilan des questions + scores
-    if (phase === 'results') {
-      const round = gs?.currentRound;
-      const questions = Array.isArray(round?.questions) ? round.questions : [];
-      if (questions.length) {
-        const qRows = questions.map((q, i) => {
-          const answers = gs?.answers?.[q.id] || {};
-          const answersArr = Object.values(answers);
-          const correctNorm = (q.correctAnswer || '').trim().toLowerCase();
-          const correctCount = answersArr.filter(a => (a.answer||'').trim().toLowerCase() === correctNorm).length;
-          const hasCorrect = q.correctAnswer && q.correctAnswer.trim();
-          return `
-            <div style="padding:10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:8px;">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-                <div style="flex:1;">
-                  <span class="muted" style="font-size:.72rem;">${i+1}. ${(q.type||'?').toUpperCase()}</span>
-                  <p style="margin:4px 0;font-weight:600;">${q.content || '—'}</p>
-                  ${hasCorrect ? `<p style="color:#38ef7d;font-size:.85rem;">✓ ${q.correctAnswer}</p>` : ''}
-                </div>
-                ${answersArr.length ? `
-                  <div style="text-align:right;flex-shrink:0;">
-                    <strong style="font-size:1rem;">${correctCount}/${answersArr.length}</strong>
-                    <p class="muted" style="font-size:.72rem;">correct</p>
-                  </div>` : ''}
-              </div>
-            </div>`;
-        }).join('');
-        html_ += `
-          <div class="card">
-            <h3>📊 Bilan — ${round?.title || 'Manche'}</h3>
-            <div style="margin-top:12px;">${qRows}</div>
-          </div>`;
-      }
-      html_ += renderScoreboard(state.leaderboardPlayers, '🏆 Classement');
-      if (state.leaderboardTeams.length) {
-        html_ += `
-          <div class="card">
-            <h2>👥 Classement équipes</h2>
-            <table><thead><tr><th>Rang</th><th>Équipe</th><th>Score</th></tr></thead>
-            <tbody>${state.leaderboardTeams.map((t,i) => `<tr class="rank-${i+1}"><td>${t.rank??i+1}</td><td>${t.name}</td><td><strong>${t.scoreTotal??0}</strong></td></tr>`).join('')}</tbody></table>
-          </div>`;
-      }
-    }
-
-    // Attribution manuelle de points
-    if (['manual_scoring','answer_reveal','waiting','question'].includes(phase) && state.leaderboardPlayers.length) {
-      html_ += `
-        <div class="card">
-          <h3>➕ Points manuels</h3>
-          <div class="grid3" style="margin-top:12px;">
-            ${state.leaderboardPlayers.slice(0, 12).map(p => `
-              <div style="background:rgba(255,255,255,.05);border-radius:10px;padding:10px;text-align:center;">
-                <p style="font-weight:600;margin-bottom:4px;">${p.pseudo}</p>
-                <p class="muted" style="margin-bottom:8px;">${p.scoreTotal ?? 0} pts</p>
-                <button class="btn-success" style="width:100%;padding:6px;" onclick="awardPoints('${p.playerId}',1)">+1</button>
-              </div>`).join('')}
-          </div>
-        </div>`;
-    }
-
-    html_ += `</div>`; // fin tab-content
+  if (hostMainTab === 'gestion') {
+    html_ += renderHostGestionTab(gs, phase, sc);
+  } else {
+    html_ += renderHostPilotageTab(gs, phase);
   }
 
-  // ONGLET JOUEURS
-  else if (hostActiveTab === 'joueurs') {
-    const teamOptions = state.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-    const rows = state.players.map(p => `
-      <tr>
-        <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.connected?'#38ef7d':'#555'};"></span></td>
-        <td><strong>${p.pseudo}</strong></td>
-        <td>
-          <select onchange="hostAction('assign_team',{playerId:'${p.id||p.playerId}',teamId:this.value||null})"
-            style="font-size:.8rem;padding:3px 6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:#fff;">
-            <option value="">— aucune équipe —</option>
-            ${state.teams.map(t => `<option value="${t.id}" ${p.teamId===t.id?'selected':''}>${t.name}</option>`).join('')}
-          </select>
-        </td>
-        <td>${p.scoreTotal ?? 0}</td>
-        <td><button class="btn-danger" style="padding:4px 8px;font-size:.8rem;" onclick="hostAction('remove_player',{playerId:'${p.id||p.playerId}'})">✕</button></td>
-      </tr>`).join('') || `<tr><td colspan="5" class="muted">Aucun joueur</td></tr>`;
+  html_ += '</div>';
+  html('page-host', html_);
+}
 
-    html_ += `
-      <div class="card">
-        <h3>👥 Joueurs (${state.players.length})</h3>
-        <table style="margin-top:12px;"><thead><tr><th></th><th>Pseudo</th><th>Équipe</th><th>Score</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-        <div class="row" style="margin-top:16px;flex-wrap:wrap;gap:8px;">
-          <button class="btn-secondary" onclick="hostAction('reset_scores')" style="font-size:.85rem;">🔄 Reset scores</button>
-          <button class="btn-secondary" onclick="hostAction('reset_game')"   style="font-size:.85rem;">🔁 Reset partie</button>
-          <button class="btn-danger"    onclick="clearPlayers()"             style="font-size:.85rem;">🗑️ Vider joueurs</button>
+// ── TAB 1 : Gestion de partie ─────────────────────────────────
+function renderHostGestionTab(gs, phase, sc) {
+  let out = '';
+
+  // Quiz info + sélection
+  const quizTitle = gs?.quizTitle || '—';
+  out += `
+    <div class="card" style="margin-bottom:14px;">
+      <div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+        <div>
+          <div class="muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">QUIZ CHARGÉ</div>
+          <h3 style="margin:0;">📚 ${quizTitle}</h3>
+        </div>
+        <button class="btn-secondary" style="font-size:.8rem;padding:6px 14px;" onclick="toggleQuizPicker()">🔄 Changer de quiz</button>
+      </div>
+    </div>
+    <div id="quiz-picker-wrap" style="display:none;margin-bottom:14px;"></div>
+  `;
+
+  // Joueurs connectés
+  const playerRows = state.players.map(p => `
+    <tr>
+      <td style="width:14px;"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${p.connected?'#38ef7d':'#555'};"></span></td>
+      <td><strong>${p.pseudo}</strong></td>
+      <td>
+        <select onchange="hostAction('assign_team',{playerId:'${p.id||p.playerId}',teamId:this.value||null})"
+          style="font-size:.78rem;padding:3px 6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:#fff;max-width:130px;">
+          <option value="">— aucune —</option>
+          ${state.teams.slice(0,20).map(t => `<option value="${t.id}" ${p.teamId===t.id?'selected':''}>${t.name}</option>`).join('')}
+        </select>
+      </td>
+      <td style="color:#f59e0b;font-weight:600;">${p.scoreTotal ?? 0} pts</td>
+      <td><button class="btn-danger" style="padding:3px 7px;font-size:.78rem;" onclick="hostAction('remove_player',{playerId:'${p.id||p.playerId}'})">✕</button></td>
+    </tr>`).join('') || '<tr><td colspan="5" class="muted" style="text-align:center;padding:16px;">Aucun joueur connecté</td></tr>';
+
+  out += `
+    <div class="card" style="margin-bottom:14px;">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+        <h3 style="margin:0;">👥 Joueurs (${state.players.length})</h3>
+        <div class="row" style="gap:6px;">
+          <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="hostAction('reset_scores')">🔄 Scores</button>
+          <button class="btn-danger" style="font-size:.78rem;padding:5px 10px;" onclick="clearPlayers()">🗑️ Vider</button>
         </div>
       </div>
-      <div class="card">
-        <h3>🤖 Ajouter un bot</h3>
-        <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:10px;">
-          <input id="bot-name" placeholder="Nom du bot" style="flex:1;min-width:120px;">
-          <select id="bot-team" style="width:160px;">
-            <option value="">— sans équipe —</option>
-            ${state.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
-          </select>
-          <button class="btn-success" style="white-space:nowrap;" onclick="addBot()">Ajouter</button>
-        </div>
-      </div>`;
-  }
+      <div style="overflow-x:auto;">
+        <table style="width:100%;min-width:280px;">
+          <thead><tr><th></th><th>Joueur</th><th>Équipe</th><th>Score</th><th></th></tr></thead>
+          <tbody>${playerRows}</tbody>
+        </table>
+      </div>
+      <div class="row" style="margin-top:14px;flex-wrap:wrap;gap:8px;">
+        <input id="bot-name" placeholder="Nom du bot" style="flex:1;min-width:110px;max-width:180px;">
+        <select id="bot-team" style="width:140px;flex-shrink:0;">
+          <option value="">— sans équipe —</option>
+          ${state.teams.slice(0,20).map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+        </select>
+        <button class="btn-success" style="white-space:nowrap;flex-shrink:0;" onclick="addBot()">🤖 Ajouter bot</button>
+      </div>
+    </div>`;
 
-  // ONGLET ÉQUIPES
-  else if (hostActiveTab === 'equipes') {
-    const teamsHtml = state.teams.map(t => `
-      <div class="row" style="gap:8px;">
-        <input id="rename-${t.id}" value="${t.name}" style="flex:1;">
-        <button class="btn-secondary" style="white-space:nowrap;padding:8px 12px;" onclick="renameTeam('${t.id}')">✅</button>
-      </div>`).join('') || '<p class="muted">Aucune équipe</p>';
-
-    html_ += `
-      <div class="card">
-        <h3>✏️ Renommer les équipes</h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:14px;">
+  // Équipes (avec membres et score)
+  const teamsWithPlayers = state.teams.filter(t => state.players.some(p => p.teamId === t.id));
+  const teamsToShow = (teamsWithPlayers.length > 0 ? teamsWithPlayers : state.teams).slice(0, 12);
+  if (teamsToShow.length) {
+    const teamsHtml = teamsToShow.map(t => {
+      const members = state.players.filter(p => p.teamId === t.id).map(p => p.pseudo).join(', ');
+      return `
+        <div style="background:rgba(255,255,255,.05);border-radius:10px;padding:12px;">
+          <div class="row" style="gap:6px;margin-bottom:6px;">
+            <input id="rename-${t.id}" value="${t.name}" style="flex:1;font-size:.85rem;padding:6px 10px;">
+            <button class="btn-secondary" style="padding:5px 10px;font-size:.8rem;flex-shrink:0;" onclick="renameTeam('${t.id}')">✅</button>
+          </div>
+          ${members ? `<p class="muted" style="font-size:.75rem;">👤 ${members}</p>` : '<p class="muted" style="font-size:.75rem;">Aucun joueur</p>'}
+          <p style="font-size:.78rem;margin-top:3px;color:#f59e0b;font-weight:600;">${t.scoreTotal ?? 0} pts</p>
+        </div>`;
+    }).join('');
+    out += `
+      <div class="card" style="margin-bottom:14px;">
+        <h3>⚽ Équipes</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:10px;margin-top:12px;">
           ${teamsHtml}
         </div>
       </div>`;
   }
 
-  // ONGLET SCORES
-  else if (hostActiveTab === 'scores') {
-    html_ += renderScoreboard(state.leaderboardPlayers, '📈 Classement joueurs');
-    if (state.leaderboardTeams.length) {
-      html_ += `
-        <div class="card">
-          <h2>👥 Classement équipes</h2>
-          <table><thead><tr><th>Rang</th><th>Équipe</th><th>Score</th></tr></thead>
-          <tbody>${state.leaderboardTeams.map((t,i) => `<tr class="rank-${i+1}"><td>${t.rank??i+1}</td><td>${t.name}</td><td><strong>${t.scoreTotal??0}</strong></td></tr>`).join('')}</tbody></table>
+  // Zone de lancement / progression
+  if (phase === 'lobby') {
+    out += `
+      <div class="card" style="text-align:center;padding:28px;border:2px solid rgba(56,239,125,.2);background:rgba(56,239,125,.04);margin-bottom:14px;">
+        <h2 style="margin-bottom:8px;">🚀 Prêt à lancer ?</h2>
+        <p class="muted" style="margin-bottom:18px;">${state.players.length} joueur(s) connecté(s) · Quiz : <strong>${quizTitle}</strong></p>
+        <button class="btn-success hbtn-pulse" style="font-size:1.1rem;padding:14px 36px;" onclick="hostAction('start_quiz')">
+          ▶️ Lancer la partie
+        </button>
+        <div class="row" style="justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap;">
+          <button class="btn-secondary btn-sm" onclick="showChangeQuizModal()">🔄 Changer de quiz</button>
+          <button class="btn-secondary btn-sm" onclick="hostAction('reset_game')">🔁 Reset partie</button>
+          <button class="btn-outline-danger btn-sm" onclick="if(confirm('Réinitialiser TOUT ? (joueurs, scores, progression)'))hostAction('reset_all')">💥 Reset général</button>
+        </div>
+      </div>`;
+  } else {
+    out += `
+      <div class="card" style="padding:14px;border:1px solid rgba(255,165,0,.2);background:rgba(255,165,0,.04);margin-bottom:14px;">
+        <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <p>Phase : <strong style="color:#ffa500;">${phase}</strong></p>
+          <button class="btn-primary btn-sm" onclick="switchHostMainTab('pilotage')">🎮 Panneau de contrôle →</button>
+        </div>
+        <div class="row" style="justify-content:flex-start;gap:8px;margin-top:10px;flex-wrap:wrap;">
+          <button class="btn-secondary btn-sm" onclick="hostAction('reset_game')">🔁 Reset partie</button>
+          <button class="btn-outline-danger btn-sm" onclick="if(confirm('Stopper la partie en cours ?'))hostAction('stop_session')">⏹ Stopper la partie</button>
+          <button class="btn-outline-danger btn-sm" onclick="if(confirm('Réinitialiser TOUT ? (joueurs, scores, progression)'))hostAction('reset_all')">💥 Reset général</button>
+        </div>
+      </div>`;
+  }
+
+  return out;
+}
+
+// ── TAB 2 : Partie en cours (Pilotage) ────────────────────────
+function renderHostPilotageTab(gs, phase) {
+  let out = '';
+
+  const currentRoundIdx = gs?.currentRoundIndex ?? -1;
+  const currentQIdx     = gs?.currentQuestionIndex ?? -1;
+  const currentRound    = gs?.currentRound;
+  const currentQ        = gs?.currentQuestion;
+  const isPaused        = gs?.phaseMeta?.paused === true;
+  const isBurger        = (currentRound?.type === 'burger' || currentQ?.type === 'burger');
+  const isBuzzer        = gs?.phaseMeta?.answerMode === 'buzzer';
+  const isLocked        = gs?.phaseMeta?.playerScreenLocked === true;
+  const timerInfo       = gs?.phaseMeta?.timer;
+
+  // ── Barre supérieure : phase + TV ──────────────────────────────
+  const phaseLabelMap = {
+    lobby:          '<span class="badge blue">🎪 Lobby</span>',
+    round_intro:    '<span class="badge orange">📢 Présentation manche</span>',
+    question:       isPaused ? '<span class="badge red">⏸️ Pause</span>' : '<span class="badge orange">❓ Question</span>',
+    waiting:        '<span class="badge orange">⏳ En attente</span>',
+    answer_reveal:  '<span class="badge green">📋 Révélation</span>',
+    manual_scoring: '<span class="badge orange">⚖️ Buzzer/Arbitrage</span>',
+    round_end:      '<span class="badge green">🏁 Fin de manche</span>',
+    results:        '<span class="badge blue">📊 Résultats manche</span>',
+    end:            '<span class="badge green">🎉 Fin du quiz</span>',
+  };
+  out += `
+    <div class="host-status-bar">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        ${phaseLabelMap[phase] || `<span class="badge">${phase}</span>`}
+        ${isLocked ? '<span class="badge red" style="font-size:.72rem;">🔒 Verrouillé</span>' : '<span class="badge green" style="font-size:.72rem;">🔓 Ouvert</span>'}
+      </div>
+      <div class="row" style="gap:6px;">
+        <button class="btn-secondary btn-sm" onclick="showBroadcastModal()">📡 Diffuser</button>
+        <button class="btn-primary btn-sm" onclick="openDisplayPopup()">📺 TV ↗</button>
+      </div>
+    </div>`;
+
+  // ── Info question courante ──────────────────────────────────────
+  if (currentRound && currentQ) {
+    const answeredCount = Object.keys(gs?.answers?.[currentQ.id] || {}).length;
+    const connectedCount = state.players.filter(p => p.connected).length;
+    out += `
+      <div class="host-question-info">
+        <div style="flex:1;min-width:0;">
+          <div class="muted" style="font-size:.65rem;text-transform:uppercase;margin-bottom:3px;">Manche ${currentRoundIdx+1} · Q${currentQIdx+1} · ${(currentRound.type||'').toUpperCase()}</div>
+          <p style="font-size:.9rem;font-weight:600;margin-bottom:4px;">${currentQ.content||'—'}</p>
+          ${currentQ.correctAnswer ? `<p style="color:#38ef7d;font-size:.78rem;">✓ ${currentQ.correctAnswer}</p>` : ''}
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <p style="font-size:1.3rem;font-weight:700;color:#f59e0b;">${answeredCount}<span class="muted" style="font-size:.75rem;">/${connectedCount}</span></p>
+          <p class="muted" style="font-size:.65rem;">réponses</p>
+        </div>
+      </div>`;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SECTION 1 : GESTION DE LA PARTIE EN COURS
+  // ═══════════════════════════════════════════════════════════
+  if (['question','waiting','answer_reveal','manual_scoring','round_intro','round_end'].includes(phase)) {
+    out += `<div class="host-section host-section-primary">
+      <div class="host-section-label">⚡ PARTIE EN COURS</div>
+      <div class="host-ctrl-row">`;
+
+    if (isPaused) {
+      out += `<button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('resume_game')">▶ Reprendre</button>`;
+    } else if (['question','waiting'].includes(phase)) {
+      out += `<button class="hbtn hbtn-warning" onclick="hostAction('pause_game')">⏸ Pause</button>`;
+    }
+
+    if (['question','waiting','manual_scoring'].includes(phase)) {
+      // On retire le bouton "fin de timer" et on garde seulement "Montrer la solution"
+      if (!isBurger && !isBuzzer) {
+        const isVote = gs?.phaseMeta?.answerMode === 'vote_input' || gs?.phaseMeta?.answerMode === 'vote_voting';
+        if (!isVote) {
+          out += `<button class="hbtn hbtn-secondary hbtn-pulse" onclick="hostAction('reveal_answer')">📋 Montrer la solution</button>`;
+        }
+      }
+      // Masquer "Reset Q" pendant les phases de vote (évite de vider les réponses accidentellement)
+      const isVotePhaseNow = gs?.phaseMeta?.answerMode === 'vote_input' || gs?.phaseMeta?.answerMode === 'vote_voting';
+      if (!isVotePhaseNow) {
+        out += `<button class="hbtn hbtn-secondary" onclick="hostAction('refresh_question')">🔁 Reset Q</button>`;
+      }
+    }
+
+    if (phase === 'answer_reveal') {
+      out += `<button class="hbtn hbtn-secondary" onclick="hostAction('reveal_answer')">📋 Réafficher solution</button>`;
+      out += `<button class="hbtn hbtn-primary hbtn-pulse" onclick="hostAction('return_to_question')">↩ Retour question</button>`;
+    }
+
+    out += `</div></div>`;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SECTION 2 : NAVIGATION (MANCHES & QUESTIONS)
+  // ═══════════════════════════════════════════════════════════
+  // Bouton "Question suivante" en surbrillance pulsée quand on est en question active
+  const nextQPulse = ['round_intro','answer_reveal'].includes(phase) ? 'hbtn-pulse' : '';
+  out += `<div class="host-section host-section-nav">
+    <div class="host-section-label">🧭 NAVIGATION</div>
+    <div class="host-nav-grid">
+      <button class="hbtn hbtn-nav" onclick="hostAction('prev_round')" title="Manche précédente">◀ Manche</button>
+      <button class="hbtn hbtn-nav" onclick="hostAction('prev_question')" title="Question précédente">◀ Question</button>
+      <button class="hbtn hbtn-nav hbtn-nav-fwd ${nextQPulse}" onclick="hostAction('next_question')" title="Question suivante">Question ▶</button>
+      <button class="hbtn hbtn-nav hbtn-nav-fwd" onclick="hostAction('next_round')" title="Manche suivante">Manche ▶</button>
+    </div>
+    <div class="host-ctrl-row" style="margin-top:6px;">
+      ${['question','waiting','answer_reveal','manual_scoring'].includes(phase) ? `
+        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Scores</button>
+        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('start_round')">🔁 Refaire manche</button>
+      ` : ''}
+      ${phase === 'round_end' ? `
+        <button class="hbtn hbtn-success hbtn-pulse hbtn-wide" onclick="hostAction('next_round')">▶▶ Manche suivante</button>
+        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Voir les scores</button>
+        <button class="hbtn hbtn-danger hbtn-sm" onclick="hostAction('finish_quiz')">🏁 Terminer le quiz</button>
+      ` : ''}
+      ${phase === 'results' ? `
+        <button class="hbtn hbtn-success hbtn-pulse hbtn-sm" onclick="hostAction('next_round')">▶ Manche suivante</button>
+        <button class="hbtn hbtn-danger hbtn-sm" onclick="hostAction('finish_quiz')">🏁 Terminer le quiz</button>
+      ` : ''}
+    </div>
+  </div>`;
+
+  // ═══════════════════════════════════════════════════════════
+  // SECTION 3 : GESTION DE L'AFFICHAGE
+  // ═══════════════════════════════════════════════════════════
+  const isVotePhase = gs?.phaseMeta?.answerMode === 'vote_input' || gs?.phaseMeta?.answerMode === 'vote_voting';
+  out += `<div class="host-section host-section-display">
+    <div class="host-section-label">📺 AFFICHAGE</div>
+    <div class="host-ctrl-row">
+      ${['question','waiting','manual_scoring','round_end','answer_reveal'].includes(phase) ? `
+        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Scores</button>` : ''}
+      ${!isBurger && !isBuzzer && !isVotePhase && ['question','waiting','manual_scoring'].includes(phase) ? `
+        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reveal_answer')">📋 Solution</button>` : ''}
+      ${isVotePhase && gs?.phaseMeta?.answerMode === 'vote_input' ? `
+        <button class="hbtn hbtn-primary hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer le vote</button>` : ''}
+      ${isVotePhase && gs?.phaseMeta?.answerMode === 'vote_voting' ? `
+        <button class="hbtn hbtn-success hbtn-pulse" onclick="hostAction('vote_reveal')">📋 Révéler les votes</button>` : ''}
+      ${phase === 'answer_reveal' ? `
+        <button class="hbtn hbtn-primary hbtn-sm" onclick="hostAction('return_to_question')">↩ Retour question</button>` : ''}
+      <button class="hbtn hbtn-secondary hbtn-sm" onclick="showBroadcastModal()">📡 Message</button>
+    </div>
+  </div>`;
+
+  // ═══════════════════════════════════════════════════════════
+  // SECTION 4 : CHRONOMÈTRE
+  // ═══════════════════════════════════════════════════════════
+  if (['question','waiting','manual_scoring'].includes(phase)) {
+    const pct = timerInfo?.totalSec > 0 ? Math.round(timerInfo.remainingSec / timerInfo.totalSec * 100) : 0;
+    // Déterminer si la barre est urgente (moins de 20%)
+    const timerUrgent = timerInfo && pct < 20;
+    out += `<div class="host-section">
+      <div class="host-section-label">⏱️ CHRONOMÈTRE</div>
+      ${timerInfo ? `
+        <div style="margin-bottom:10px;">
+          <div class="row" style="justify-content:space-between;margin-bottom:6px;">
+            <span class="muted" style="font-size:.82rem;">Temps restant</span>
+            <strong style="color:${timerUrgent?'#eb3349':'#ff9a56'};font-size:1.5rem;${timerUrgent?'animation:pulse-scale 0.6s ease-in-out infinite;':''}">${timerInfo.remainingSec}s</strong>
+          </div>
+          <div class="progress-bar"><div class="fill" style="width:${pct}%;background:${timerUrgent?'linear-gradient(90deg,#eb3349,#ff6b7a)':''}"></div></div>
+        </div>` : ''}
+      <div class="timer-presets">
+        ${[5,10,20,30,45,60].map(s => `<button class="timer-preset-btn" onclick="setTimerPreset(${s})">${s}s</button>`).join('')}
+      </div>
+      <div class="row" style="gap:6px;margin-top:6px;">
+        <input type="number" id="timer-sec" value="${timerInfo?.remainingSec || 30}" min="1" max="300" style="width:76px;flex-shrink:0;font-size:.9rem;">
+        <button class="hbtn hbtn-success hbtn-pulse" style="flex:1;" onclick="startTimer()">▶ Démarrer le timer</button>
+      </div>
+    </div>`;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SECTION 5 : BUZZER (si actif) — remontée en priorité
+  // ═══════════════════════════════════════════════════════════
+  if (isBuzzer || gs?.buzzerState?.firstPseudo) {
+    const bz = gs?.buzzerState;
+    const buzzerQueuePseudos = (gs.buzzerQueue || [])
+      .map(pid => state.players.find(p => (p.id||p.playerId) === pid)?.pseudo || pid)
+      .filter(Boolean);
+    const allConnected = state.players.filter(p => p.connected).length;
+    const blr = gs?.buzzerLastResult;
+
+    out += `<div class="host-section host-section-buzzer">
+      <div class="host-section-label">🔔 BUZZER</div>`;
+
+    if (!bz?.firstPseudo && isLocked) {
+      // Buzzer verrouillé — bouton "Activer" très visible avec pulse
+      out += `
+        <div style="text-align:center;padding:16px 8px;">
+          <p class="muted" style="margin-bottom:14px;font-size:.9rem;">🔒 Buzzers désactivés — les joueurs voient un buzzer gris</p>
+          <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" style="font-size:1.1rem;padding:16px;" onclick="hostAction('activate_buzzer')">🔔 ACTIVER LES BUZZERS</button>
+        </div>`;
+    } else if (bz?.firstPseudo) {
+      // Un joueur a buzzé
+      const buzzerPlayer = state.players.find(p => (p.id||p.playerId) === bz.firstPlayerId);
+      out += `
+        <div class="buzzer-host-card ${blr?.result === 'correct' ? 'buzzer-host-correct' : blr?.result === 'wrong' ? 'buzzer-host-wrong' : ''}">
+          <div class="row" style="gap:10px;align-items:center;margin-bottom:10px;">
+            <span style="font-size:2rem;">${buzzerPlayer?.avatar || '🎮'}</span>
+            <div>
+              <strong style="font-size:1.1rem;">${bz.firstPseudo}</strong>
+              <p class="muted" style="font-size:.8rem;">a buzzé — interrogez oralement</p>
+              ${buzzerQueuePseudos.length > 1 ? `<p class="muted" style="font-size:.72rem;">File (${buzzerQueuePseudos.length}/${allConnected}) : ${buzzerQueuePseudos.join(' → ')}</p>` : ''}
+              ${blr ? `<p style="font-size:.85rem;font-weight:700;margin-top:4px;color:${blr.result==='correct'?'#38ef7d':'#eb3349'};">${blr.result==='correct'?'✅ Bonne réponse !':'❌ Mauvaise réponse'}</p>` : ''}
+            </div>
+          </div>
+          <div class="host-ctrl-row">
+            <button class="hbtn hbtn-success hbtn-pulse" style="flex:1;" onclick="hostAction('buzzer_mark_correct')">✅ Bonne (+1)</button>
+            <button class="hbtn hbtn-danger" style="flex:1;" onclick="hostAction('buzzer_mark_wrong')">❌ Mauvaise</button>
+          </div>
+          <div class="host-ctrl-row" style="margin-top:6px;">
+            <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reveal_answer')">📋 Afficher réponse</button>
+            <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('next_question')">⏭ Question suiv.</button>
+          </div>
+        </div>`;
+    } else {
+      // Buzzers actifs, en attente
+      out += `
+        <div style="text-align:center;padding:10px;">
+          <p style="color:#ffa500;font-weight:600;">🔔 Buzzers actifs — en attente d'un joueur…</p>
+          <p class="muted" style="font-size:.8rem;margin-top:4px;">${buzzerQueuePseudos.length}/${allConnected} ont déjà participé</p>
+          <button class="hbtn hbtn-secondary hbtn-sm" style="margin-top:8px;" onclick="hostAction('reveal_answer')">📋 Afficher réponse</button>
+        </div>`;
+    }
+    out += `</div>`;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SECTION 5.5 : VOTE (si type vote actif)
+  // ═══════════════════════════════════════════════════════════
+  const isVoteActive = currentQ?.type === 'vote' && ['question','waiting','manual_scoring','answer_reveal'].includes(phase);
+  if (isVoteActive) {
+    const voteState = gs?.voteState;
+    const answerMode = gs?.phaseMeta?.answerMode;
+    const answersForQ = gs?.answers?.[currentQ?.id] || {};
+    const submittedCount = Object.values(answersForQ).filter(a => a.answer?.trim()).length;
+    const connectedCount = state.players.filter(p => p.connected).length;
+
+    out += `<div class="host-section host-section-buzzer">
+      <div class="host-section-label">🗳️ VOTE</div>`;
+
+    if (answerMode === 'vote_input') {
+      // Phase 1 : collecte des réponses texte
+      out += `
+        <div style="text-align:center;padding:12px 8px;">
+          <p style="font-size:1.6rem;font-weight:700;color:#f59e0b;margin-bottom:4px;">${submittedCount}<span class="muted" style="font-size:.9rem;">/${connectedCount}</span></p>
+          <p class="muted" style="font-size:.8rem;margin-bottom:14px;">réponses reçues</p>
+          <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer le vote</button>
+        </div>`;
+      // Liste des réponses reçues (anonymisées dans l'ordre d'arrivée)
+      const submittedAnswers = Object.values(answersForQ).filter(a => a.answer?.trim());
+      if (submittedAnswers.length) {
+        out += `<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px;">
+          <p class="muted" style="font-size:.68rem;text-transform:uppercase;margin-bottom:6px;">Réponses collectées (visible MJ uniquement)</p>`;
+        for (const a of submittedAnswers) {
+          out += `<div style="padding:5px 10px;border-radius:7px;background:rgba(255,255,255,.05);margin-bottom:4px;font-size:.83rem;display:flex;justify-content:space-between;align-items:center;">
+            <span style="color:#f59e0b;font-size:.72rem;font-weight:600;">${a.pseudo || '?'}</span>
+            <span style="flex:1;margin-left:8px;">${a.answer}</span>
+          </div>`;
+        }
+        out += `</div>`;
+      }
+    } else if (answerMode === 'vote_voting') {
+      // Phase 2 : vote en cours
+      const options = voteState?.options || [];
+      const votes = voteState?.votes || {};
+      const voterCount = Object.keys(votes).length;
+      out += `
+        <div style="text-align:center;padding:6px 8px 12px;">
+          <p class="muted" style="font-size:.8rem;margin-bottom:10px;">Vote en cours — <strong>${voterCount}/${connectedCount}</strong> ont voté</p>
+        </div>`;
+      if (options.length) {
+        out += `<div style="border-top:1px solid rgba(255,255,255,.08);padding-top:8px;">
+          <p class="muted" style="font-size:.68rem;text-transform:uppercase;margin-bottom:6px;">Options (votes en direct)</p>`;
+        for (const opt of options) {
+          const voteCount = Object.values(votes).filter(v => v === opt.idx).length;
+          const decoyBadge = opt.isDecoy ? `<span style="background:#eb334920;color:#eb3349;border-radius:4px;padding:1px 5px;font-size:.65rem;margin-left:4px;">LEURRE</span>` : '';
+          out += `<div style="padding:6px 10px;border-radius:7px;background:rgba(255,255,255,.05);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;font-size:.83rem;">
+            <span>${opt.text}${decoyBadge}</span>
+            <strong style="color:#f59e0b;flex-shrink:0;margin-left:8px;">${voteCount} 🗳️</strong>
+          </div>`;
+        }
+        out += `</div>`;
+      }
+    } else if (answerMode === 'vote_revealed') {
+      // Phase 3 : résultats révélés
+      const options = voteState?.options || [];
+      const votes = voteState?.votes || {};
+      out += `<p class="muted" style="font-size:.8rem;margin-bottom:8px;text-align:center;">✅ Résultats révélés</p>`;
+      if (options.length) {
+        const sorted = [...options].sort((a, b) => {
+          const vA = Object.values(votes).filter(v => v === a.idx).length;
+          const vB = Object.values(votes).filter(v => v === b.idx).length;
+          return vB - vA;
+        });
+        out += `<div>`;
+        for (const opt of sorted) {
+          const voteCount = Object.values(votes).filter(v => v === opt.idx).length;
+          const decoyBadge = opt.isDecoy ? `<span style="background:#eb334920;color:#eb3349;border-radius:4px;padding:1px 5px;font-size:.65rem;margin-left:4px;">LEURRE</span>` : '';
+          out += `<div style="padding:6px 10px;border-radius:7px;background:rgba(255,255,255,.05);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;font-size:.83rem;">
+            <span>${opt.text}${decoyBadge}</span>
+            <strong style="color:${voteCount>0?'#38ef7d':'#aaa'};flex-shrink:0;margin-left:8px;">${voteCount} 🗳️</strong>
+          </div>`;
+        }
+        out += `</div>`;
+      }
+    }
+
+    out += `</div>`;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SECTION 6 : BURGER
+  // ═══════════════════════════════════════════════════════════
+  if (isBurger && ['question','waiting','manual_scoring'].includes(phase)) {
+    const selectedPlayerId = gs?.burgerSelectedPlayerId || null;
+    const selectedTeamId   = gs?.burgerSelectedTeamId   || null;
+    const isSelected       = !!(selectedPlayerId || selectedTeamId);
+    const selectedPseudo   = gs?.burgerSelectedPseudo   || null;
+    const burgerState      = gs?.burgerState;
+    const totalItems       = gs?.currentQuestion?.items?.length || 10;
+    const allItemsShown    = burgerState && burgerState.currentItemIndex >= totalItems - 1;
+    const burgerFinalScore = gs?.burgerFinalScore;
+
+    const connectedPlayers = state.players.filter(p => p.connected);
+    const availableTeams   = state.leaderboardTeams;
+
+    const playerBtns = connectedPlayers.map(p => `
+      <button class="burger-player-btn ${p.playerId === selectedPlayerId ? 'selected' : ''}"
+        onclick="hostAction('burger_select_player',{playerId:'${p.playerId}'})">
+        <span style="font-size:1.2rem;display:block;margin-bottom:3px;">${p.avatar || '🎮'}</span>
+        <span style="font-size:.75rem;">${p.pseudo}</span>
+      </button>`).join('');
+
+    const teamBtns = availableTeams.map(t => `
+      <button class="burger-player-btn ${t.teamId === selectedTeamId ? 'selected' : ''}"
+        style="background:${t.teamId === selectedTeamId ? 'rgba(247,151,30,.3)' : 'rgba(255,255,255,.06)'};"
+        onclick="hostAction('burger_select_team',{teamId:'${t.teamId}'})">
+        <span style="font-size:1.2rem;display:block;margin-bottom:3px;">⚽</span>
+        <span style="font-size:.75rem;">${t.name}</span>
+      </button>`).join('');
+
+    const scoreForm = `
+      <div style="margin-top:12px;padding:14px;background:rgba(247,151,30,.1);border:1px solid rgba(247,151,30,.4);border-radius:12px;">
+        ${phase === 'question' ? `
+          <div class="host-ctrl-row" style="margin-bottom:10px;">
+            <button class="hbtn hbtn-warning hbtn-wide hbtn-pulse" onclick="hostAction('burger_pass')">
+              ⏭ Passer — afficher "[${selectedPseudo}] répond"
+            </button>
+          </div>` : ''}
+        <p style="font-size:.88rem;color:#f7971e;margin-bottom:10px;font-weight:600;">🎯 Saisissez le score (0–10) :</p>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <input type="number" min="0" max="10" id="burger-score-input" placeholder="0-10"
+            style="width:80px;text-align:center;font-size:1.5rem;font-weight:700;padding:8px;border-radius:10px;
+            background:rgba(255,255,255,.1);border:2px solid rgba(247,151,30,.6);color:#fff;">
+          <button class="hbtn hbtn-success hbtn-wide" onclick="submitBurgerScore()">✅ Valider le score</button>
+        </div>
+        ${burgerFinalScore ? `<p style="margin-top:8px;font-size:.85rem;color:#38ef7d;">✓ Score de ${burgerFinalScore.score}/10 attribué à <strong>${burgerFinalScore.pseudo}</strong>${selectedTeamId ? ' (équipe — chaque membre a reçu les points)' : ''}</p>` : ''}
+      </div>`;
+
+    out += `
+      <div class="host-section">
+        <div class="host-section-label">🍔 BURGER — PILOTAGE</div>
+        ${!isSelected ? `
+          <p class="muted" style="font-size:.82rem;margin-bottom:8px;">Sélectionnez le joueur ou l'équipe qui passe l'épreuve :</p>
+          ${availableTeams.length ? `
+            <p class="muted" style="font-size:.73rem;margin-bottom:4px;">⚽ Équipes :</p>
+            <div class="burger-player-grid">${teamBtns}</div>
+            <p class="muted" style="font-size:.73rem;margin-bottom:4px;margin-top:8px;">🎮 Joueurs :</p>` : ''}
+          <div class="burger-player-grid">${playerBtns || '<p class="muted">Aucun joueur connecté</p>'}</div>
+        ` : `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px 10px;background:rgba(247,151,30,.12);border-radius:10px;">
+            <span style="font-size:1.3rem;">${selectedTeamId ? '⚽' : '🎮'}</span>
+            <span style="font-weight:700;color:#f7971e;">${selectedPseudo}</span>
+            <span class="muted" style="font-size:.75rem;">${selectedTeamId ? '(équipe)' : '(joueur)'}</span>
+            <button class="hbtn hbtn-secondary hbtn-sm" style="margin-left:auto;" onclick="hostAction('burger_select_player',{playerId:null})">✕</button>
+          </div>
+          ${availableTeams.length ? `
+            <details style="margin-bottom:6px;">
+              <summary class="muted" style="cursor:pointer;font-size:.78rem;">Changer de participant</summary>
+              <div style="margin-top:6px;">
+                ${availableTeams.length ? `<p class="muted" style="font-size:.73rem;margin-bottom:4px;">⚽ Équipes</p><div class="burger-player-grid">${teamBtns}</div>` : ''}
+                <p class="muted" style="font-size:.73rem;margin-bottom:4px;margin-top:6px;">🎮 Joueurs</p>
+                <div class="burger-player-grid">${playerBtns}</div>
+              </div>
+            </details>` : `
+            <div class="burger-player-grid" style="margin-bottom:6px;">${playerBtns}</div>`}
+          ${!allItemsShown ? `
+            <div class="host-ctrl-row" style="margin-top:6px;">
+              <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('burger_next_item')">
+                🍔 Élément suivant ${burgerState && burgerState.currentItemIndex >= 0 ? `(${burgerState.currentItemIndex+1}/${totalItems})` : '(démarrer)'}
+              </button>
+            </div>` : scoreForm}
+        `}
+      </div>`;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SECTION 7 : ATTRIBUTION DE POINTS
+  // ═══════════════════════════════════════════════════════════
+  if (['manual_scoring','answer_reveal','waiting','question','results'].includes(phase)) {
+    const allPlayers = state.leaderboardPlayers.slice(0, 20);
+    const allTeams = state.leaderboardTeams.slice(0, 10);
+
+    if (allPlayers.length) {
+      out += `
+        <div class="host-section">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+            <div class="host-section-label" style="margin:0;">🏅 POINTS</div>
+            <div class="row" style="gap:5px;">
+              <button class="hbtn hbtn-success hbtn-sm" onclick="hostAction('award_all',{points:1})">+1 Tous</button>
+              <button class="hbtn hbtn-danger hbtn-sm" onclick="hostAction('award_all',{points:-1})">-1 Tous</button>
+            </div>
+          </div>
+          <div class="player-point-grid">
+            ${allPlayers.map(p => `
+              <div class="player-point-card">
+                <span class="p-avatar">${p.avatar || '🎮'}</span>
+                <div class="p-pseudo">${p.pseudo}</div>
+                <div class="p-score">${p.scoreTotal ?? 0} pts</div>
+                <div class="pt-btns">
+                  <button class="pt-btn pt-btn-minus" onclick="awardPoints('${p.playerId}',-1)">-1</button>
+                  <button class="pt-btn pt-btn-plus" onclick="awardPoints('${p.playerId}',1)">+1</button>
+                </div>
+              </div>`).join('')}
+          </div>
+          ${allTeams.length ? `
+            <div style="margin-top:12px;border-top:1px solid rgba(255,255,255,.08);padding-top:10px;">
+              <div class="host-section-label" style="margin-bottom:7px;">⚽ PAR ÉQUIPE</div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;">
+                ${allTeams.map(t => `
+                  <div style="background:rgba(255,255,255,.05);border-radius:10px;padding:8px;text-align:center;">
+                    <div style="font-size:.82rem;font-weight:600;margin-bottom:2px;">${t.name}</div>
+                    <div style="font-size:.72rem;color:#f59e0b;margin-bottom:6px;">${t.scoreTotal??0} pts</div>
+                    <div class="pt-btns">
+                      <button class="pt-btn pt-btn-minus" onclick="hostAction('award_team',{teamId:'${t.id}',points:-1})">-1</button>
+                      <button class="pt-btn pt-btn-plus" onclick="hostAction('award_team',{teamId:'${t.id}',points:1})">+1</button>
+                    </div>
+                  </div>`).join('')}
+              </div>
+            </div>` : ''}
         </div>`;
     }
   }
 
-  html_ += `</div>`; // fin padding
-  html('page-host', html_);
+  // ── Révélation des réponses ───────────────────────────────────
+  if (phase === 'answer_reveal' && gs?.revealedAnswer) {
+    const revealed = gs.revealedAnswer;
+    const correctNorm = (revealed.correctAnswer || '').trim().toLowerCase();
+    const answerRows = (revealed.answers || []).map(a => {
+      const isCorrect = (a.answer || '').trim().toLowerCase() === correctNorm;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:8px;background:${isCorrect?'rgba(56,239,125,.1)':'rgba(235,51,73,.08)'};margin-bottom:4px;">
+        <span style="font-weight:600;font-size:.88rem;">${a.pseudo || '—'}</span>
+        <span style="color:${isCorrect?'#38ef7d':'#eb3349'};font-size:.85rem;">${a.answer || '—'} ${isCorrect?'✅':'❌'}</span>
+      </div>`;
+    }).join('') || '<p class="muted">Aucune réponse</p>';
+    out += `
+      <div class="host-section">
+        <div class="host-section-label">📋 RÉPONSES RÉVÉLÉES</div>
+        <div style="padding:8px 12px;background:rgba(56,239,125,.08);border:1px solid rgba(56,239,125,.25);border-radius:8px;margin-bottom:8px;">
+          <p class="muted" style="font-size:.65rem;margin-bottom:2px;">BONNE RÉPONSE</p>
+          <p style="font-size:1.2rem;font-weight:700;color:#38ef7d;">${revealed.correctAnswer || '—'}</p>
+        </div>
+        <div>${answerRows}</div>
+      </div>`;
+  }
+
+  // ── Bilan de manche ───────────────────────────────────────────
+  if (phase === 'results') {
+    const rnd = gs?.currentRound;
+    const questions = Array.isArray(rnd?.questions) ? rnd.questions : [];
+    if (questions.length) {
+      const qRows = questions.map((q, i) => {
+        const answersArr = Object.values(gs?.answers?.[q.id] || {});
+        const correctNorm = (q.correctAnswer || '').trim().toLowerCase();
+        const correctCount = answersArr.filter(a => (a.answer||'').trim().toLowerCase() === correctNorm).length;
+        return `<div style="padding:8px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:5px;">
+          <div style="display:flex;justify-content:space-between;gap:10px;">
+            <div style="flex:1;">
+              <span class="muted" style="font-size:.68rem;">${i+1}. ${(q.type||'?').toUpperCase()}</span>
+              <p style="margin:2px 0;font-weight:600;font-size:.88rem;">${q.content||'—'}</p>
+              ${q.correctAnswer ? `<p style="color:#38ef7d;font-size:.76rem;">✓ ${q.correctAnswer}</p>` : ''}
+            </div>
+            ${answersArr.length ? `<div style="text-align:right;"><strong>${correctCount}/${answersArr.length}</strong><p class="muted" style="font-size:.65rem;">correct</p></div>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+      out += `<div class="host-section">
+        <div class="host-section-label">📊 BILAN — ${rnd?.title||'MANCHE'}</div>
+        ${qRows}
+      </div>`;
+    }
+    out += renderScoreboard(state.leaderboardPlayers, '🏆 Classement');
+    if (state.leaderboardTeams.length) {
+      out += `<div class="card"><h3>👥 Équipes</h3>
+        <table><thead><tr><th>Rang</th><th>Équipe</th><th>Score</th></tr></thead>
+        <tbody>${state.leaderboardTeams.map((t,i) => `<tr class="rank-${i+1}"><td>${t.rank??i+1}</td><td>${t.name}</td><td><strong>${t.scoreTotal??0}</strong></td></tr>`).join('')}</tbody></table>
+      </div>`;
+    }
+  }
+
+  // ── Fin + cérémonie ───────────────────────────────────────────
+  if (phase === 'end') {
+    const fc = gs?.phaseMeta?.finalCeremony;
+    if (!fc) {
+      out += `<div class="host-section" style="text-align:center;">
+        <p class="muted" style="margin-bottom:12px;">Lancez la cérémonie pour révéler le classement progressivement</p>
+        <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" onclick="hostAction('final_ceremony_init')">🎊 Cérémonie finale</button>
+        <div class="host-ctrl-row" style="margin-top:10px;">
+          <button class="hbtn hbtn-secondary" onclick="hostAction('reset_game')">🔁 Nouvelle partie</button>
+          <button class="hbtn hbtn-warning hbtn-sm" onclick="if(confirm('Éjecter tous les joueurs et changer de quiz ?')){hostAction('eject_players');}">🚪 Éjecter & changer quiz</button>
+          <button class="hbtn hbtn-danger" onclick="if(confirm('Terminer et retourner à l\\'accueil ?'))hostAction('stop_session');navigate('home');">✕ Fermer</button>
+        </div>
+      </div>`;
+    } else {
+      const remaining = fc.revealOrder.length - fc.revealCursor;
+      const cvPlayers = state.admin.ceremonyView !== 'teams';
+      const hasTeams = state.leaderboardTeams && state.leaderboardTeams.length > 0;
+      out += `<div class="host-section">
+        <div class="host-section-label">🎊 CÉRÉMONIE FINALE</div>
+        ${hasTeams ? `<div class="host-ctrl-row" style="margin-bottom:8px;">
+          <button class="hbtn hbtn-sm ${cvPlayers ? 'hbtn-primary' : 'hbtn-secondary'}" onclick="toggleCeremonyView('players')">👤 Joueurs</button>
+          <button class="hbtn hbtn-sm ${!cvPlayers ? 'hbtn-primary' : 'hbtn-secondary'}" onclick="toggleCeremonyView('teams')">⚽ Équipes</button>
+        </div>` : ''}
+        <div class="host-ctrl-row">
+          ${cvPlayers && remaining > 0 ? `<button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('final_ceremony_reveal_next')">▶ Révéler (${remaining} restant${remaining>1?'s':''})</button>` : ''}
+          <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('final_ceremony_reset')">↩</button>
+        </div>
+        ${cvPlayers ? `<p class="muted" style="font-size:.75rem;margin-top:8px;">${fc.revealCursor}/${fc.revealOrder.length} révélé(s)</p>` : ''}
+        <div class="host-ctrl-row" style="margin-top:10px;">
+          <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reset_game')">🔁 Nouvelle partie</button>
+          <button class="hbtn hbtn-warning hbtn-sm" onclick="if(confirm('Éjecter tous les joueurs et changer de quiz ?')){hostAction('eject_players');}">🚪 Éjecter & changer quiz</button>
+          <button class="hbtn hbtn-danger hbtn-sm" onclick="if(confirm('Terminer et retourner à l\\'accueil ?')){hostAction('stop_session');navigate('home');}">✕ Fermer l'application</button>
+        </div>
+      </div>`;
+      out += renderFinalCeremony(gs, state.leaderboardPlayers, state.leaderboardTeams);
+    }
+  }
+
+  // Accordion des manches
+  out += renderRoundsAccordion(gs);
+
+  return out;
 }
 
-function buildHostActionButtons(phase) {
+// ── Boutons actions de jeu (sans navigation) ──────────────────
+function buildHostGameActions(gs, phase, isPaused, isBuzzer, isBurger) {
   const btns = [];
-  const gs = state.gameState;
-  const currentType = gs?.currentRound?.type || gs?.currentQuestion?.type || '';
-  const isPaused = gs?.phaseMeta?.paused === true;
-
-  if (phase === 'lobby')          btns.push({ label: '▶️ Démarrer le quiz', action: 'start_quiz', style: 'success' });
-  if (phase === 'round_intro')    btns.push({ label: '▶️ Démarrer la manche', action: 'start_round', style: 'success' });
-
-  if (phase === 'question' || phase === 'waiting') {
-    // Navigation
-    btns.push({ label: '⬅️ Question préc.', action: 'prev_question', style: 'secondary' });
-    // Pause / Resume
+  if (phase === 'lobby') {
+    btns.push({ label: '▶️ Démarrer le quiz', style: 'success', onclick: "hostAction('start_quiz')" });
+  }
+  if (phase === 'round_intro') {
+    btns.push({ label: '▶️ Première question', style: 'success', onclick: "hostAction('next_question')" });
+    btns.push({ label: '🔁 Réafficher intro', style: 'secondary', onclick: "hostAction('start_round')" });
+  }
+  if (['question','waiting'].includes(phase)) {
     if (isPaused) {
-      btns.push({ label: '▶️ Reprendre', action: 'resume_game', style: 'success' });
+      btns.push({ label: '▶️ Reprendre', style: 'success', onclick: "hostAction('resume_game')" });
     } else {
-      btns.push({ label: '⏸️ Pause', action: 'pause_game', style: 'secondary' });
+      btns.push({ label: '⏸️ Pause', style: 'warning', onclick: "hostAction('pause_game')" });
     }
-    // Mode burger : bouton "Élément suivant" au lieu de "Révéler"
-    if (currentType === 'burger') {
-      btns.push({ label: '🍔 Élément suivant', action: 'burger_next_item', style: 'success' });
+    if (isBurger) {
+      btns.push({ label: '🍔 Élément suivant', style: 'success', onclick: "hostAction('burger_next_item')" });
     } else {
-      btns.push({ label: '📋 Révéler la réponse', action: 'reveal_answer', style: 'secondary' });
+      btns.push({ label: '📋 Révéler réponse', style: 'secondary', onclick: "hostAction('reveal_answer')" });
     }
-    btns.push({ label: '⏭️ Question suivante', action: 'next_question', style: 'secondary' });
-    btns.push({ label: '🔒 Verrouiller', action: 'lock_players', style: 'secondary' });
-    btns.push({ label: '🔓 Débloquer', action: 'unlock_players', style: 'secondary' });
+    btns.push({ label: '🔁 Refresh question', style: 'secondary', onclick: "hostAction('refresh_question')" });
+    btns.push({ label: '📊 Afficher scores', style: 'secondary', onclick: "hostAction('show_results')" });
   }
-
   if (phase === 'answer_reveal') {
-    btns.push({ label: '⬅️ Question préc.', action: 'prev_question', style: 'secondary' });
-    btns.push({ label: '📊 Afficher résultats', action: 'show_results', style: 'secondary' });
-    btns.push({ label: '⏭️ Question suivante', action: 'next_question', style: 'success' });
+    btns.push({ label: '📊 Résultats manche', style: 'secondary', onclick: "hostAction('show_results')" });
   }
-
   if (phase === 'results') {
-    btns.push({ label: '⏭️ Manche suivante', action: 'next_round', style: 'success' });
-    btns.push({ label: '🏁 Terminer le quiz', action: 'finish_quiz', style: 'danger' });
+    btns.push({ label: '⏭️ Manche suivante', style: 'success', onclick: "hostAction('next_round')" });
+    btns.push({ label: '🏁 Terminer le quiz', style: 'danger', onclick: "hostAction('finish_quiz')" });
   }
-
   if (phase === 'manual_scoring') {
-    // Rapidité : boutons +1 / Refus + Débloquer pour passer au suivant
-    if (currentType === 'rapidite' || currentType === 'speed' || gs?.phaseMeta?.answerMode === 'buzzer') {
-      btns.push({ label: '✅ +1 pt (bonne réponse)', action: 'award_buzzer_correct', style: 'success' });
-      btns.push({ label: '❌ Refuser (mauvaise)', action: 'award_buzzer_wrong', style: 'danger' });
-    } else if (currentType === 'burger') {
-      btns.push({ label: '🍔 Élément suivant', action: 'burger_next_item', style: 'success' });
+    if (isBuzzer) {
+      btns.push({ label: '✅ Bonne réponse (+1)', style: 'success', onclick: "hostAction('award_buzzer_correct')" });
+      btns.push({ label: '❌ Mauvaise (suivant)', style: 'danger', onclick: "hostAction('award_buzzer_wrong')" });
     }
-    btns.push({ label: '📋 Révéler la réponse', action: 'reveal_answer', style: 'secondary' });
-    btns.push({ label: '📊 Afficher résultats', action: 'show_results', style: 'secondary' });
-    btns.push({ label: '⏭️ Question suivante', action: 'next_question', style: 'secondary' });
+    if (isBurger) {
+      btns.push({ label: '🍔 Élément suivant', style: 'success', onclick: "hostAction('burger_next_item')" });
+    }
+    btns.push({ label: '📋 Révéler réponse', style: 'secondary', onclick: "hostAction('reveal_answer')" });
+    btns.push({ label: '📊 Résultats manche', style: 'secondary', onclick: "hostAction('show_results')" });
   }
-
   if (phase === 'end') {
-    btns.push({ label: '🎊 Cérémonie', action: 'final_ceremony_init', style: 'success' });
-    btns.push({ label: '🔁 Nouvelle partie', action: 'reset_game', style: 'secondary' });
+    btns.push({ label: '🔁 Nouvelle partie', style: 'secondary', onclick: "hostAction('reset_game')" });
   }
   return btns;
 }
 
-function switchHostTab(tab) {
-  hostActiveTab = tab;
-  renderHostGame();
+// Accordion des manches pour le pilotage
+function renderRoundsAccordion(gs) {
+  if (!gs || !gs.currentRound) return '';
+  const currentRoundIdx = gs.currentRoundIndex ?? -1;
+  const currentQIdx     = gs.currentQuestionIndex ?? -1;
+  const questions = Array.isArray(gs.currentRound?.questions) ? gs.currentRound.questions : [];
+  if (!questions.length) return '';
+
+  const isExpanded = hostExpandedRounds.has(currentRoundIdx);
+  const questionsSummary = isExpanded ? questions.map((q, qi) => {
+    const isCurrent = qi === currentQIdx;
+    const answeredCount = gs.answers?.[q.id] ? Object.keys(gs.answers[q.id]).length : 0;
+    const connectedCount = state.players.filter(p => p.connected).length;
+    return `
+      <div class="q-line ${isCurrent ? 'q-active' : ''}">
+        <div style="flex:1;min-width:0;">
+          <span class="muted" style="font-size:.7rem;">${qi+1}. ${(q.type||'').toUpperCase()}</span>
+          <p style="font-size:.87rem;font-weight:${isCurrent?'700':'400'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:2px 0;">${q.content || '—'}</p>
+          ${q.correctAnswer ? `<p style="font-size:.74rem;color:#38ef7d;">✓ ${q.correctAnswer}</p>` : ''}
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:8px;">
+          ${isCurrent ? '<span class="badge blue" style="font-size:.68rem;padding:2px 7px;">▶ En cours</span>' : ''}
+          ${answeredCount > 0 ? `<p class="muted" style="font-size:.72rem;margin-top:3px;">${answeredCount}/${connectedCount} rép.</p>` : ''}
+        </div>
+      </div>`;
+  }).join('') : '';
+
+  return `
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px;">
+      <button class="round-acc-hdr ${currentRoundIdx >= 0 ? 'cur-round' : ''}" onclick="toggleRoundAccordion(${currentRoundIdx})">
+        <span style="font-size:1rem;">${isExpanded ? '▼' : '▶'}</span>
+        <div style="flex:1;">
+          <div class="muted" style="font-size:.68rem;text-transform:uppercase;margin-bottom:1px;">Manche ${currentRoundIdx+1}</div>
+          <strong style="font-size:.95rem;">${gs.currentRound.title || 'Manche en cours'}</strong>
+        </div>
+        <span class="muted" style="font-size:.78rem;">${questions.length} question(s)</span>
+      </button>
+      ${isExpanded ? `<div class="round-acc-body">${questionsSummary}</div>` : ''}
+    </div>`;
+}
+
+// Sélecteur de quiz (toggle)
+function toggleQuizPicker() {
+  const wrap = document.getElementById('quiz-picker-wrap');
+  if (!wrap) return;
+  if (wrap.style.display !== 'none') { wrap.style.display = 'none'; return; }
+  wrap.innerHTML = '<div class="card"><p class="muted">Chargement des quiz…</p></div>';
+  wrap.style.display = '';
+
+  apiFetch('/api/quizzes').then(d => {
+    const quizzes = d.quizzes || [];
+    if (!quizzes.length) {
+      wrap.innerHTML = '<div class="card"><p class="muted">Aucun quiz disponible. Créez-en un dans l\'admin.</p></div>';
+      return;
+    }
+    wrap.innerHTML = `
+      <div class="card" style="border-color:rgba(99,179,237,.25);">
+        <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="margin:0;">📚 Choisir un quiz</h3>
+          <button class="btn-secondary" style="font-size:.8rem;padding:5px 10px;" onclick="document.getElementById('quiz-picker-wrap').style.display='none'">✕ Fermer</button>
+        </div>
+        <div style="display:grid;gap:8px;">
+          ${quizzes.map(q => `
+            <div class="row" style="background:rgba(255,255,255,.04);padding:10px 14px;border-radius:10px;gap:10px;">
+              <div style="flex:1;">
+                <strong>${q.title}</strong>
+                <span class="muted" style="margin-left:8px;font-size:.82rem;">${q.rounds?.length||0} manche(s)</span>
+              </div>
+              <button class="btn-primary" style="font-size:.82rem;padding:5px 12px;white-space:nowrap;" onclick="switchSessionQuiz('${q.id}','${(q.title||'').replace(/'/g,"\\'")}')">Charger</button>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }).catch(() => {
+    wrap.innerHTML = '<div class="card"><p class="muted">Erreur lors du chargement des quiz</p></div>';
+  });
+}
+
+async function switchSessionQuiz(quizId, quizTitle) {
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  if (!confirm(`Charger "${quizTitle}" ? La partie sera réinitialisée.`)) return;
+  try {
+    const d = await apiFetch(`/api/sessions/${sc}/quiz`, {
+      method: 'PATCH',
+      body: JSON.stringify({ quizId, hostKey: hk }),
+    });
+    if (!d.ok) { alert$('host-alert', d.error || 'Erreur', 'error'); return; }
+    alert$('host-alert', `✅ Quiz "${quizTitle}" chargé !`, 'success');
+    const wrap = document.getElementById('quiz-picker-wrap');
+    if (wrap) wrap.style.display = 'none';
+  } catch { alert$('host-alert', 'Erreur réseau', 'error'); }
+}
+
+// buildHostActionButtons conservé pour compatibilité (plus utilisé en principal)
+function buildHostActionButtons(phase) { return []; }
+
+function setTimerPreset(sec) {
+  const inp = document.getElementById('timer-sec');
+  if (inp) inp.value = sec;
+  $$('.timer-preset-btn').forEach(b => b.classList.remove('active'));
+  event?.target?.classList.add('active');
 }
 
 function hostAction(action, extra = {}) {
@@ -1007,22 +2027,34 @@ function hostAction(action, extra = {}) {
   const hk = state.host.hostKey;
   const gs = state.gameState;
 
-  // Actions spéciales rapidité
+  // Actions spéciales rapidité buzzer
+  if (action === 'buzzer_mark_wrong') {
+    // Marquer mauvais + passer au joueur suivant immédiatement (géré côté serveur)
+    state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'buzzer_mark_wrong' }, (res) => {
+      if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
+      playSound('wrong');
+    });
+    return;
+  }
   if (action === 'award_buzzer_correct') {
     const buzzerId = gs?.buzzerState?.firstPlayerId;
     if (!buzzerId) { alert$('host-alert', 'Aucun joueur n\'a buzzé', 'error'); return; }
-    // +1 pt puis débloquer pour le suivant
-    state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'award_manual_points', playerId: buzzerId, points: 1, reason: 'rapidite' }, (res) => {
+    // 1. Marquer comme correct (attribue les points + feedback visuel sur display)
+    state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'buzzer_mark_correct' }, (res) => {
       if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
-      // Débloquer pour passer au prochain buzzer
-      state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'unlock_players' }, () => {});
+      playSound('correct');
+      // 2. Après 2s, débloquer pour la prochaine question
+      setTimeout(() => {
+        state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'unlock_players' }, () => {});
+      }, 2000);
     });
     return;
   }
   if (action === 'award_buzzer_wrong') {
-    // Juste débloquer sans points, pour passer au suivant
-    state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'unlock_players' }, (res) => {
-      if (!res?.ok) alert$('host-alert', res?.error || 'Erreur', 'error');
+    // buzzer_mark_wrong marque la mauvaise réponse ET passe au joueur suivant (ou réouvre les buzzers)
+    state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'buzzer_mark_wrong' }, (res) => {
+      if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
+      playSound('wrong');
     });
     return;
   }
@@ -1039,6 +2071,22 @@ function startTimer() {
 
 function awardPoints(playerId, points) {
   hostAction('award_manual_points', { playerId, points });
+}
+
+function submitBurgerScore() {
+  const input = document.getElementById('burger-score-input');
+  const val = input ? Number(input.value) : NaN;
+  if (!Number.isFinite(val) || val < 0 || val > 10) {
+    alert$('host-alert', 'Entrez un score entre 0 et 10', 'error');
+    return;
+  }
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  if (!sc || !hk) { alert$('host-alert', 'Session non active', 'error'); return; }
+  state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'burger_set_score', score: val }, (res) => {
+    if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
+    playSound('correct');
+  });
 }
 
 function addBot() {
@@ -1062,8 +2110,12 @@ function clearPlayers() {
 
 // ── Page : DISPLAY ───────────────────────────────────────────
 pageInits.display = function() {
-  const savedCode = localStorage.getItem('quiz_display_code') || state.host.sessionCode || '';
+  // Priorité : param URL (popup) > localStorage > session host courante
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlCode = (urlParams.get('display-session') || '').trim().toUpperCase();
+  const savedCode = urlCode || localStorage.getItem('quiz_display_code') || state.host.sessionCode || '';
   state.display.connected = false;
+
   html('page-display', `
     <div class="row" style="justify-content:space-between;margin-bottom:20px;">
       <h1>📺 Écran TV</h1>
@@ -1079,6 +2131,15 @@ pageInits.display = function() {
     </div>
     <div id="display-content"></div>
   `);
+
+  // Auto-connexion si code fourni (via popup URL ou localStorage)
+  if (savedCode) {
+    setTimeout(() => {
+      const inp = $('#display-code');
+      if (inp) inp.value = savedCode;
+      connectDisplay();
+    }, 300);
+  }
 };
 
 function connectDisplay() {
@@ -1104,22 +2165,36 @@ function renderDisplay() {
   // Fond d'écran et musique de la manche courante
   const roundBg = gs?.currentRound?.backgroundUrl ? resolveMedia(gs.currentRound.backgroundUrl) : '';
   const roundMusic = gs?.currentRound?.musicUrl ? resolveMedia(gs.currentRound.musicUrl) : '';
-  const bgStyle = roundBg ? `background-image:url('${roundBg}');background-size:cover;background-position:center;` : '';
 
-  // Gestion de la musique (lecture auto)
-  const musicEl = roundMusic
-    ? `<audio id="round-music" autoplay loop src="${roundMusic}" style="display:none;"></audio>`
+  // Musique gérée en dehors du re-render pour éviter le redémarrage à chaque mise à jour
+  updateRoundMusic(roundMusic);
+
+  const bgStyle = roundBg
+    ? `background-image:url('${roundBg}');background-size:cover;background-position:center;background-repeat:no-repeat;`
+    : '';
+  const bgOverlay = roundBg
+    ? `<div class="display-bg-overlay"></div>`
     : '';
 
   let content = `
-    ${musicEl}
     <div class="session-banner">
       <span>Session : <strong class="session-code">${sc}</strong></span>
       <span>${state.players.length} joueur(s)</span>
     </div>
-    <div style="padding:16px;${bgStyle}">`;
+    <div class="display-stage" style="${bgStyle}">
+    ${bgOverlay}`;
 
-  if (phase === 'lobby') {
+  const isPaused = gs?.phaseMeta?.paused === true;
+
+  if (isPaused) {
+    content += `
+      <div class="pause-screen" style="padding:80px 20px;">
+        <div class="pause-icon">⏸️</div>
+        <h1>Pause</h1>
+        <p class="muted" style="font-size:1.1rem;margin-top:10px;">Le maître de jeu a mis la partie en pause</p>
+        <div class="waiting-dots"><span></span><span></span><span></span></div>
+      </div>`;
+  } else if (phase === 'lobby') {
     content += `
       <div class="card" style="text-align:center;padding:60px 20px;">
         <div style="font-size:4rem;margin-bottom:16px;">🎮</div>
@@ -1129,31 +2204,100 @@ function renderDisplay() {
       </div>`;
   } else if (phase === 'round_intro') {
     const round = gs?.currentRound;
+    const _rtIcons  = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', burger:'🍔', vote:'🗳️' };
+    const _rtLabels = { qcm:'QCM', rapidite:'Rapidité', speed:'Rapidité', true_false:'Vrai / Faux', burger:'Burger', vote:'Vote' };
+    const _rtIcon  = _rtIcons[round?.type]  || '🎯';
+    const _rtLabel = _rtLabels[round?.type] || (round?.type || '');
     content += `
-      <div class="card" style="text-align:center;padding:60px 20px;">
-        <div style="font-size:3rem;margin-bottom:16px;">📢</div>
-        <h1>${round?.title || 'Nouvelle manche'}</h1>
-        ${round?.shortRules ? `<p class="muted" style="font-size:1.1rem;margin-top:12px;">${round.shortRules}</p>` : ''}
+      <div class="display-round-intro-screen">
+        ${round?.type ? `<div class="display-round-type-badge display-badge-${round.type}">${_rtIcon} ${_rtLabel}</div>` : ''}
+        <div class="display-round-intro-icon">${_rtIcon}</div>
+        <h1 class="display-round-intro-title">${round?.title || 'Nouvelle manche'}</h1>
+        ${round?.shortRules ? `<div class="display-round-intro-rules">${round.shortRules}</div>` : ''}
       </div>`;
   } else if (phase === 'question' || phase === 'waiting') {
     content += renderDisplayQuestion(gs);
   } else if (phase === 'answer_reveal') {
     const revealed = gs?.revealedAnswer;
+    const isBuzzerReveal = gs?.phaseMeta?.answerMode === 'buzzer' || (gs?.buzzerState?.firstPseudo && !gs?.phaseMeta?.finalCeremony);
+    const isTrueFalseReveal = gs?.phaseMeta?.answerMode === 'true_false';
+    const isVoteReveal = gs?.phaseMeta?.answerMode === 'vote_revealed';
+
+    if (isVoteReveal && gs?.voteState) {
+      content += renderDisplayVoteResults(gs);
+    } else if (isBuzzerReveal) {
+      // Pour le buzzer : on affiche la réponse mais PAS les scores
+      content += `
+        <div class="card" style="text-align:center;padding:40px;">
+          <h2>📋 Bonne réponse</h2>
+          <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${formatTrueFalseAnswer(revealed?.correctAnswer)}</div>
+        </div>
+        ${renderAnswerList(revealed?.answers || [], isTrueFalseReveal)}`;
+    } else {
+      // Mode standard : afficher la réponse + les scores
+      content += `
+        <div class="card" style="text-align:center;padding:40px;">
+          <h2>📋 Bonne réponse</h2>
+          <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${isTrueFalseReveal ? formatTrueFalseAnswer(revealed?.correctAnswer) : (revealed?.correctAnswer ?? '—')}</div>
+        </div>
+        ${renderAnswerList(revealed?.answers || [], isTrueFalseReveal)}`;
+    }
+  } else if (phase === 'round_end') {
+    const round = gs?.currentRound;
     content += `
-      <div class="card" style="text-align:center;padding:40px;">
-        <h2>📋 Bonne réponse</h2>
-        <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${revealed?.correctAnswer ?? '—'}</div>
-      </div>
-      ${renderAnswerList(revealed?.answers || [])}
-      ${renderScoreboard(state.leaderboardPlayers, 'Classement')}`;
-  } else if (phase === 'results' || phase === 'end') {
+      <div class="display-round-end-screen">
+        <div class="display-round-end-frame">
+          <div class="display-round-end-icon">🏁</div>
+          <h1 class="display-round-end-title">Manche terminée !</h1>
+          ${round?.title ? `<p class="display-round-end-subtitle">${round.title}</p>` : ''}
+        </div>
+        <div class="waiting-dots" style="margin-top:36px;"><span></span><span></span><span></span></div>
+      </div>`;
+  } else if (phase === 'results') {
+    content += renderScoreboard(state.leaderboardPlayers, '📊 Classement de la manche');
+    if (state.leaderboardTeams.length) {
+      content += renderScoreboard(state.leaderboardTeams, '⚽ Équipes', true);
+    }
+  } else if (phase === 'end') {
     content += renderFinalCeremony(gs, state.leaderboardPlayers);
   } else if (phase === 'manual_scoring') {
+    const isBurgerManual = gs?.currentRound?.type === 'burger' || gs?.currentQuestion?.type === 'burger';
+    if (isBurgerManual) {
+      const bfScore = gs?.burgerFinalScore;
+      const bPseudo = gs?.burgerSelectedPseudo || '?';
+      const bIsTeam = !!(gs?.burgerSelectedTeamId);
+      content += bfScore ? `
+        <div class="card" style="text-align:center;padding:60px 20px;background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
+          <div style="font-size:4rem;margin-bottom:16px;">🍔</div>
+          <div style="font-size:.9rem;color:rgba(255,255,255,.45);margin-bottom:6px;">${bfScore.teamId ? '⚽ Équipe' : '🎮 Joueur'}</div>
+          <h2 style="color:#f7971e;font-size:2.2rem;">${bfScore.pseudo}</h2>
+          <div style="font-size:7rem;font-weight:900;color:#f7971e;line-height:1;margin:16px 0;">${bfScore.score}<span style="font-size:2.5rem;color:rgba(255,255,255,.4);">/10</span></div>
+          ${bfScore.teamId ? `<p class="muted" style="font-size:.9rem;">Chaque membre de l'équipe a reçu ${bfScore.score} point(s)</p>` : ''}
+        </div>` : `
+        <div class="card" style="text-align:center;padding:80px 20px;background:rgba(247,151,30,.07);border-color:rgba(247,151,30,.3);">
+          <div style="font-size:4rem;margin-bottom:16px;animation:end-bounce 1s ease-in-out infinite;">🎤</div>
+          <div style="font-size:.9rem;color:rgba(255,255,255,.45);margin-bottom:6px;">${bIsTeam ? '⚽ Équipe' : '🎮 Joueur'}</div>
+          <h2 style="color:#f7971e;font-size:2.2rem;">${bPseudo}</h2>
+          <p style="margin-top:20px;font-size:1.4rem;font-weight:600;">répond !</p>
+          <p class="muted" style="margin-top:10px;">Le maître de jeu va attribuer le score.</p>
+        </div>`;
+    } else {
+      content += `
+        <div class="card" style="text-align:center;padding:40px;">
+          <div style="font-size:3rem;">⚖️</div>
+          <h2>Notation en cours…</h2>
+          ${gs?.buzzerState?.firstPseudo ? `<p style="margin-top:16px;font-size:1.5rem;">🔔 <strong>${gs.buzzerState.firstPseudo}</strong> a buzzé en premier</p>` : ''}
+        </div>`;
+    }
+  }
+
+  // Message de diffusion hôte
+  if (gs?.phaseMeta?.broadcastMessage) {
+    const bm = gs.phaseMeta.broadcastMessage;
     content += `
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:3rem;">⚖️</div>
-        <h2>Notation en cours…</h2>
-        ${gs?.buzzerState?.firstPseudo ? `<p style="margin-top:16px;font-size:1.5rem;">🔔 <strong>${gs.buzzerState.firstPseudo}</strong> a buzzé en premier</p>` : ''}
+      <div class="card" style="margin-top:14px;border-color:rgba(240,147,251,.4);background:rgba(240,147,251,.07);text-align:center;padding:20px;">
+        ${bm.imageUrl ? `<img src="${bm.imageUrl}" style="max-width:100%;max-height:280px;border-radius:12px;margin-bottom:12px;object-fit:contain;">` : ''}
+        ${bm.text ? `<p style="font-size:1.1rem;font-weight:600;">${bm.text}</p>` : ''}
       </div>`;
   }
 
@@ -1229,59 +2373,198 @@ function renderDisplayQuestion(gs) {
     }).join('')}</div>`;
   }
 
-  // Buzzer rapidité
+  // Buzzer rapidité — avec feedback visuel correct/mauvais
   let buzzerDisplay = '';
-  if (pm.answerMode === 'buzzer' && gs.buzzerState?.firstPseudo) {
-    buzzerDisplay = `
-      <div class="card" style="text-align:center;padding:30px;border:2px solid #ffa500;">
-        <div style="font-size:2.5rem;">🔔</div>
-        <h2 style="color:#ffa500;margin-top:12px;">${gs.buzzerState.firstPseudo}</h2>
-        <p class="muted">a buzzé en premier</p>
-      </div>`;
+  if (pm.answerMode === 'buzzer') {
+    const bz = gs.buzzerState;
+    const blr = gs.buzzerLastResult;
+    if (bz?.firstPseudo) {
+      // Trouver l'avatar du joueur
+      const buzzerPlayer = state.players.find(p => (p.id || p.playerId) === bz.firstPlayerId);
+      const buzzerAvatar = buzzerPlayer?.avatar || '🎮';
+
+      let resultOverlay = '';
+      if (blr && blr.playerId === bz.firstPlayerId) {
+        if (blr.result === 'correct') {
+          resultOverlay = `<div class="buzzer-result-badge buzzer-correct-badge">✅ BONNE RÉPONSE !</div>`;
+        } else if (blr.result === 'wrong') {
+          resultOverlay = `<div class="buzzer-result-badge buzzer-wrong-badge">❌ MAUVAISE RÉPONSE</div>`;
+        }
+      }
+
+      buzzerDisplay = `
+        <div class="buzzer-player-display ${blr?.playerId === bz.firstPlayerId && blr?.result === 'correct' ? 'buzzer-correct' : blr?.playerId === bz.firstPlayerId && blr?.result === 'wrong' ? 'buzzer-wrong' : ''}">
+          <div class="buzzer-player-avatar">${buzzerAvatar}</div>
+          <div class="buzzer-player-pseudo">${bz.firstPseudo}</div>
+          <div style="font-size:.85rem;color:rgba(255,255,255,.5);">🔔 a buzzé en premier</div>
+          ${resultOverlay}
+        </div>`;
+    } else if (!bz?.firstPseudo) {
+      // Buzzer actif mais personne n'a encore buzzé
+      buzzerDisplay = `
+        <div class="card" style="text-align:center;padding:24px;border:2px solid rgba(255,165,0,.3);">
+          <div style="font-size:2.5rem;margin-bottom:8px;">🔔</div>
+          <p style="color:#ffa500;font-weight:600;">Buzzers actifs — prêts à répondre !</p>
+        </div>`;
+    }
   }
 
-  // Burger : afficher l'item courant
+  // Burger : afficher l'item courant (ou message d'attente / grand "?")
   let burgerDisplay = '';
-  if ((q.type === 'burger' || gs?.currentRound?.type === 'burger') && gs.burgerState) {
+  const isBurgerQ = q.type === 'burger' || gs?.currentRound?.type === 'burger';
+  if (isBurgerQ) {
     const bs = gs.burgerState;
     const items = q.items || [];
-    const curItem = bs.currentItemIndex >= 0 ? items[bs.currentItemIndex] : null;
-    const itemUrl = curItem?.mediaUrl ? resolveMedia(curItem.mediaUrl) : '';
-    const isImg = itemUrl && /\.(jpg|jpeg|png|gif|webp)$/i.test(itemUrl);
-    const isAudio = itemUrl && /\.(mp3|wav|ogg)$/i.test(itemUrl);
-    burgerDisplay = `
-      <div class="card" style="text-align:center;padding:30px;">
-        <div style="font-size:.85rem;color:rgba(255,255,255,.4);margin-bottom:12px;">🍔 Élément ${bs.currentItemIndex+1} / ${items.length}</div>
-        ${curItem ? `
-          ${isImg ? `<img src="${itemUrl}" style="max-height:200px;border-radius:10px;margin-bottom:14px;">` : ''}
+    const selectedPseudo = gs?.burgerSelectedPseudo || null;
+    const burgerFinalScore = gs?.burgerFinalScore;
+
+    if (burgerFinalScore) {
+      // Score validé — afficher le résultat
+      burgerDisplay = `
+        <div class="card" style="text-align:center;padding:50px 20px;background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
+          <div style="font-size:4rem;margin-bottom:16px;">🍔</div>
+          <h2 style="color:#f7971e;">${burgerFinalScore.pseudo}</h2>
+          <div style="font-size:5rem;font-weight:900;color:#f7971e;margin:16px 0;">${burgerFinalScore.score}<span style="font-size:2rem;color:rgba(255,255,255,.4);">/10</span></div>
+          <p class="muted">Score attribué par le maître de jeu</p>
+        </div>`;
+    } else if (!bs || bs.currentItemIndex < 0) {
+      // Pas encore commencé — message "Prêts ?"
+      burgerDisplay = `
+        <div class="card" style="text-align:center;padding:60px 20px;background:rgba(247,151,30,.07);border-color:rgba(247,151,30,.3);">
+          <div style="font-size:5rem;margin-bottom:20px;">🍔</div>
+          <h2 style="font-size:2rem;">Épreuve Burger</h2>
+          ${selectedPseudo ? `<p style="font-size:1.3rem;margin-top:12px;"><strong style="color:#f7971e;">${selectedPseudo}</strong> passe l'épreuve</p>` : '<p class="muted" style="margin-top:12px;">En attente de la sélection du joueur…</p>'}
+          <p class="muted" style="margin-top:16px;font-size:1rem;">Le maître de jeu va dévoiler les éléments un par un.</p>
+          <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
+        </div>`;
+    } else {
+      const curItem = items[bs.currentItemIndex];
+      const itemUrl = curItem?.mediaUrl ? resolveMedia(curItem.mediaUrl) : '';
+      const isImg = itemUrl && /\.(jpg|jpeg|png|gif|webp)$/i.test(itemUrl);
+      const isAudio = itemUrl && /\.(mp3|wav|ogg)$/i.test(itemUrl);
+      burgerDisplay = `
+        <div class="card" style="text-align:center;padding:30px;background:rgba(247,151,30,.07);border-color:rgba(247,151,30,.3);">
+          <div style="font-size:.85rem;color:rgba(255,255,255,.4);margin-bottom:14px;letter-spacing:1px;">🍔 ÉLÉMENT ${bs.currentItemIndex+1} / ${items.length}</div>
+          ${isImg ? `<img src="${itemUrl}" style="max-height:220px;border-radius:12px;margin-bottom:16px;">` : ''}
           ${isAudio ? `<audio controls autoplay src="${itemUrl}" style="margin-bottom:14px;"></audio>` : ''}
-          <p style="font-size:1.6rem;font-weight:700;">${curItem.text || ''}</p>
-        ` : '<p class="muted">En attente du maître de jeu…</p>'}
-      </div>`;
+          ${curItem ? `<p style="font-size:clamp(1.6rem,5vw,2.4rem);font-weight:700;line-height:1.2;">${curItem.text || ''}</p>` : ''}
+          <div style="margin-top:16px;display:flex;justify-content:center;gap:6px;">
+            ${items.map((_, i) => `<span style="width:10px;height:10px;border-radius:50%;background:${i <= bs.currentItemIndex ? '#f7971e' : 'rgba(255,255,255,.2)'}; display:inline-block;"></span>`).join('')}
+          </div>
+        </div>`;
+    }
   }
 
-  // Compteur de réponses (pas pour burger/buzzer)
+  // Vote : affichage selon la phase
+  let voteDisplay = '';
+  if (pm.answerMode === 'vote_input') {
+    const answered = gs.answers?.[q.id] ? Object.keys(gs.answers[q.id]).length : 0;
+    const connected = state.players.filter(p => p.connected).length;
+    voteDisplay = `
+      <div class="card" style="text-align:center;padding:30px;">
+        <div style="font-size:2.5rem;margin-bottom:12px;">✍️</div>
+        <h2>Répondez maintenant !</h2>
+        <p class="muted" style="margin-top:10px;font-size:1rem;">${answered}/${connected} réponse(s) reçue(s)</p>
+        <div class="progress-bar" style="margin-top:12px;"><div class="fill" style="width:${connected > 0 ? Math.round(answered/connected*100) : 0}%"></div></div>
+      </div>`;
+  } else if (pm.answerMode === 'vote_voting') {
+    voteDisplay = renderDisplayVoteVoting(gs);
+  }
+
+  // Compteur de réponses (pas pour burger/buzzer/vote)
   const answered = gs.answers?.[q.id] ? Object.keys(gs.answers[q.id]).length : 0;
   const connected = state.players.filter(p => p.connected).length;
-  const showCounter = pm.answerMode !== 'buzzer' && q.type !== 'burger' && q.type !== 'rapidite';
+  const showCounter = pm.answerMode !== 'buzzer' && pm.answerMode !== 'vote_input' && pm.answerMode !== 'vote_voting' && q.type !== 'burger' && q.type !== 'rapidite';
 
   return `
-    ${media}
     ${timerHtml}
-    <div class="card">
-      <p style="font-size:1.4rem;font-weight:600;">${q.content || ''}</p>
-      ${showCounter ? `<p class="muted" style="margin-top:8px;">${answered}/${connected} réponse(s)</p>` : ''}
+    <div class="display-question-card">
+      <div class="display-question-text">${q.content || ''}</div>
+      ${media}
+      ${showCounter ? `<p class="muted" style="margin-top:8px;font-size:.9rem;">${answered}/${connected} réponse(s)</p>` : ''}
     </div>
     ${opts}
     ${votes}
     ${buzzerDisplay}
-    ${burgerDisplay}`;
+    ${burgerDisplay}
+    ${voteDisplay}`;
 }
 
-function renderAnswerList(answers) {
+// ── Affichage des résultats de vote sur le display ────────────
+function renderDisplayVoteResults(gs) {
+  const vs = gs?.voteState;
+  if (!vs || !vs.options) return '<div class="card" style="text-align:center;padding:40px;"><p class="muted">Résultats du vote…</p></div>';
+
+  const maxVotes = Math.max(...vs.options.map(o => o.voteCount || 0), 1);
+
+  const optionRows = vs.options
+    .sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0))
+    .map((opt, i) => {
+      const votes = opt.voteCount || 0;
+      const pct = Math.round((votes / maxVotes) * 100);
+      const isDecoy = opt.isDecoy;
+      const bgColor = isDecoy ? 'rgba(235,51,73,.15)' : 'rgba(56,239,125,.1)';
+      const borderColor = isDecoy ? 'rgba(235,51,73,.4)' : 'rgba(56,239,125,.3)';
+      return `
+        <div style="padding:14px 16px;border-radius:12px;background:${bgColor};border:1px solid ${borderColor};margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-weight:600;font-size:1rem;">${opt.text}</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              ${isDecoy ? '<span style="color:#eb3349;font-size:.75rem;font-weight:700;">🎭 LEURRE</span>' : ''}
+              <strong style="font-size:1.3rem;color:${isDecoy?'#eb3349':'#38ef7d'};">${votes} 🗳️</strong>
+            </div>
+          </div>
+          <div class="progress-bar"><div class="fill" style="width:${pct}%;background:${isDecoy?'linear-gradient(90deg,#eb3349,#ff6b7a)':'linear-gradient(90deg,#38ef7d,#00b09b)'}"></div></div>
+        </div>`;
+    }).join('');
+
+  return `
+    <div class="card" style="padding:30px;">
+      <h2 style="text-align:center;margin-bottom:20px;">🗳️ Résultats du vote</h2>
+      ${optionRows}
+    </div>`;
+}
+
+// ── Affichage du vote en cours sur le display (pendant vote_voting) ──
+function renderDisplayVoteVoting(gs) {
+  const vs = gs?.voteState;
+  if (!vs) return '';
+
+  const totalPlayers = state.players.filter(p => p.connected).length;
+  const totalVotes = Object.keys(vs.votes || {}).length;
+
+  const options = vs.options || [];
+  return `
+    <div class="card" style="padding:30px;">
+      <h2 style="text-align:center;margin-bottom:6px;">🗳️ Votez !</h2>
+      <p class="muted" style="text-align:center;margin-bottom:20px;">${totalVotes}/${totalPlayers} votes enregistrés</p>
+      <div style="display:grid;gap:10px;">
+        ${options.map((opt, i) => `
+          <div style="padding:16px 20px;border-radius:12px;background:rgba(255,255,255,.07);
+            border:1px solid rgba(255,255,255,.12);font-size:1.1rem;font-weight:600;text-align:center;">
+            ${opt.text}
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function formatTrueFalseAnswer(answer) {
+  if (!answer) return '—';
+  const lower = answer.trim().toLowerCase();
+  if (lower === 'vrai') return '<span style="color:#22c55e;font-weight:900;text-transform:uppercase;">VRAI</span>';
+  if (lower === 'faux') return '<span style="color:#ef4444;font-weight:900;text-transform:uppercase;">FAUX</span>';
+  return answer.toUpperCase();
+}
+
+function formatAnswerText(answer, isTrueFalse) {
+  if (!isTrueFalse) return answer || '';
+  return formatTrueFalseAnswer(answer);
+}
+
+function renderAnswerList(answers, isTrueFalse = false) {
   if (!answers.length) return '';
   const rows = answers.map(a => `
-    <tr><td><strong>${a.pseudo}</strong></td><td>${a.answer}</td></tr>`).join('');
+    <tr><td><strong>${a.pseudo}</strong></td><td>${formatAnswerText(a.answer, isTrueFalse)}</td></tr>`).join('');
   return `
     <div class="card">
       <h3>Réponses des joueurs</h3>
@@ -1504,6 +2787,14 @@ function emptyQuestion(type = 'qcm') {
       })),
     };
   }
+  // Vote — les joueurs proposent une réponse, puis votent parmi toutes les réponses + leurres
+  if (type === 'vote') {
+    return {
+      ...base,
+      type: 'vote',
+      fakeAnswers: [''],  // 1 leurre vide par défaut (non affiché si non modifié)
+    };
+  }
   return { ...base, type: type };
 }
 
@@ -1594,6 +2885,7 @@ function renderRoundBlock(round, ri) {
     { v:'rapidite',  l:'⚡ Rapidité (buzzer)' },
     { v:'true_false',l:'✅ Vrai / Faux' },
     { v:'burger',    l:'🍔 Burger (liste révélée)' },
+    { v:'vote',      l:'🗳️ Vote (propositions + votes)' },
   ];
 
   const bgPreview = round.backgroundUrl
@@ -1670,7 +2962,7 @@ function renderRoundBlock(round, ri) {
       <div>
         <div class="row" style="justify-content:space-between;margin-bottom:8px;">
           <span style="font-size:.85rem;color:rgba(255,255,255,.6);">${qLabel} (${nbQ})</span>
-          <button class="btn-secondary" style="padding:4px 10px;font-size:.8rem;" onclick="addQuestion('${round.id}','${round.type||'qcm'}')">+ Question</button>
+          <button class="btn-secondary" style="padding:4px 10px;font-size:.8rem;" onclick="addQuestion('${round.id}')">+ Question</button>
         </div>
         <div id="questions-${round.id}">
           ${(round.questions || []).map((q, qi) => renderQuestionRow(q, qi, round.id, round.type || 'qcm')).join('')}
@@ -1766,6 +3058,12 @@ function renderQuestionRow(q, qi, roundId, roundType) {
     body = `
       <div style="margin:6px 0 4px 28px;background:rgba(255,165,0,.08);border:1px solid rgba(255,165,0,.2);border-radius:8px;padding:10px;font-size:.82rem;color:rgba(255,165,0,.9);">
         ⚡ Mode <strong>Rapidité</strong> : un buzzer apparaît sur l'écran du joueur. Le premier qui clique est interrogé oralement. Le maître de jeu attribue le point manuellement.
+      </div>
+      <div style="margin:8px 0 4px 28px;display:flex;align-items:center;gap:8px;">
+        <label style="font-size:.78rem;color:rgba(255,255,255,.5);white-space:nowrap;">💡 Solution (optionnelle) :</label>
+        <input value="${(q.correctAnswer||'').replace(/"/g,'&quot;')}" placeholder="Réponse à afficher après révélation"
+          onchange="updateQuestion('${roundId}','${q.id}','correctAnswer',this.value)"
+          style="flex:1;font-size:.82rem;padding:5px 8px;">
       </div>`;
   }
 
@@ -1787,6 +3085,31 @@ function renderQuestionRow(q, qi, roundId, roundType) {
             </div>`).join('')}
         </div>
         <div style="margin-top:10px;font-size:.75rem;color:rgba(255,255,255,.4);">🎯 Après les 10 éléments, le maître de jeu attribue de 0 à 10 points</div>
+      </div>`;
+  }
+
+  // ── VOTE ─────────────────────────────────────────────────
+  if (effectiveType === 'vote') {
+    const fakeAnswers = Array.isArray(q.fakeAnswers) && q.fakeAnswers.length > 0 ? q.fakeAnswers : [''];
+    body = `
+      <div style="margin:8px 0 4px 28px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:10px;">
+        <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">🗳️ Leurres (facultatifs — réponses piège)</div>
+        <p style="font-size:.78rem;color:rgba(255,255,255,.5);margin-bottom:8px;">
+          Ces réponses seront mélangées avec celles des joueurs. Voter pour un leurre = -1 point.<br>
+          <em>Laissez vide pour ne pas afficher ce leurre.</em>
+        </p>
+        <div style="display:grid;gap:6px;">
+          ${fakeAnswers.map((fa, i) => `
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:.78rem;color:#eb3349;min-width:22px;flex-shrink:0;">🎭${i+1}</span>
+              <input value="${(fa||'').replace(/"/g,'&quot;')}" placeholder="Leurre ${i+1} (laisser vide pour ignorer)"
+                oninput="updateFakeAnswer('${roundId}','${q.id}',${i},this.value)"
+                style="flex:1;font-size:.82rem;padding:5px 8px;">
+              ${fakeAnswers.length > 1 ? `<button class="btn-secondary" style="padding:3px 7px;font-size:.75rem;color:#eb3349;" onclick="removeFakeAnswer('${roundId}','${q.id}',${i})">✕</button>` : ''}
+            </div>`).join('')}
+        </div>
+        <button class="btn-secondary" style="margin-top:8px;padding:4px 10px;font-size:.78rem;" onclick="addFakeAnswer('${roundId}','${q.id}')">+ Ajouter un leurre</button>
+        <div style="margin-top:10px;font-size:.75rem;color:rgba(255,255,255,.4);">📋 Déroulement : 1. Les joueurs écrivent une réponse · 2. Toutes les réponses + leurres non-vides sont affichés anonymement · 3. Les joueurs votent · 4. +1pt par vote reçu, -1pt si vote pour un leurre</div>
       </div>`;
   }
 
@@ -1826,10 +3149,44 @@ function updateBurgerItem(roundId, qId, itemIndex, value) {
   if (q.items[itemIndex]) q.items[itemIndex].text = value;
 }
 
+function updateFakeAnswer(roundId, qId, idx, value) {
+  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+  const q = round?.questions?.find(q => q.id === qId);
+  if (!q) return;
+  if (!Array.isArray(q.fakeAnswers)) q.fakeAnswers = [];
+  q.fakeAnswers[idx] = value;
+}
+
+function addFakeAnswer(roundId, qId) {
+  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+  const q = round?.questions?.find(q => q.id === qId);
+  if (!q) return;
+  if (!Array.isArray(q.fakeAnswers)) q.fakeAnswers = [];
+  q.fakeAnswers.push('');
+  renderQuizEditor();
+}
+
+function removeFakeAnswer(roundId, qId, idx) {
+  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+  const q = round?.questions?.find(q => q.id === qId);
+  if (!q || !Array.isArray(q.fakeAnswers)) return;
+  q.fakeAnswers.splice(idx, 1);
+  if (q.fakeAnswers.length === 0) q.fakeAnswers = [''];
+  renderQuizEditor();
+}
+
 function addRound() {
   const q = state.admin.editingQuiz;
   q.rounds = q.rounds || [];
-  q.rounds.push(emptyRound(q.rounds.length));
+  const newRound = emptyRound(q.rounds.length);
+  // Pour une manche QCM, ajouter une première question par défaut
+  // Pour les autres types (vote, burger, true_false, rapidite…), laisser vide
+  if (newRound.type === 'qcm') {
+    newRound.questions = [emptyQuestion('qcm')];
+  } else {
+    newRound.questions = [];
+  }
+  q.rounds.push(newRound);
   state.admin.activeRoundIndex = q.rounds.length - 1;
   renderQuizEditor();
 }
@@ -1842,12 +3199,26 @@ function removeRound(roundId) {
 
 function updateRound(roundId, field, value) {
   const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
-  if (round) round[field] = value;
+  if (round) {
+    round[field] = value;
+    // Quand le type de manche change, réinitialiser les questions :
+    // - QCM → ajouter une question vide adaptée
+    // - autres types → vider (chaque question est unique à ce type)
+    if (field === 'type') {
+      if (value === 'qcm') {
+        round.questions = [emptyQuestion('qcm')];
+      } else {
+        round.questions = [];
+      }
+    }
+    renderQuizEditor();
+  }
 }
 
-function addQuestion(roundId, roundType = 'questionnaire') {
+function addQuestion(roundId) {
   const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
   if (!round) return;
+  const roundType = round.type || 'qcm';
   round.questions = round.questions || [];
   round.questions.push(emptyQuestion(roundType));
   renderQuizEditor();
@@ -2025,25 +3396,291 @@ function renderScoreboard(leaderboard, title = 'Classement') {
     </div>`;
 }
 
-function renderFinalCeremony(gs, leaderboard) {
+function renderPodiumStage(revealed, total) {
+  // Affichage visuel du podium (3 marches) avec les places selon révélation
+  const p1 = revealed.find(p => p.rank === 1);
+  const p2 = revealed.find(p => p.rank === 2);
+  const p3 = revealed.find(p => p.rank === 3);
+  const podiumSlot = (player, label, height, color, shadow) => player
+    ? `<div class="podium-stage-slot podium-slot-filled" style="height:${height}px;background:${color};box-shadow:0 0 30px ${shadow};">
+        <span style="font-size:1.8rem;">${label}</span>
+        <div style="font-size:.95rem;font-weight:700;margin-top:4px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${player.pseudo}</div>
+        <div style="font-size:.85rem;opacity:.8;">${player.scoreTotal ?? 0} pts</div>
+       </div>`
+    : `<div class="podium-stage-slot podium-slot-empty" style="height:${height}px;">
+        <span style="font-size:2rem;opacity:.2;">${label}</span>
+       </div>`;
+  return `
+    <div class="podium-stage">
+      ${podiumSlot(p2, '🥈', 120, 'linear-gradient(180deg,rgba(192,192,192,.35),rgba(150,150,150,.15))', 'rgba(192,192,192,.3)')}
+      ${podiumSlot(p1, '🥇', 160, 'linear-gradient(180deg,rgba(255,215,0,.4),rgba(255,170,0,.2))', 'rgba(255,215,0,.5)')}
+      ${podiumSlot(p3, '🥉', 90, 'linear-gradient(180deg,rgba(205,127,50,.35),rgba(160,100,40,.15))', 'rgba(205,127,50,.3)')}
+    </div>
+    ${total > 3 && revealed.length === 0 ? `<p class="muted" style="text-align:center;margin-top:8px;font-size:.85rem;">Le maître de jeu va révéler les résultats…</p>` : ''}`;
+}
+
+function toggleCeremonyView(view) {
+  state.admin.ceremonyView = view || (state.admin.ceremonyView === 'players' ? 'teams' : 'players');
+  renderHostGame();
+}
+window.toggleCeremonyView = toggleCeremonyView;
+
+function renderFinalCeremony(gs, leaderboard, leaderboardTeams) {
   const fc = gs?.phaseMeta?.finalCeremony;
-  if (fc) {
-    const revealed = fc.revealOrder.filter(p => p.revealed).reverse();
+
+  // Pas de cérémonie lancée : afficher le podium vide en attente
+  if (!fc) {
     return `
-      <div class="card" style="text-align:center;padding:40px;">
-        <h1>🎊 Cérémonie finale</h1>
-        <p class="muted">${fc.revealCursor}/${fc.revealOrder.length} révélé(s)</p>
-        ${fc.winnerTeam ? `<p style="margin-top:16px;font-size:1.3rem;">🏆 Équipe gagnante : <strong>${fc.winnerTeam.name}</strong></p>` : ''}
-      </div>
-      ${revealed.length ? `
-        <div class="card">
-          <h3>Podium</h3>
-          <table style="margin-top:10px;"><tbody>
-            ${revealed.map(p => `<tr><td><strong>${p.rank}</strong></td><td>${p.pseudo}</td><td>${p.scoreTotal} pts</td><td class="muted">${p.nickname}</td></tr>`).join('')}
-          </tbody></table>
-        </div>` : ''}`;
+      <div class="ceremony-container">
+        <div class="card" style="text-align:center;padding:24px;margin-bottom:16px;">
+          <div style="font-size:3.5rem;margin-bottom:10px;">🏆</div>
+          <h2>Fin du Quiz !</h2>
+          <p class="muted" style="margin-top:6px;">En attente de la cérémonie…</p>
+        </div>
+        ${renderPodiumStage([], leaderboard?.length || 0)}
+      </div>`;
   }
-  return renderScoreboard(leaderboard, '🏆 Résultats finaux');
+
+  // Mode équipes : afficher le classement par équipes
+  const showTeams = state.admin?.ceremonyView === 'teams';
+  if (showTeams && leaderboardTeams && leaderboardTeams.length > 0) {
+    const teamRows = leaderboardTeams.map((t, i) => {
+      const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
+      return `<div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:12px;
+        background:${i<3 ? 'rgba(255,255,255,.07)' : 'rgba(255,255,255,.03)'};
+        border:1px solid rgba(255,255,255,${i<3 ? '.12' : '.06'});margin-bottom:8px;">
+        <span style="font-size:1.6rem;min-width:36px;">${rankEmoji}</span>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:1rem;">${t.name || '—'}</div>
+        </div>
+        <div style="font-size:1.1rem;font-weight:700;color:#f7971e;">${t.scoreTotal ?? 0} <span style="font-size:.7rem;opacity:.6;">pts</span></div>
+      </div>`;
+    }).join('');
+    return `
+      <div class="ceremony-container">
+        <div style="text-align:center;padding:16px 8px 8px;">
+          <div style="font-size:2.5rem;margin-bottom:8px;">⚽</div>
+          <h2>Classement par équipes</h2>
+        </div>
+        <div style="margin-top:16px;">${teamRows}</div>
+      </div>`;
+  }
+
+  // Mode joueurs : révélation progressive avec podium
+  const revealed = fc.revealOrder.filter(p => p.revealed);
+
+  // Séparer : 4e+ et podium (top 3)
+  const revealedTop3 = revealed.filter(p => p.rank <= 3);
+  const revealedOthers = revealed.filter(p => p.rank > 3).sort((a, b) => a.rank - b.rank); // ordre croissant de rang
+
+  const rankEmoji = r => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : `#${r}`;
+  const rankClass = r => r === 1 ? 'rank-1-card' : r === 2 ? 'rank-2-card' : r === 3 ? 'rank-3-card' : 'rank-other-card';
+
+  // Déclencher confettis si le 1er vient d'être révélé
+  const first = revealed.find(p => p.rank === 1);
+  const confettiJs = first ? '<script>if(window.launchConfetti)launchConfetti();<\/script>' : '';
+
+  // Liste 4e et au-delà (triée du dernier vers le 4e = ordre croissant de rang)
+  const othersListHtml = revealedOthers.length ? `
+    <div style="margin-bottom:20px;">
+      <p class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;text-align:center;">Classement</p>
+      ${revealedOthers.map((p, i) => {
+        const isNew = i === revealedOthers.length - 1 && revealedTop3.length === 0;
+        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;
+          background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:6px;
+          ${isNew ? 'animation:podium-entry .45s ease forwards;' : ''}">
+          <span style="font-size:1.1rem;min-width:32px;text-align:center;">${rankEmoji(p.rank)}</span>
+          <div style="flex:1;font-weight:600;font-size:.95rem;">${p.pseudo}</div>
+          ${p.teamName ? `<span style="font-size:.75rem;color:rgba(255,255,255,.4);">⚽ ${p.teamName}</span>` : ''}
+          <span style="font-size:.95rem;font-weight:700;color:rgba(255,255,255,.7);">${p.scoreTotal ?? 0} pts</span>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  // Cartes podium (top 3, révélées progressivement)
+  const sortedTop3 = [...revealedTop3].sort((a, b) => b.rank - a.rank);
+  const newestRevealIndex = sortedTop3.length - 1;
+  const podiumCards = sortedTop3.map((p, i) => {
+    const isNew = i === newestRevealIndex;
+    const animStyle = isNew ? 'animation-delay:0s;' : 'animation:none;';
+    return `<div class="podium-card ${rankClass(p.rank)}" style="${animStyle}">
+      <span class="podium-rank">${rankEmoji(p.rank)}</span>
+      <div class="podium-pseudo">${p.pseudo}</div>
+      ${p.teamName ? `<div class="muted" style="font-size:.78rem;margin-top:2px;">⚽ ${p.teamName}</div>` : ''}
+      <div class="podium-score">${p.scoreTotal ?? 0} pts</div>
+      <div class="podium-nickname">${p.nickname || ''}</div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="ceremony-container">
+      ${confettiJs}
+      ${othersListHtml}
+      ${renderPodiumStage(revealedTop3, fc.revealOrder.length)}
+      ${revealedTop3.length ? `<div class="podium-revealed-list" style="margin-top:16px;">${podiumCards}</div>` : ''}
+    </div>`;
+}
+
+// ── Confettis (lancés côté display/player au moment de la révélation du 1er) ──
+function launchConfetti() {
+  const colors = ['#f093fb','#f5576c','#38ef7d','#ffcc00','#4facfe','#ff9a56'];
+  const container = document.body;
+  for (let i = 0; i < 80; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.style.cssText = `
+      left:${Math.random() * 100}vw;
+      top:-20px;
+      background:${colors[Math.floor(Math.random() * colors.length)]};
+      width:${6 + Math.random() * 8}px;
+      height:${10 + Math.random() * 12}px;
+      animation-duration:${2.5 + Math.random() * 3}s;
+      animation-delay:${Math.random() * 1.5}s;
+    `;
+    container.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
+  }
+}
+window.launchConfetti = launchConfetti;
+
+// ── Modal de changement de quiz ────────────────────────────────
+async function showChangeQuizModal() {
+  closeModal('change-quiz-modal');
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'change-quiz-modal';
+  modal.innerHTML = `
+    <div class="modal-box" style="max-width:480px;">
+      <div class="row" style="justify-content:space-between;margin-bottom:16px;">
+        <h2>🔄 Changer de quiz</h2>
+        <button class="btn-secondary btn-sm" onclick="closeModal('change-quiz-modal')">✕</button>
+      </div>
+      <div id="change-quiz-list"><p class="muted">Chargement…</p></div>
+    </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal('change-quiz-modal'); });
+  document.body.appendChild(modal);
+
+  try {
+    const d = await apiFetch('/api/quizzes');
+    const quizzes = d.quizzes || [];
+    const currentId = state.gameState?.quizId;
+    const listHtml = quizzes.length
+      ? quizzes.map(q => `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;
+            padding:10px 14px;border-radius:10px;margin-bottom:8px;
+            background:${q.id === currentId ? 'rgba(56,239,125,.08)' : 'rgba(255,255,255,.04)'};
+            border:1px solid ${q.id === currentId ? 'rgba(56,239,125,.3)' : 'rgba(255,255,255,.08)'};">
+            <div>
+              <div style="font-weight:600;font-size:.95rem;">${q.title || 'Sans titre'}</div>
+              <div style="font-size:.75rem;color:rgba(255,255,255,.4);">${(q.rounds||[]).length} manche(s)</div>
+            </div>
+            ${q.id === currentId
+              ? `<span style="font-size:.75rem;color:#38ef7d;">✓ Actuel</span>`
+              : `<button class="hbtn hbtn-primary hbtn-sm" onclick="confirmChangeQuiz('${q.id}','${(q.title||'').replace(/'/g,"\\'")}')">Sélectionner</button>`}
+          </div>`).join('')
+      : '<p class="muted">Aucun quiz disponible</p>';
+    const el = document.getElementById('change-quiz-list');
+    if (el) el.innerHTML = listHtml;
+  } catch (e) {
+    const el = document.getElementById('change-quiz-list');
+    if (el) el.innerHTML = `<p class="muted" style="color:#eb3349;">Erreur : ${e.message}</p>`;
+  }
+}
+window.showChangeQuizModal = showChangeQuizModal;
+
+function confirmChangeQuiz(quizId, quizTitle) {
+  if (!confirm(`Changer le quiz pour "${quizTitle}" ?`)) return;
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'set_session_quiz', quizId }, (res) => {
+    closeModal('change-quiz-modal');
+    if (!res?.ok) { alert('Erreur : ' + (res?.error || 'Inconnue')); return; }
+    renderHostGame();
+  });
+}
+window.confirmChangeQuiz = confirmChangeQuiz;
+
+// ── Modal de diffusion ─────────────────────────────────────────
+function showBroadcastModal() {
+  const sc = state.host.sessionCode;
+  const playerOptions = state.players.map(p => `<option value="${p.id}">${p.pseudo}</option>`).join('');
+  const teamOptions = state.teams.filter(t => state.players.some(p => p.teamId === t.id))
+    .map(t => `<option value="team:${t.id}">${t.name}</option>`).join('');
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'broadcast-modal';
+  modal.innerHTML = `
+    <div class="modal-box">
+      <div class="row" style="justify-content:space-between;margin-bottom:16px;">
+        <h2>📡 Diffuser un message</h2>
+        <button class="btn-secondary btn-sm" onclick="document.getElementById('broadcast-modal')?.remove()">✕</button>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label>Destinataire</label>
+        <select id="bc-target">
+          <option value="all">📢 Tous les joueurs</option>
+          ${teamOptions ? `<optgroup label="Équipes">${teamOptions}</optgroup>` : ''}
+          ${playerOptions ? `<optgroup label="Joueurs">${playerOptions}</optgroup>` : ''}
+        </select>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label>Message texte</label>
+        <textarea id="bc-text" rows="3" placeholder="Votre message…" style="resize:vertical;"></textarea>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label>Image / GIF (URL)</label>
+        <input id="bc-image" type="url" placeholder="https://…">
+      </div>
+      <div id="bc-preview" style="margin-bottom:12px;"></div>
+      <div class="row" style="gap:8px;">
+        <button class="btn-primary" style="flex:1;" onclick="sendBroadcast()">📡 Envoyer</button>
+        <button class="btn-secondary" style="flex:0 0 auto;" onclick="clearBroadcast()" title="Effacer le message diffusé">🗑 Effacer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+  // Preview image
+  document.getElementById('bc-image')?.addEventListener('input', function() {
+    const prev = document.getElementById('bc-preview');
+    if (prev) prev.innerHTML = this.value ? `<img src="${this.value}" style="max-width:100%;max-height:180px;border-radius:8px;object-fit:contain;">` : '';
+  });
+}
+
+function sendBroadcast() {
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  const target = document.getElementById('bc-target')?.value || 'all';
+  const text = (document.getElementById('bc-text')?.value || '').trim();
+  const imageUrl = (document.getElementById('bc-image')?.value || '').trim();
+  if (!text && !imageUrl) { alert('Message vide'); return; }
+
+  state.socket.emit('host:action', {
+    sessionCode: sc, hostKey: hk,
+    action: 'broadcast_message',
+    target, text, imageUrl,
+  }, (res) => {
+    if (!res?.ok) alert$('host-alert', res?.error || 'Diffusion impossible', 'error');
+    else {
+      alert$('host-alert', '✅ Message diffusé !', 'success');
+      document.getElementById('broadcast-modal')?.remove();
+    }
+  });
+}
+
+function clearBroadcast() {
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  state.socket.emit('host:action', {
+    sessionCode: sc, hostKey: hk,
+    action: 'broadcast_clear',
+  }, (res) => {
+    if (res?.ok) {
+      alert$('host-alert', '🗑 Message effacé', 'success');
+      document.getElementById('broadcast-modal')?.remove();
+    }
+  });
 }
 
 // ── Utilitaires divers ───────────────────────────────────────
@@ -2056,13 +3693,250 @@ function copyToClipboard(text, alertId = '') {
 }
 
 // ── Bootstrap ────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// SYSTÈME DE THÈMES
+// ════════════════════════════════════════════════════════════
+
+const THEMES = {
+  default: {
+    label: '🌌 Default',
+    name:  'Classique',
+    brand: '🎮 Quiz Live',
+    desc:  'Sombre & violet',
+  },
+  corporate: {
+    label: '💼 Corporate',
+    name:  'Corporate',
+    brand: '📊 QuizzGeek Pro',
+    desc:  'Enterprise SaaS',
+  },
+  party: {
+    label: '🎉 Party',
+    name:  'Party',
+    brand: '🎉 QuizzGeek Party!',
+    desc:  'Néons & fiesta',
+  },
+  tvshow: {
+    label: '📺 TV Show',
+    name:  'TV Show',
+    brand: '⭐ QUIZZGEEK',
+    desc:  'Dorée & dramatique',
+  },
+};
+
+let _currentTheme = 'default';
+
+function setTheme(themeKey) {
+  if (!THEMES[themeKey]) themeKey = 'default';
+  _currentTheme = themeKey;
+
+  // Appliquer sur body
+  document.body.setAttribute('data-theme', themeKey === 'default' ? '' : themeKey);
+
+  // Mettre à jour le brand
+  const brandEl = document.querySelector('.nav-brand');
+  if (brandEl) brandEl.textContent = THEMES[themeKey].brand;
+
+  // Sauvegarder
+  try { localStorage.setItem('quiz_theme', themeKey); } catch(e) {}
+
+  // Jouer un son de confirmation de thème
+  playThemeSound(themeKey);
+
+  // Mettre à jour le picker si visible
+  renderThemePicker();
+}
+
+function renderThemePicker() {
+  const container = document.getElementById('theme-picker-container');
+  if (!container) return;
+
+  const entries = Object.entries(THEMES);
+  container.innerHTML = entries.map(([key, t]) => `
+    <button
+      onclick="setTheme('${key}');closeThemePicker();"
+      style="
+        display:flex;align-items:center;gap:12px;
+        width:100%;padding:12px 14px;border-radius:10px;
+        border:${_currentTheme===key ? '2px solid rgba(240,147,251,0.8)' : '1px solid rgba(255,255,255,0.1)'};
+        background:${_currentTheme===key ? 'rgba(240,147,251,0.12)' : 'rgba(255,255,255,0.05)'};
+        cursor:pointer;text-align:left;color:#fff;font-family:inherit;
+        transition:all 0.15s;margin-bottom:6px;
+      "
+      onmouseover="this.style.background='rgba(255,255,255,0.1)'"
+      onmouseout="this.style.background='${_currentTheme===key ? 'rgba(240,147,251,0.12)' : 'rgba(255,255,255,0.05)'}'">
+      <span style="font-size:1.5rem;">${t.label.split(' ')[0]}</span>
+      <div>
+        <div style="font-weight:700;font-size:.92rem;">${t.name}${_currentTheme===key ? ' ✓' : ''}</div>
+        <div style="font-size:.75rem;opacity:.55;">${t.desc}</div>
+      </div>
+    </button>`).join('');
+}
+
+function openThemePicker() {
+  if (document.getElementById('theme-modal')) return;
+  const modal = document.createElement('div');
+  modal.id = 'theme-modal';
+  modal.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  `;
+  modal.innerHTML = `
+    <div style="
+      background:#1a1740;border:1px solid rgba(255,255,255,.15);
+      border-radius:18px;padding:22px;width:100%;max-width:380px;
+    ">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+        <h3 style="margin:0;font-size:1.1rem;">🎨 Choisir un thème</h3>
+        <button onclick="closeThemePicker()" style="
+          background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);
+          border-radius:8px;color:#fff;padding:5px 10px;cursor:pointer;font-size:.85rem;
+          font-family:inherit;font-weight:600;
+        ">✕</button>
+      </div>
+      <div id="theme-picker-container"></div>
+      <p style="margin-top:14px;font-size:.72rem;color:rgba(255,255,255,.35);text-align:center;">
+        Le thème s'applique à tous les écrans (joueur, host, display)
+      </p>
+    </div>`;
+  modal.addEventListener('click', (e) => { if (e.target === modal) closeThemePicker(); });
+  document.body.appendChild(modal);
+  renderThemePicker();
+}
+
+function closeThemePicker() {
+  const el = document.getElementById('theme-modal');
+  if (el) el.remove();
+}
+
+// ── Sons thématiques via Web Audio API ────────────────────
+function playThemeSound(themeKey) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+    if (themeKey === 'corporate') {
+      // Son corporate : 2 bips propres et précis
+      playNote(ctx, 660, 0,    0.06, 'sine',   0.15);
+      playNote(ctx, 880, 0.12, 0.06, 'sine',   0.15);
+    } else if (themeKey === 'party') {
+      // Son party : fanfare montante arpégée
+      [523, 659, 784, 1047].forEach((f, i) => {
+        playNote(ctx, f, i * 0.08, 0.12, 'triangle', 0.22);
+      });
+    } else if (themeKey === 'tvshow') {
+      // Son TV show : accord dramatique descendant + roulement
+      playNote(ctx, 880, 0,    0.1,  'sawtooth', 0.12);
+      playNote(ctx, 698, 0.1,  0.1,  'sawtooth', 0.12);
+      playNote(ctx, 523, 0.2,  0.25, 'sawtooth', 0.14);
+    } else {
+      // Default : bip simple
+      playNote(ctx, 440, 0, 0.08, 'sine', 0.12);
+    }
+    setTimeout(() => { try { ctx.close(); } catch(e) {} }, 1500);
+  } catch(e) {}
+}
+
+function playNote(ctx, freq, startDelay, duration, type, gain) {
+  try {
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gainNode.gain.setValueAtTime(gain, ctx.currentTime + startDelay);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startDelay + duration);
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    osc.start(ctx.currentTime + startDelay);
+    osc.stop(ctx.currentTime + startDelay + duration + 0.01);
+  } catch(e) {}
+}
+
+// ── Sons de jeu thématiques ────────────────────────────────
+// Appelés depuis les actions clés (buzz, bonne/mauvaise réponse, timer, etc.)
+function playGameSound(type) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const theme = _currentTheme;
+
+    if (type === 'buzz') {
+      if (theme === 'corporate') {
+        playNote(ctx, 880, 0, 0.08, 'sine', 0.2);
+      } else if (theme === 'party') {
+        [440, 550, 660].forEach((f, i) => playNote(ctx, f, i*0.05, 0.1, 'triangle', 0.25));
+      } else if (theme === 'tvshow') {
+        playNote(ctx, 440, 0,    0.06, 'sawtooth', 0.2);
+        playNote(ctx, 880, 0.07, 0.08, 'square',   0.15);
+      } else {
+        playNote(ctx, 660, 0, 0.1, 'sine', 0.2);
+      }
+    } else if (type === 'correct') {
+      if (theme === 'corporate') {
+        [523, 659].forEach((f, i) => playNote(ctx, f, i*0.1, 0.12, 'sine', 0.15));
+      } else if (theme === 'party') {
+        [523, 659, 784, 1047].forEach((f, i) => playNote(ctx, f, i*0.06, 0.12, 'triangle', 0.2));
+      } else if (theme === 'tvshow') {
+        [440, 554, 659, 880].forEach((f, i) => playNote(ctx, f, i*0.09, 0.15, 'sawtooth', 0.15));
+      } else {
+        [440, 660].forEach((f, i) => playNote(ctx, f, i*0.12, 0.12, 'sine', 0.18));
+      }
+    } else if (type === 'wrong') {
+      if (theme === 'corporate') {
+        playNote(ctx, 220, 0, 0.2, 'sine', 0.15);
+      } else if (theme === 'party') {
+        [400, 300, 200].forEach((f, i) => playNote(ctx, f, i*0.08, 0.1, 'triangle', 0.2));
+      } else if (theme === 'tvshow') {
+        [300, 220, 165].forEach((f, i) => playNote(ctx, f, i*0.1, 0.14, 'sawtooth', 0.15));
+      } else {
+        playNote(ctx, 220, 0, 0.2, 'sine', 0.18);
+      }
+    } else if (type === 'timer_end') {
+      if (theme === 'party') {
+        [880, 660, 440, 330].forEach((f, i) => playNote(ctx, f, i*0.07, 0.1, 'triangle', 0.18));
+      } else if (theme === 'tvshow') {
+        playNote(ctx, 440, 0, 0.05, 'square', 0.2);
+        playNote(ctx, 440, 0.08, 0.05, 'square', 0.2);
+        playNote(ctx, 330, 0.16, 0.3, 'sawtooth', 0.15);
+      } else {
+        playNote(ctx, 330, 0, 0.25, 'sine', 0.15);
+      }
+    }
+    setTimeout(() => { try { ctx.close(); } catch(e) {} }, 1500);
+  } catch(e) {}
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  // Charger le thème sauvegardé
+  try {
+    const savedTheme = localStorage.getItem('quiz_theme') || 'default';
+    if (savedTheme && savedTheme !== 'default') {
+      _currentTheme = savedTheme;
+      document.body.setAttribute('data-theme', savedTheme);
+      const brandEl = document.querySelector('.nav-brand');
+      if (brandEl) brandEl.textContent = THEMES[savedTheme]?.brand || '🎮 Quiz Live';
+    }
+  } catch(e) {}
+
+  // Ajouter le bouton thème dans la nav
+  const nav = document.querySelector('nav');
+  if (nav) {
+    const themeBtn = document.createElement('button');
+    themeBtn.id = 'theme-toggle-btn';
+    themeBtn.innerHTML = '🎨';
+    themeBtn.title = 'Changer de thème';
+    themeBtn.style.cssText = 'margin-left:auto;flex-shrink:0;padding:6px 10px;font-size:1rem;';
+    themeBtn.onclick = openThemePicker;
+    nav.appendChild(themeBtn);
+  }
+
   initSocket();
 
   // Navigation hash
   const hash = window.location.hash.replace('#', '') || 'home';
-  const urlCode = new URLSearchParams(window.location.search).get('join');
-  navigate(urlCode ? 'player' : hash);
+  const _urlParams = new URLSearchParams(window.location.search);
+  const urlCode = _urlParams.get('join');
+  const urlDisplayCode = _urlParams.get('display-session');
+  // Priorité : ?join → player | ?display-session → display | #hash → page
+  navigate(urlCode ? 'player' : urlDisplayCode ? 'display' : hash);
 
   // Écouter les changements de hash
   window.addEventListener('hashchange', () => {

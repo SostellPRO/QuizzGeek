@@ -58,6 +58,10 @@ function ensureSessionRuntime(session) {
     session.gameState.buzzerState = null;
   }
 
+  if (!session.gameState.voteState) {
+    session.gameState.voteState = null;
+  }
+
   return session._runtime;
 }
 
@@ -167,6 +171,11 @@ function setAnswerModeFromQuestion(session) {
     ) {
       answerMode = "true_false";
     } else if (
+      qType === "vote" ||
+      round.type === "vote"
+    ) {
+      answerMode = "vote_input";
+    } else if (
       qType === "qcm" ||
       qType === "mcq" ||
       round.type === "qcm" ||
@@ -233,6 +242,15 @@ function recomputeTrueFalseVotes(session) {
 
 function resetQuestionTransient(session) {
   resetQuestionTransientState(session.gameState);
+
+  // Réinitialiser l'état de vote pour la nouvelle question
+  session.gameState.voteState = null;
+
+  // Réinitialiser l'état burger lié à la question précédente
+  session.gameState.burgerSelectedPlayerId = null;
+  session.gameState.burgerSelectedTeamId = null;
+  session.gameState.burgerSelectedPseudo = null;
+  session.gameState.burgerFinalScore = null;
 
   // on conserve answers globaux par question, mais on réinitialise le timer + écrans
   setPhaseMeta(session, {
@@ -448,6 +466,8 @@ export function startQuiz(session) {
   session.gameState.buzzerState = null;
   session.gameState.burgerState = null;
   session.gameState.buzzerQueue = [];
+  session.gameState.buzzerCooldowns = {};
+  session.gameState.burgerFinalScore = null;
 
   // Aller directement à round_intro si des manches existent
   const rounds = getRounds(session);
@@ -510,14 +530,14 @@ export function nextQuestion(session) {
       answerMode: "none",
       timer: null,
     });
-    setStatus(session, "results");
+    setStatus(session, "round_end");
     return { ok: true };
   }
 
   const nextIdx = Number(session.gameState.currentQuestionIndex ?? -1) + 1;
 
   if (!questions[nextIdx]) {
-    // fin de manche
+    // fin de manche → afficher l'écran de fin de manche (pas les scores directement)
     session.gameState.currentQuestionIndex = -1;
     setCurrentRoundAndQuestionSnapshots(session);
 
@@ -529,7 +549,7 @@ export function nextQuestion(session) {
     });
 
     resetQuestionTransientState(session.gameState);
-    setStatus(session, "results");
+    setStatus(session, "round_end");
     return { ok: true };
   }
 
@@ -544,6 +564,22 @@ export function nextQuestion(session) {
     timer: null,
   });
   setAnswerModeFromQuestion(session);
+
+  // Buzzer : en mode rapidité les buzzers sont déjà actifs dès le début.
+  // Pour les autres modes buzzer (non utilisés pour l'instant), on verrouille
+  // et le host doit cliquer "Activer les buzzers".
+  const newAnswerMode = session.gameState.phaseMeta?.answerMode;
+  const currentRoundForBuzzer = getCurrentRound(session);
+  const isRapiditRound =
+    currentRoundForBuzzer?.type === "rapidite" ||
+    currentRoundForBuzzer?.type === "speed";
+  if (newAnswerMode === "buzzer" && !isRapiditRound) {
+    setPhaseMeta(session, { playerScreenLocked: true, allowAnswer: false });
+  }
+
+  // Réinitialiser le dernier résultat buzzer et les cooldowns
+  session.gameState.buzzerLastResult = null;
+  session.gameState.buzzerCooldowns = {};
 
   setStatus(session, "question");
   return { ok: true };
@@ -661,7 +697,10 @@ export function startTimer(session, seconds, hooks = {}) {
       return;
     }
 
-    timer.remainingSec = Math.max(0, Number(timer.remainingSec || 0) - 1);
+    // BUG FIX: Calcul basé sur le temps écoulé réel (plus précis que le décrément cumulatif)
+    // Évite la dérive de setInterval qui allonge la dernière seconde
+    const elapsedSec = Math.floor((Date.now() - rt.timerStartedAt) / 1000);
+    timer.remainingSec = Math.max(0, totalSec - elapsedSec);
     touch(session);
 
     if (emitNow) {
@@ -960,6 +999,21 @@ export function recordBuzzer(session, { player } = {}) {
     return { ok: false, error: "Buzzer fermé" };
   }
 
+  // Vérifier le cooldown (rapidité : après mauvaise réponse, 5s de pénalité)
+  const nowMs = Date.now();
+  if (!session.gameState.buzzerCooldowns) session.gameState.buzzerCooldowns = {};
+  const cooldownExpiry = session.gameState.buzzerCooldowns[player.id] || 0;
+  if (cooldownExpiry > nowMs) {
+    const remainingSec = Math.ceil((cooldownExpiry - nowMs) / 1000);
+    return { ok: false, error: `Buzzer bloqué encore ${remainingSec}s` };
+  }
+  // Nettoyer les cooldowns expirés
+  for (const pid of Object.keys(session.gameState.buzzerCooldowns)) {
+    if (session.gameState.buzzerCooldowns[pid] <= nowMs) {
+      delete session.gameState.buzzerCooldowns[pid];
+    }
+  }
+
   // Gestion rotation buzzerQueue : un joueur ne peut rebuzzer que si tous ont participé
   if (!Array.isArray(session.gameState.buzzerQueue)) {
     session.gameState.buzzerQueue = [];
@@ -1128,8 +1182,331 @@ export function cancelPendingAutoReveal(session) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Nouvelles actions de navigation & jeu                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Retour à la manche précédente (round_intro de cette manche)
+ */
+export function prevRound(session) {
+  ensureSessionRuntime(session);
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+
+  const curIdx = Number(session?.gameState?.currentRoundIndex ?? -1);
+  if (curIdx <= 0) return { ok: false, error: "Déjà à la première manche" };
+
+  const rounds = getRounds(session);
+  const prevIdx = curIdx - 1;
+  if (!rounds[prevIdx]) return { ok: false, error: "Manche précédente introuvable" };
+
+  session.gameState.currentRoundIndex = prevIdx;
+  session.gameState.currentQuestionIndex = -1;
+  setCurrentRoundAndQuestionSnapshots(session);
+  resetQuestionTransient(session);
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+    answerMode: "none",
+    timer: null,
+  });
+  setStatus(session, "round_intro");
+  return { ok: true };
+}
+
+/**
+ * Rafraîchit la question courante : remet à zéro réponses et transients,
+ * repart sur la même question sans changer d'index.
+ */
+export function refreshQuestion(session) {
+  ensureSessionRuntime(session);
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+
+  const q = getCurrentQuestion(session);
+  if (!q) return { ok: false, error: "Aucune question active" };
+
+  // Effacer les réponses enregistrées pour cette question
+  if (session.gameState.answers && q.id) {
+    delete session.gameState.answers[q.id];
+  }
+
+  resetQuestionTransient(session);
+  setPhaseMeta(session, {
+    playerScreenLocked: false,
+    allowAnswer: true,
+    timer: null,
+  });
+  setAnswerModeFromQuestion(session);
+  setStatus(session, "question");
+  return { ok: true };
+}
+
+/**
+ * Sélectionne le joueur actif pour l'épreuve Burger.
+ * Les autres joueurs verront un écran d'attente.
+ */
+export function setBurgerPlayer(session, playerId) {
+  ensureSessionRuntime(session);
+
+  if (!playerId) {
+    // Désélectionner
+    session.gameState.burgerSelectedPlayerId = null;
+    session.gameState.burgerSelectedTeamId = null;
+    session.gameState.burgerSelectedPseudo = null;
+    touch(session);
+    return { ok: true };
+  }
+
+  const player = (session.players || []).find((p) => p.id === playerId);
+  if (!player) return { ok: false, error: "Joueur introuvable" };
+
+  session.gameState.burgerSelectedPlayerId = playerId;
+  session.gameState.burgerSelectedTeamId = null;
+  session.gameState.burgerSelectedPseudo = player.pseudo;
+  touch(session);
+  return { ok: true };
+}
+
+/**
+ * Passe au joueur suivant dans la file buzzer (mode rapidité).
+ * Appelé par l'hôte après une mauvaise réponse.
+ */
+export function buzzerNextPlayer(session) {
+  ensureSessionRuntime(session);
+
+  const gs = session.gameState;
+  // Supprimer le premier de la queue (celui qui vient de rater)
+  if (Array.isArray(gs.buzzerQueue) && gs.buzzerQueue.length > 0) {
+    gs.buzzerQueue.shift();
+  }
+
+  // Si plus personne dans la queue : reset complet (permettre de re-buzzer)
+  if (!gs.buzzerQueue || gs.buzzerQueue.length === 0) {
+    gs.buzzerState = null;
+    gs.buzzerQueue = [];
+    setPhaseMeta(session, {
+      playerScreenLocked: false,
+      allowAnswer: true,
+    });
+    setStatus(session, "question");
+    touch(session);
+    return { ok: true, queueEmpty: true };
+  }
+
+  // Il reste des joueurs dans la queue : proposer au suivant
+  const nextId = gs.buzzerQueue[0];
+  const nextPlayer = (session.players || []).find((p) => p.id === nextId);
+  gs.buzzerState = {
+    firstPlayerId: nextId,
+    firstPseudo: nextPlayer?.pseudo || nextId,
+    buzzedAt: new Date().toISOString(),
+  };
+
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+  });
+  setStatus(session, "manual_scoring");
+  touch(session);
+  return { ok: true, nextPseudo: nextPlayer?.pseudo || nextId };
+}
+
+/* ------------------------------------------------------------------ */
+/* Stop timer : arrête le chrono et verrouille les joueurs             */
+/* ------------------------------------------------------------------ */
+
+export function stopTimer(session) {
+  ensureSessionRuntime(session);
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+  setPhaseMeta(session, {
+    timer: null,
+    playerScreenLocked: true,
+    allowAnswer: false,
+  });
+  touch(session);
+  return { ok: true };
+}
+
+/* ------------------------------------------------------------------ */
 /* Helpers optionnels (non importés par socket.js, mais utiles)        */
 /* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* Retour à la question courante depuis answer_reveal / results        */
+/* ------------------------------------------------------------------ */
+
+export function returnToQuestion(session) {
+  ensureSessionRuntime(session);
+
+  const q = getCurrentQuestion(session);
+  if (!q) return { ok: false, error: "Aucune question active" };
+
+  // On ne remet PAS à zéro les réponses, on revient juste à l'affichage de la question
+  clearTimer(session);
+  clearAutoRevealTimeout(session);
+
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+    timer: null,
+  });
+
+  setStatus(session, "question");
+  return { ok: true };
+}
+
+/* ------------------------------------------------------------------ */
+/* Type de question VOTE                                               */
+/* ------------------------------------------------------------------ */
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/**
+ * Lance la phase de vote :
+ * - Réunit les réponses des joueurs + les fausses réponses pré-configurées
+ * - Mélange le tout
+ * - Passe en mode vote_voting
+ */
+export function startVotePhase(session) {
+  ensureSessionRuntime(session);
+
+  const q = getCurrentQuestion(session);
+  if (!q) return { ok: false, error: "Aucune question active" };
+  const currentRound = getCurrentRound(session);
+  // Accepter si la question OU la manche est de type "vote"
+  if ((q.type || "") !== "vote" && (currentRound?.type || "") !== "vote") {
+    return { ok: false, error: "Question non de type vote" };
+  }
+
+  const answerMap = getQuestionAnswersMap(session, q.id);
+  const playerAnswers = Object.values(answerMap)
+    .filter((a) => a.answer && a.answer.trim())
+    .map((a) => ({ text: a.answer.trim(), isDecoy: false, playerId: a.playerId }));
+
+  const fakeAnswers = Array.isArray(q.fakeAnswers)
+    ? q.fakeAnswers.filter((f) => f && f.trim()).map((f) => ({ text: f.trim(), isDecoy: true, playerId: null }))
+    : [];
+
+  const allOptions = shuffleArray([...playerAnswers, ...fakeAnswers]);
+
+  // Initialiser ou réinitialiser le voteState
+  session.gameState.voteState = {
+    questionId: q.id,
+    phase: "voting",
+    options: allOptions.map((o, idx) => ({ ...o, idx })),
+    votes: {}, // playerId → voteIndex
+    revealed: false,
+  };
+
+  setPhaseMeta(session, {
+    playerScreenLocked: false,
+    allowAnswer: true,
+    answerMode: "vote_voting",
+  });
+
+  setStatus(session, "question");
+  touch(session);
+  return { ok: true };
+}
+
+/**
+ * Enregistre le vote d'un joueur
+ */
+export function recordVoteCast(session, { player, voteIndex } = {}) {
+  ensureSessionRuntime(session);
+
+  if (!player) return { ok: false, error: "Joueur introuvable" };
+  if (!player.connected) return { ok: false, error: "Joueur hors ligne" };
+
+  const vs = session.gameState.voteState;
+  if (!vs || vs.phase !== "voting") return { ok: false, error: "Phase de vote non active" };
+
+  const idx = Number(voteIndex);
+  if (!Number.isFinite(idx) || idx < 0 || idx >= vs.options.length) {
+    return { ok: false, error: "Index de vote invalide" };
+  }
+
+  // Un joueur ne peut pas voter pour sa propre réponse
+  const option = vs.options[idx];
+  if (option.playerId === player.id) {
+    return { ok: false, error: "Vous ne pouvez pas voter pour votre propre réponse" };
+  }
+
+  // Overwrite autorisé (peut changer d'avis)
+  vs.votes[player.id] = idx;
+
+  touch(session);
+  return { ok: true };
+}
+
+/**
+ * Révèle les résultats du vote et attribue les points
+ */
+export function revealVoteResults(session) {
+  ensureSessionRuntime(session);
+
+  const q = getCurrentQuestion(session);
+  if (!q) return { ok: false, error: "Aucune question active" };
+
+  const vs = session.gameState.voteState;
+  if (!vs) return { ok: false, error: "Aucun état de vote" };
+
+  // Compter les votes par option
+  const voteCounts = new Array(vs.options.length).fill(0);
+  for (const voteIdx of Object.values(vs.votes)) {
+    if (Number.isFinite(voteIdx) && voteIdx >= 0 && voteIdx < voteCounts.length) {
+      voteCounts[voteIdx]++;
+    }
+  }
+
+  // Attribuer les points :
+  // - Chaque joueur dont la réponse a reçu des votes gagne autant de points qu'il a reçu de votes
+  // - Chaque joueur qui a voté pour un leurre (isDecoy) perd 1 point
+  for (const [playerId, voteIdx] of Object.entries(vs.votes)) {
+    const chosenOption = vs.options[voteIdx];
+    if (chosenOption?.isDecoy) {
+      // Voter pour un leurre : -1 point
+      awardPointsToPlayer(session, playerId, -1);
+    }
+    // Points pour avoir reçu des votes : attribués ci-dessous
+  }
+
+  // Attribuer les points aux auteurs des réponses
+  for (let idx = 0; idx < vs.options.length; idx++) {
+    const option = vs.options[idx];
+    if (!option.isDecoy && option.playerId && voteCounts[idx] > 0) {
+      awardPointsToPlayer(session, option.playerId, voteCounts[idx]);
+    }
+  }
+
+  // Marquer les options avec les données de vote (pour l'affichage)
+  vs.options = vs.options.map((o, idx) => ({
+    ...o,
+    voteCount: voteCounts[idx],
+  }));
+  vs.phase = "revealed";
+  vs.revealed = true;
+
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+    timer: null,
+    answerMode: "vote_revealed",
+  });
+
+  setStatus(session, "answer_reveal");
+  touch(session);
+  return { ok: true };
+}
 
 export function resetEngineRuntime(session) {
   clearTimer(session);
@@ -1139,6 +1516,131 @@ export function resetEngineRuntime(session) {
     session._runtime.timerStartedAt = null;
   }
   return { ok: true };
+}
+
+/**
+ * Rapidité : après une mauvaise réponse, rouvre les buzzers pour tous
+ * et applique un cooldown de 5s au joueur fautif.
+ */
+export function resetBuzzerRapidite(session, wrongPlayerId, cooldownMs = 5000) {
+  ensureSessionRuntime(session);
+  const gs = session.gameState;
+
+  // Enregistrer le résultat
+  gs.buzzerLastResult = {
+    result: "wrong",
+    playerId: wrongPlayerId || null,
+    pseudo: gs.buzzerState?.firstPseudo || null,
+    at: new Date().toISOString(),
+  };
+
+  // Mettre le joueur fautif en cooldown
+  if (wrongPlayerId) {
+    if (!gs.buzzerCooldowns) gs.buzzerCooldowns = {};
+    gs.buzzerCooldowns[wrongPlayerId] = Date.now() + cooldownMs;
+  }
+
+  // Réinitialiser le buzzer → tout le monde peut re-buzzer
+  gs.buzzerState = null;
+  // Retirer le joueur fautif de la queue mais garder les autres
+  if (Array.isArray(gs.buzzerQueue)) {
+    gs.buzzerQueue = gs.buzzerQueue.filter((id) => id !== wrongPlayerId);
+  }
+
+  // Rouvrir les buzzers
+  setPhaseMeta(session, { playerScreenLocked: false, allowAnswer: true });
+  setStatus(session, "question");
+  touch(session);
+  return { ok: true, cooldownMs };
+}
+
+/**
+ * Burger : sélectionne une équipe comme participante (toute l'équipe reçoit les points).
+ */
+export function setBurgerTeam(session, teamId) {
+  ensureSessionRuntime(session);
+
+  if (!teamId) {
+    session.gameState.burgerSelectedPlayerId = null;
+    session.gameState.burgerSelectedTeamId = null;
+    session.gameState.burgerSelectedPseudo = null;
+    touch(session);
+    return { ok: true };
+  }
+
+  const team = (session.teams || []).find((t) => t.id === teamId);
+  if (!team) return { ok: false, error: "Équipe introuvable" };
+
+  session.gameState.burgerSelectedPlayerId = null;
+  session.gameState.burgerSelectedTeamId = teamId;
+  session.gameState.burgerSelectedPseudo = team.name;
+  touch(session);
+  return { ok: true };
+}
+
+/**
+ * Burger : l'admin "passe" le dernier élément affiché — efface le TV et montre "[pseudo] répond".
+ */
+export function burgerPass(session) {
+  ensureSessionRuntime(session);
+  const hasPlayer = !!session.gameState.burgerSelectedPlayerId;
+  const hasTeam = !!session.gameState.burgerSelectedTeamId;
+  if (!hasPlayer && !hasTeam) {
+    return { ok: false, error: "Aucun joueur/équipe sélectionné pour l'épreuve burger" };
+  }
+  setPhaseMeta(session, { playerScreenLocked: true, allowAnswer: false });
+  setStatus(session, "manual_scoring");
+  touch(session);
+  return { ok: true };
+}
+
+/**
+ * Burger : l'admin saisit le score final du joueur/équipe (0-10).
+ */
+export function setBurgerScore(session, score) {
+  ensureSessionRuntime(session);
+  const n = Number(score);
+  if (!Number.isFinite(n) || n < 0 || n > 10) {
+    return { ok: false, error: "Le score doit être entre 0 et 10" };
+  }
+
+  const selectedId = session.gameState.burgerSelectedPlayerId;
+  const selectedTeamId = session.gameState.burgerSelectedTeamId;
+  const selectedPseudo = session.gameState.burgerSelectedPseudo || selectedId || selectedTeamId;
+
+  if (!selectedId && !selectedTeamId) {
+    return { ok: false, error: "Aucun joueur/équipe sélectionné pour l'épreuve burger" };
+  }
+
+  if (selectedTeamId) {
+    // Attribuer les points à chaque membre de l'équipe
+    for (const p of (session.players || [])) {
+      if (p.teamId === selectedTeamId) {
+        awardPointsToPlayer(session, p.id, n);
+      }
+    }
+    // Mettre à jour le score de l'équipe aussi
+    const team = (session.teams || []).find((t) => t.id === selectedTeamId);
+    if (team) {
+      team.scoreTotal = (team.scoreTotal || 0) + n;
+    }
+  } else {
+    awardPointsToPlayer(session, selectedId, n);
+  }
+
+  session.gameState.burgerFinalScore = {
+    playerId: selectedId || null,
+    teamId: selectedTeamId || null,
+    pseudo: selectedPseudo,
+    score: n,
+  };
+
+  // Rester en manual_scoring pour afficher le résultat sur la TV (le score s'affiche dans cette phase)
+  if (session.gameState.status !== "manual_scoring") {
+    setStatus(session, "manual_scoring");
+  }
+  touch(session);
+  return { ok: true, score: n, pseudo: selectedPseudo };
 }
 
 export function getEngineDebugState(session) {

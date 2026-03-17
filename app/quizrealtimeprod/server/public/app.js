@@ -204,7 +204,16 @@ function initSocket() {
     }
 
     // Mettre à jour la page courante si elle est active
-    if (state.currentPage === 'player')  renderPlayerGame();
+    if (state.currentPage === 'player') {
+      // BUG FIX: Préserver le brouillon de la textarea (vote/saisie texte)
+      // pour éviter que la soumission d'un autre joueur efface le texte en cours
+      const _draftAnswer = document.getElementById('text-answer')?.value || '';
+      renderPlayerGame();
+      if (_draftAnswer) {
+        const _ta = document.getElementById('text-answer');
+        if (_ta) _ta.value = _draftAnswer;
+      }
+    }
     if (state.currentPage === 'host')    renderHostGame();
     if (state.currentPage === 'display') renderDisplay();
   });
@@ -493,7 +502,7 @@ function renderPlayerGame() {
     content += `
       <div class="player-round-intro">
         <div class="round-intro-icon">${rtIcon}</div>
-        <div class="round-intro-type-badge">${rtLabel}</div>
+        <div class="round-intro-type-badge">${rtIcon} ${rtLabel}</div>
         <h2 class="round-intro-title">${round?.title || 'Nouvelle manche'}</h2>
         <p class="muted round-intro-rules">${round?.shortRules || 'Préparez-vous !'}</p>
         <div class="waiting-dots" style="margin-top:24px;"><span></span><span></span><span></span></div>
@@ -559,9 +568,9 @@ function renderPlayerGame() {
       <div class="player-round-end">
         <div class="round-end-icon">🏁</div>
         <h2 class="round-end-title">Manche terminée !</h2>
-        <p class="muted" style="font-size:1rem;margin-top:6px;">${round?.title || ''}</p>
-        <div class="waiting-dots" style="margin-top:24px;"><span></span><span></span><span></span></div>
-        <p class="muted" style="margin-top:16px;font-size:.9rem;">En attente du maître de jeu…</p>
+        ${round?.title ? `<p class="muted" style="font-size:1.05rem;margin-top:8px;font-weight:600;padding:8px 18px;border:1px solid rgba(56,239,125,0.25);border-radius:50px;background:rgba(56,239,125,0.06);display:inline-block;">${round.title}</p>` : ''}
+        <div class="waiting-dots" style="margin-top:28px;"><span></span><span></span><span></span></div>
+        <p class="muted" style="margin-top:18px;font-size:.9rem;">En attente du maître de jeu…</p>
       </div>`;
   } else if (phase === 'results') {
     content += renderScoreboard(state.leaderboardPlayers, '📊 Classement');
@@ -600,12 +609,20 @@ function stopBuzzerCooldownTick() {
 
 function startBuzzerCooldownTick(expiryTimestamp) {
   stopBuzzerCooldownTick();
+  // BUG FIX: ne pas démarrer si déjà expiré (évite boucle "1s interminable")
+  if (expiryTimestamp <= Date.now()) return;
   _buzzerCooldownTimer = setInterval(() => {
     const remaining = expiryTimestamp - Date.now();
     if (remaining <= 0) {
       stopBuzzerCooldownTick();
-      // Re-render pour afficher le buzzer actif
-      renderPlayerPage();
+      // BUG FIX: ne pas appeler renderPlayerPage() ici — cela provoquait une boucle
+      // où le serveur n'avait pas encore supprimé le cooldown, réaffichant "1s" indéfiniment.
+      // On met à jour directement les éléments DOM ; le prochain game:state du serveur
+      // (qui arrive ~100ms après) fera le vrai re-rendu avec le buzzer actif.
+      const secsEl = document.getElementById('buzzer-cd-secs');
+      const textEl = document.getElementById('buzzer-cd-text');
+      if (secsEl) secsEl.textContent = '0s';
+      if (textEl) textEl.innerHTML = `⏳ Buzzer disponible…`;
       return;
     }
     const secs = Math.ceil(remaining / 1000);
@@ -2187,12 +2204,16 @@ function renderDisplay() {
       </div>`;
   } else if (phase === 'round_intro') {
     const round = gs?.currentRound;
+    const _rtIcons  = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', burger:'🍔', vote:'🗳️' };
+    const _rtLabels = { qcm:'QCM', rapidite:'Rapidité', speed:'Rapidité', true_false:'Vrai / Faux', burger:'Burger', vote:'Vote' };
+    const _rtIcon  = _rtIcons[round?.type]  || '🎯';
+    const _rtLabel = _rtLabels[round?.type] || (round?.type || '');
     content += `
-      <div class="card" style="text-align:center;padding:60px 20px;">
-        <div style="font-size:3rem;margin-bottom:16px;">📢</div>
-        <h1>${round?.title || 'Nouvelle manche'}</h1>
-        ${round?.shortRules ? `<p class="muted" style="font-size:1.1rem;margin-top:12px;">${round.shortRules}</p>` : ''}
-        ${round?.type ? `<p class="muted" style="margin-top:8px;font-size:.9rem;text-transform:uppercase;letter-spacing:.06em;">${round.type}</p>` : ''}
+      <div class="display-round-intro-screen">
+        ${round?.type ? `<div class="display-round-type-badge display-badge-${round.type}">${_rtIcon} ${_rtLabel}</div>` : ''}
+        <div class="display-round-intro-icon">${_rtIcon}</div>
+        <h1 class="display-round-intro-title">${round?.title || 'Nouvelle manche'}</h1>
+        ${round?.shortRules ? `<div class="display-round-intro-rules">${round.shortRules}</div>` : ''}
       </div>`;
   } else if (phase === 'question' || phase === 'waiting') {
     content += renderDisplayQuestion(gs);
@@ -2224,11 +2245,13 @@ function renderDisplay() {
   } else if (phase === 'round_end') {
     const round = gs?.currentRound;
     content += `
-      <div class="card" style="text-align:center;padding:80px 20px;">
-        <div style="font-size:5rem;margin-bottom:20px;">🏁</div>
-        <h1>Manche terminée !</h1>
-        <p class="muted" style="font-size:1.3rem;margin-top:16px;">${round?.title || ''}</p>
-        <div class="waiting-dots" style="margin-top:30px;"><span></span><span></span><span></span></div>
+      <div class="display-round-end-screen">
+        <div class="display-round-end-frame">
+          <div class="display-round-end-icon">🏁</div>
+          <h1 class="display-round-end-title">Manche terminée !</h1>
+          ${round?.title ? `<p class="display-round-end-subtitle">${round.title}</p>` : ''}
+        </div>
+        <div class="waiting-dots" style="margin-top:36px;"><span></span><span></span><span></span></div>
       </div>`;
   } else if (phase === 'results') {
     content += renderScoreboard(state.leaderboardPlayers, '📊 Classement de la manche');
