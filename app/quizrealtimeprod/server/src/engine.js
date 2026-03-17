@@ -248,6 +248,7 @@ function resetQuestionTransient(session) {
 
   // Réinitialiser l'état burger lié à la question précédente
   session.gameState.burgerSelectedPlayerId = null;
+  session.gameState.burgerSelectedTeamId = null;
   session.gameState.burgerSelectedPseudo = null;
   session.gameState.burgerFinalScore = null;
 
@@ -1248,6 +1249,8 @@ export function setBurgerPlayer(session, playerId) {
   if (!playerId) {
     // Désélectionner
     session.gameState.burgerSelectedPlayerId = null;
+    session.gameState.burgerSelectedTeamId = null;
+    session.gameState.burgerSelectedPseudo = null;
     touch(session);
     return { ok: true };
   }
@@ -1256,6 +1259,7 @@ export function setBurgerPlayer(session, playerId) {
   if (!player) return { ok: false, error: "Joueur introuvable" };
 
   session.gameState.burgerSelectedPlayerId = playerId;
+  session.gameState.burgerSelectedTeamId = null;
   session.gameState.burgerSelectedPseudo = player.pseudo;
   touch(session);
   return { ok: true };
@@ -1548,7 +1552,47 @@ export function resetBuzzerRapidite(session, wrongPlayerId, cooldownMs = 5000) {
 }
 
 /**
- * Burger : l'admin saisit le score final du joueur (0-10).
+ * Burger : sélectionne une équipe comme participante (toute l'équipe reçoit les points).
+ */
+export function setBurgerTeam(session, teamId) {
+  ensureSessionRuntime(session);
+
+  if (!teamId) {
+    session.gameState.burgerSelectedPlayerId = null;
+    session.gameState.burgerSelectedTeamId = null;
+    session.gameState.burgerSelectedPseudo = null;
+    touch(session);
+    return { ok: true };
+  }
+
+  const team = (session.teams || []).find((t) => t.id === teamId);
+  if (!team) return { ok: false, error: "Équipe introuvable" };
+
+  session.gameState.burgerSelectedPlayerId = null;
+  session.gameState.burgerSelectedTeamId = teamId;
+  session.gameState.burgerSelectedPseudo = team.name;
+  touch(session);
+  return { ok: true };
+}
+
+/**
+ * Burger : l'admin "passe" le dernier élément affiché — efface le TV et montre "[pseudo] répond".
+ */
+export function burgerPass(session) {
+  ensureSessionRuntime(session);
+  const hasPlayer = !!session.gameState.burgerSelectedPlayerId;
+  const hasTeam = !!session.gameState.burgerSelectedTeamId;
+  if (!hasPlayer && !hasTeam) {
+    return { ok: false, error: "Aucun joueur/équipe sélectionné pour l'épreuve burger" };
+  }
+  setPhaseMeta(session, { playerScreenLocked: true, allowAnswer: false });
+  setStatus(session, "manual_scoring");
+  touch(session);
+  return { ok: true };
+}
+
+/**
+ * Burger : l'admin saisit le score final du joueur/équipe (0-10).
  */
 export function setBurgerScore(session, score) {
   ensureSessionRuntime(session);
@@ -1556,15 +1600,42 @@ export function setBurgerScore(session, score) {
   if (!Number.isFinite(n) || n < 0 || n > 10) {
     return { ok: false, error: "Le score doit être entre 0 et 10" };
   }
+
   const selectedId = session.gameState.burgerSelectedPlayerId;
-  if (!selectedId) return { ok: false, error: "Aucun joueur sélectionné pour l'épreuve burger" };
+  const selectedTeamId = session.gameState.burgerSelectedTeamId;
+  const selectedPseudo = session.gameState.burgerSelectedPseudo || selectedId || selectedTeamId;
 
-  awardPointsToPlayer(session, selectedId, n);
-  const selectedPseudo = session.gameState.burgerSelectedPseudo || selectedId;
-  session.gameState.burgerFinalScore = { playerId: selectedId, pseudo: selectedPseudo, score: n };
+  if (!selectedId && !selectedTeamId) {
+    return { ok: false, error: "Aucun joueur/équipe sélectionné pour l'épreuve burger" };
+  }
 
-  // Transition vers answer_reveal pour afficher le résultat sur la TV
-  setStatus(session, "answer_reveal");
+  if (selectedTeamId) {
+    // Attribuer les points à chaque membre de l'équipe
+    for (const p of (session.players || [])) {
+      if (p.teamId === selectedTeamId) {
+        awardPointsToPlayer(session, p.id, n);
+      }
+    }
+    // Mettre à jour le score de l'équipe aussi
+    const team = (session.teams || []).find((t) => t.id === selectedTeamId);
+    if (team) {
+      team.scoreTotal = (team.scoreTotal || 0) + n;
+    }
+  } else {
+    awardPointsToPlayer(session, selectedId, n);
+  }
+
+  session.gameState.burgerFinalScore = {
+    playerId: selectedId || null,
+    teamId: selectedTeamId || null,
+    pseudo: selectedPseudo,
+    score: n,
+  };
+
+  // Rester en manual_scoring pour afficher le résultat sur la TV (le score s'affiche dans cette phase)
+  if (session.gameState.status !== "manual_scoring") {
+    setStatus(session, "manual_scoring");
+  }
   touch(session);
   return { ok: true, score: n, pseudo: selectedPseudo };
 }

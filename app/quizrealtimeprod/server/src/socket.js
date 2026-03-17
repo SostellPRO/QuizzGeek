@@ -36,6 +36,8 @@ import {
   scheduleAutoRevealAfterAllAnswered,
   setBurgerPlayer,
   setBurgerScore,
+  setBurgerTeam,
+  burgerPass,
   showResults,
   shouldAutoRevealNow,
   startQuiz,
@@ -775,6 +777,14 @@ export function setupSocketHandlers(io) {
 
           case "burger_select_player":
             res = setBurgerPlayer(session, payload.playerId || null);
+            break;
+
+          case "burger_select_team":
+            res = setBurgerTeam(session, payload.teamId || null);
+            break;
+
+          case "burger_pass":
+            res = burgerPass(session);
             break;
 
           case "buzzer_next":

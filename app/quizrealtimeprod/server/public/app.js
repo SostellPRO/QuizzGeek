@@ -67,8 +67,9 @@ function uid(pre = 'id') { return `${pre}_${Math.random().toString(36).slice(2,9
 function randCode() { return Math.floor(1000 + Math.random() * 9000).toString(); }
 
 // ── Tracking état local ───────────────────────────────────────
-let _lastBuzzerResultAt = null;
-let _currentMusicUrl    = null;
+let _lastBuzzerResultAt   = null;
+let _currentMusicUrl      = null;
+let _buzzerCooldownTimer  = null;  // setInterval pour le compte à rebours du cooldown
 
 // ── P6 : Sons d'interaction (Web Audio API) ───────────────────
 let _audioCtx = null;
@@ -498,27 +499,32 @@ function renderPlayerGame() {
         <div class="waiting-dots" style="margin-top:24px;"><span></span><span></span><span></span></div>
       </div>`;
   } else if (phase === 'question' || phase === 'waiting') {
-    // Burger : seul le joueur sélectionné joue, les autres attendent
-    const burgerSelectedId = gs?.burgerSelectedPlayerId;
-    const isBurgerRound = gs?.currentRound?.type === 'burger' || gs?.currentQuestion?.type === 'burger';
-    if (isBurgerRound && burgerSelectedId) {
-      if (burgerSelectedId === s.playerId) {
-        // Le joueur sélectionné : écran "c'est ton tour"
+    // Burger : seul le joueur/équipe sélectionné joue, les autres attendent
+    const burgerSelectedId   = gs?.burgerSelectedPlayerId;
+    const burgerSelectedTeam = gs?.burgerSelectedTeamId;
+    const isBurgerRound      = gs?.currentRound?.type === 'burger' || gs?.currentQuestion?.type === 'burger';
+    const isMyTeamSelected   = burgerSelectedTeam && s.teamId === burgerSelectedTeam;
+    const iAmSelected        = burgerSelectedId === s.playerId || isMyTeamSelected;
+    if (isBurgerRound && (burgerSelectedId || burgerSelectedTeam)) {
+      if (iAmSelected) {
+        // Le joueur/équipe sélectionné(e) : écran "c'est ton tour"
+        const isTeam = !!burgerSelectedTeam;
         content += `
           <div class="card" style="text-align:center;padding:50px 20px;background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
             <div style="font-size:4rem;margin-bottom:16px;animation:end-bounce 1s ease-in-out infinite;">🍔</div>
-            <h2 style="color:#f7971e;">C'est ton tour !</h2>
-            <p style="margin-top:12px;font-size:1.1rem;">Regarde l'écran principal et mémorise les éléments.</p>
-            <p class="muted" style="margin-top:8px;">Quand c'est fini, récite-les tous dans l'ordre !</p>
+            <h2 style="color:#f7971e;">${isTeam ? 'C\'est le tour de votre équipe !' : 'C\'est ton tour !'}</h2>
+            <p style="margin-top:12px;font-size:1.1rem;">Regardez l'écran principal et mémorisez les éléments.</p>
+            <p class="muted" style="margin-top:8px;">Quand c'est fini, récitez-les tous dans l'ordre !</p>
           </div>`;
       } else {
         // Les autres joueurs attendent
         const burgerPseudo = gs?.burgerSelectedPseudo || 'Un joueur';
+        const isTeamMode   = !!burgerSelectedTeam;
         content += `
           <div class="card" style="text-align:center;padding:40px;">
             <div style="font-size:3rem;margin-bottom:14px;">🍔</div>
             <h2>Épreuve Burger</h2>
-            <p class="muted" style="margin-top:8px;font-size:1rem;"><strong style="color:#fff;">${burgerPseudo}</strong> passe l'épreuve</p>
+            <p class="muted" style="margin-top:8px;font-size:1rem;">${isTeamMode ? 'L\'équipe' : ''} <strong style="color:#fff;">${burgerPseudo}</strong> passe l'épreuve</p>
             <p class="muted" style="margin-top:10px;">Regardez l'écran principal !</p>
             <div class="waiting-dots" style="margin-top:16px;"><span></span><span></span><span></span></div>
           </div>`;
@@ -572,6 +578,42 @@ function renderPlayerGame() {
     </div>`;
 
   html('page-player', content);
+
+  // Démarrer le compte à rebours live du cooldown buzzer si nécessaire
+  if (state.playerSession) {
+    const gs2 = state.gameState;
+    const expiry = gs2?.buzzerCooldowns?.[state.playerSession.playerId] || 0;
+    if (expiry > Date.now()) {
+      startBuzzerCooldownTick(expiry);
+    } else {
+      stopBuzzerCooldownTick();
+    }
+  }
+}
+
+function stopBuzzerCooldownTick() {
+  if (_buzzerCooldownTimer) {
+    clearInterval(_buzzerCooldownTimer);
+    _buzzerCooldownTimer = null;
+  }
+}
+
+function startBuzzerCooldownTick(expiryTimestamp) {
+  stopBuzzerCooldownTick();
+  _buzzerCooldownTimer = setInterval(() => {
+    const remaining = expiryTimestamp - Date.now();
+    if (remaining <= 0) {
+      stopBuzzerCooldownTick();
+      // Re-render pour afficher le buzzer actif
+      renderPlayerPage();
+      return;
+    }
+    const secs = Math.ceil(remaining / 1000);
+    const secsEl = document.getElementById('buzzer-cd-secs');
+    const textEl = document.getElementById('buzzer-cd-text');
+    if (secsEl) secsEl.textContent = secs + 's';
+    if (textEl) textEl.innerHTML = `⏳ Mauvaise réponse — patientez <strong>${secs}s</strong>`;
+  }, 250);
 }
 
 function renderPlayerQuestionContent(gs, playerId, locked) {
@@ -647,13 +689,13 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
   let answerUI = '';
   if (answerMode === 'buzzer') {
     if (isCooldown) {
-      // Joueur en pénalité — buzzer bloqué avec compte à rebours
+      // Joueur en pénalité — buzzer bloqué avec compte à rebours (mis à jour toutes les secondes)
       answerUI = `
         <div class="buzzer-wrap">
           <button class="buzzer-btn buzzer-cooldown" disabled>
-            ❌<br>BLOQUÉ<br><span style="font-size:1.4rem;font-weight:900;">${cooldownSec}s</span>
+            ❌<br>BLOQUÉ<br><span id="buzzer-cd-secs" style="font-size:1.4rem;font-weight:900;">${cooldownSec}s</span>
           </button>
-          <p class="muted" style="margin-top:12px;color:#eb3349;font-size:.9rem;">⏳ Mauvaise réponse — patientez ${cooldownSec}s</p>
+          <p id="buzzer-cd-text" class="muted" style="margin-top:12px;color:#eb3349;font-size:.9rem;">⏳ Mauvaise réponse — patientez <strong>${cooldownSec}s</strong></p>
         </div>`;
     } else if (myInQueue && !allBuzzed) {
       answerUI = `
@@ -677,11 +719,11 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
       <div class="answer-tiles answer-tiles-tf">
         <button class="answer-tile answer-tile-true" onclick="playSound('answer');sendAnswer('${gs.sessionCode || ''}','${playerId}','vrai')">
           <span class="answer-tile-icon">✅</span>
-          <span class="answer-tile-label">VRAI</span>
+          <span class="answer-tile-label" style="color:#22c55e;font-weight:900;">VRAI</span>
         </button>
         <button class="answer-tile answer-tile-false" onclick="playSound('answer');sendAnswer('${gs.sessionCode || ''}','${playerId}','faux')">
           <span class="answer-tile-icon">❌</span>
-          <span class="answer-tile-label">FAUX</span>
+          <span class="answer-tile-label" style="color:#ef4444;font-weight:900;">FAUX</span>
         </button>
       </div>`;
   } else if (answerMode === 'mcq' && Array.isArray(q.options) && q.options.length) {
@@ -1582,44 +1624,84 @@ function renderHostPilotageTab(gs, phase) {
   // SECTION 6 : BURGER
   // ═══════════════════════════════════════════════════════════
   if (isBurger && ['question','waiting','manual_scoring'].includes(phase)) {
-    const selectedId = gs?.burgerSelectedPlayerId || null;
-    const burgerState = gs?.burgerState;
-    const totalItems = gs?.currentQuestion?.items?.length || 10;
-    const allItemsShown = burgerState && burgerState.currentItemIndex >= totalItems - 1;
+    const selectedPlayerId = gs?.burgerSelectedPlayerId || null;
+    const selectedTeamId   = gs?.burgerSelectedTeamId   || null;
+    const isSelected       = !!(selectedPlayerId || selectedTeamId);
+    const selectedPseudo   = gs?.burgerSelectedPseudo   || null;
+    const burgerState      = gs?.burgerState;
+    const totalItems       = gs?.currentQuestion?.items?.length || 10;
+    const allItemsShown    = burgerState && burgerState.currentItemIndex >= totalItems - 1;
     const burgerFinalScore = gs?.burgerFinalScore;
 
-    const playerBtns = state.players.filter(p => p.connected).map(p => `
-      <button class="burger-player-btn ${p.id === selectedId ? 'selected' : ''}"
-        onclick="hostAction('burger_select_player',{playerId:'${p.id}'})">
-        <span style="font-size:1.4rem;display:block;margin-bottom:4px;">${p.avatar || '🎮'}</span>
-        ${p.pseudo}
+    const connectedPlayers = state.players.filter(p => p.connected);
+    const availableTeams   = state.leaderboardTeams;
+
+    const playerBtns = connectedPlayers.map(p => `
+      <button class="burger-player-btn ${p.playerId === selectedPlayerId ? 'selected' : ''}"
+        onclick="hostAction('burger_select_player',{playerId:'${p.playerId}'})">
+        <span style="font-size:1.2rem;display:block;margin-bottom:3px;">${p.avatar || '🎮'}</span>
+        <span style="font-size:.75rem;">${p.pseudo}</span>
       </button>`).join('');
+
+    const teamBtns = availableTeams.map(t => `
+      <button class="burger-player-btn ${t.teamId === selectedTeamId ? 'selected' : ''}"
+        style="background:${t.teamId === selectedTeamId ? 'rgba(247,151,30,.3)' : 'rgba(255,255,255,.06)'};"
+        onclick="hostAction('burger_select_team',{teamId:'${t.teamId}'})">
+        <span style="font-size:1.2rem;display:block;margin-bottom:3px;">⚽</span>
+        <span style="font-size:.75rem;">${t.name}</span>
+      </button>`).join('');
+
+    const scoreForm = `
+      <div style="margin-top:12px;padding:14px;background:rgba(247,151,30,.1);border:1px solid rgba(247,151,30,.4);border-radius:12px;">
+        ${phase === 'question' ? `
+          <div class="host-ctrl-row" style="margin-bottom:10px;">
+            <button class="hbtn hbtn-warning hbtn-wide hbtn-pulse" onclick="hostAction('burger_pass')">
+              ⏭ Passer — afficher "[${selectedPseudo}] répond"
+            </button>
+          </div>` : ''}
+        <p style="font-size:.88rem;color:#f7971e;margin-bottom:10px;font-weight:600;">🎯 Saisissez le score (0–10) :</p>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <input type="number" min="0" max="10" id="burger-score-input" placeholder="0-10"
+            style="width:80px;text-align:center;font-size:1.5rem;font-weight:700;padding:8px;border-radius:10px;
+            background:rgba(255,255,255,.1);border:2px solid rgba(247,151,30,.6);color:#fff;">
+          <button class="hbtn hbtn-success hbtn-wide" onclick="submitBurgerScore()">✅ Valider le score</button>
+        </div>
+        ${burgerFinalScore ? `<p style="margin-top:8px;font-size:.85rem;color:#38ef7d;">✓ Score de ${burgerFinalScore.score}/10 attribué à <strong>${burgerFinalScore.pseudo}</strong>${selectedTeamId ? ' (équipe — chaque membre a reçu les points)' : ''}</p>` : ''}
+      </div>`;
 
     out += `
       <div class="host-section">
         <div class="host-section-label">🍔 BURGER — PILOTAGE</div>
-        ${!selectedId ? `
-          <p class="muted" style="font-size:.82rem;margin-bottom:8px;">Sélectionnez d'abord le joueur qui passe l'épreuve :</p>
+        ${!isSelected ? `
+          <p class="muted" style="font-size:.82rem;margin-bottom:8px;">Sélectionnez le joueur ou l'équipe qui passe l'épreuve :</p>
+          ${availableTeams.length ? `
+            <p class="muted" style="font-size:.73rem;margin-bottom:4px;">⚽ Équipes :</p>
+            <div class="burger-player-grid">${teamBtns}</div>
+            <p class="muted" style="font-size:.73rem;margin-bottom:4px;margin-top:8px;">🎮 Joueurs :</p>` : ''}
           <div class="burger-player-grid">${playerBtns || '<p class="muted">Aucun joueur connecté</p>'}</div>
         ` : `
-          <div class="burger-player-grid">${playerBtns}</div>
-          <button class="hbtn hbtn-secondary hbtn-sm" style="margin-top:8px;" onclick="hostAction('burger_select_player',{playerId:null})">✕ Désélectionner</button>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px 10px;background:rgba(247,151,30,.12);border-radius:10px;">
+            <span style="font-size:1.3rem;">${selectedTeamId ? '⚽' : '🎮'}</span>
+            <span style="font-weight:700;color:#f7971e;">${selectedPseudo}</span>
+            <span class="muted" style="font-size:.75rem;">${selectedTeamId ? '(équipe)' : '(joueur)'}</span>
+            <button class="hbtn hbtn-secondary hbtn-sm" style="margin-left:auto;" onclick="hostAction('burger_select_player',{playerId:null})">✕</button>
+          </div>
+          ${availableTeams.length ? `
+            <details style="margin-bottom:6px;">
+              <summary class="muted" style="cursor:pointer;font-size:.78rem;">Changer de participant</summary>
+              <div style="margin-top:6px;">
+                ${availableTeams.length ? `<p class="muted" style="font-size:.73rem;margin-bottom:4px;">⚽ Équipes</p><div class="burger-player-grid">${teamBtns}</div>` : ''}
+                <p class="muted" style="font-size:.73rem;margin-bottom:4px;margin-top:6px;">🎮 Joueurs</p>
+                <div class="burger-player-grid">${playerBtns}</div>
+              </div>
+            </details>` : `
+            <div class="burger-player-grid" style="margin-bottom:6px;">${playerBtns}</div>`}
           ${!allItemsShown ? `
-            <div class="host-ctrl-row" style="margin-top:10px;">
+            <div class="host-ctrl-row" style="margin-top:6px;">
               <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('burger_next_item')">
                 🍔 Élément suivant ${burgerState && burgerState.currentItemIndex >= 0 ? `(${burgerState.currentItemIndex+1}/${totalItems})` : '(démarrer)'}
               </button>
-            </div>` : `
-            <div style="margin-top:12px;padding:14px;background:rgba(247,151,30,.1);border:1px solid rgba(247,151,30,.4);border-radius:12px;">
-              <p style="font-size:.88rem;color:#f7971e;margin-bottom:10px;font-weight:600;">🎯 Tous les éléments ont été affichés — saisissez le score :</p>
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                <input type="number" min="0" max="10" id="burger-score-input" placeholder="0-10"
-                  style="width:80px;text-align:center;font-size:1.5rem;font-weight:700;padding:8px;border-radius:10px;
-                  background:rgba(255,255,255,.1);border:2px solid rgba(247,151,30,.6);color:#fff;">
-                <button class="hbtn hbtn-success hbtn-wide" onclick="submitBurgerScore()">✅ Valider le score</button>
-              </div>
-              ${burgerFinalScore ? `<p style="margin-top:8px;font-size:.85rem;color:#38ef7d;">✓ Score de ${burgerFinalScore.score}/10 attribué à ${burgerFinalScore.pseudo}</p>` : ''}
-            </div>`}
+            </div>` : scoreForm}
         `}
       </div>`;
   }
@@ -2127,17 +2209,17 @@ function renderDisplay() {
       content += `
         <div class="card" style="text-align:center;padding:40px;">
           <h2>📋 Bonne réponse</h2>
-          <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${revealed?.correctAnswer ?? '—'}</div>
+          <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${formatTrueFalseAnswer(revealed?.correctAnswer)}</div>
         </div>
-        ${renderAnswerList(revealed?.answers || [])}`;
+        ${renderAnswerList(revealed?.answers || [], isTrueFalseReveal)}`;
     } else {
       // Mode standard : afficher la réponse + les scores
       content += `
         <div class="card" style="text-align:center;padding:40px;">
           <h2>📋 Bonne réponse</h2>
-          <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${revealed?.correctAnswer ?? '—'}</div>
+          <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${isTrueFalseReveal ? formatTrueFalseAnswer(revealed?.correctAnswer) : (revealed?.correctAnswer ?? '—')}</div>
         </div>
-        ${renderAnswerList(revealed?.answers || [])}`;
+        ${renderAnswerList(revealed?.answers || [], isTrueFalseReveal)}`;
     }
   } else if (phase === 'round_end') {
     const round = gs?.currentRound;
@@ -2160,15 +2242,20 @@ function renderDisplay() {
     if (isBurgerManual) {
       const bfScore = gs?.burgerFinalScore;
       const bPseudo = gs?.burgerSelectedPseudo || '?';
+      const bIsTeam = !!(gs?.burgerSelectedTeamId);
       content += bfScore ? `
         <div class="card" style="text-align:center;padding:60px 20px;background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
           <div style="font-size:4rem;margin-bottom:16px;">🍔</div>
-          <h2 style="color:#f7971e;">${bfScore.pseudo}</h2>
-          <div style="font-size:6rem;font-weight:900;color:#f7971e;">${bfScore.score}<span style="font-size:2.5rem;color:rgba(255,255,255,.4);">/10</span></div>
+          <div style="font-size:.9rem;color:rgba(255,255,255,.45);margin-bottom:6px;">${bfScore.teamId ? '⚽ Équipe' : '🎮 Joueur'}</div>
+          <h2 style="color:#f7971e;font-size:2.2rem;">${bfScore.pseudo}</h2>
+          <div style="font-size:7rem;font-weight:900;color:#f7971e;line-height:1;margin:16px 0;">${bfScore.score}<span style="font-size:2.5rem;color:rgba(255,255,255,.4);">/10</span></div>
+          ${bfScore.teamId ? `<p class="muted" style="font-size:.9rem;">Chaque membre de l'équipe a reçu ${bfScore.score} point(s)</p>` : ''}
         </div>` : `
         <div class="card" style="text-align:center;padding:80px 20px;background:rgba(247,151,30,.07);border-color:rgba(247,151,30,.3);">
-          <div style="font-size:10rem;font-weight:900;color:#f7971e;line-height:1;">?</div>
-          <p style="margin-top:20px;font-size:1.3rem;"><strong style="color:#f7971e;">${bPseudo}</strong> récite les 10 éléments !</p>
+          <div style="font-size:4rem;margin-bottom:16px;animation:end-bounce 1s ease-in-out infinite;">🎤</div>
+          <div style="font-size:.9rem;color:rgba(255,255,255,.45);margin-bottom:6px;">${bIsTeam ? '⚽ Équipe' : '🎮 Joueur'}</div>
+          <h2 style="color:#f7971e;font-size:2.2rem;">${bPseudo}</h2>
+          <p style="margin-top:20px;font-size:1.4rem;font-weight:600;">répond !</p>
           <p class="muted" style="margin-top:10px;">Le maître de jeu va attribuer le score.</p>
         </div>`;
     } else {
@@ -2438,10 +2525,23 @@ function renderDisplayVoteVoting(gs) {
     </div>`;
 }
 
-function renderAnswerList(answers) {
+function formatTrueFalseAnswer(answer) {
+  if (!answer) return '—';
+  const lower = answer.trim().toLowerCase();
+  if (lower === 'vrai') return '<span style="color:#22c55e;font-weight:900;text-transform:uppercase;">VRAI</span>';
+  if (lower === 'faux') return '<span style="color:#ef4444;font-weight:900;text-transform:uppercase;">FAUX</span>';
+  return answer.toUpperCase();
+}
+
+function formatAnswerText(answer, isTrueFalse) {
+  if (!isTrueFalse) return answer || '';
+  return formatTrueFalseAnswer(answer);
+}
+
+function renderAnswerList(answers, isTrueFalse = false) {
   if (!answers.length) return '';
   const rows = answers.map(a => `
-    <tr><td><strong>${a.pseudo}</strong></td><td>${a.answer}</td></tr>`).join('');
+    <tr><td><strong>${a.pseudo}</strong></td><td>${formatAnswerText(a.answer, isTrueFalse)}</td></tr>`).join('');
   return `
     <div class="card">
       <h3>Réponses des joueurs</h3>
@@ -2935,6 +3035,12 @@ function renderQuestionRow(q, qi, roundId, roundType) {
     body = `
       <div style="margin:6px 0 4px 28px;background:rgba(255,165,0,.08);border:1px solid rgba(255,165,0,.2);border-radius:8px;padding:10px;font-size:.82rem;color:rgba(255,165,0,.9);">
         ⚡ Mode <strong>Rapidité</strong> : un buzzer apparaît sur l'écran du joueur. Le premier qui clique est interrogé oralement. Le maître de jeu attribue le point manuellement.
+      </div>
+      <div style="margin:8px 0 4px 28px;display:flex;align-items:center;gap:8px;">
+        <label style="font-size:.78rem;color:rgba(255,255,255,.5);white-space:nowrap;">💡 Solution (optionnelle) :</label>
+        <input value="${(q.correctAnswer||'').replace(/"/g,'&quot;')}" placeholder="Réponse à afficher après révélation"
+          onchange="updateQuestion('${roundId}','${q.id}','correctAnswer',this.value)"
+          style="flex:1;font-size:.82rem;padding:5px 8px;">
       </div>`;
   }
 
