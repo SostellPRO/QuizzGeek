@@ -1147,64 +1147,206 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
   .display-options-grid { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 600px) {
-  /* Buzz button bigger */
-  .buzzer-btn {
-    width: min(270px, 65vw) !important;
-    height: min(270px, 65vw) !important;
-    font-size: 1.6rem !important;
-  }
-  .buzzer-wrap { min-height: 55vw; padding: 14px 0 28px; }
+/* ════════════════════════════════════════════════════════════
+   MOBILE XL — Tout agrandi pour le jeu sur téléphone
+   Police de base augmentée, éléments en colonne, tailles max
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
 
-  /* Answer tiles – full width on mobile, très grandes */
-  .answer-tiles-mcq-grid { grid-template-columns: 1fr; }
-  .answer-tile { min-height: 90px; }
-  .answer-tile-true, .answer-tile-false { min-height: 130px; }
-  .answer-tile-vote { min-height: 64px; }
+  /* ── Base ── */
+  html { font-size: 18px; }  /* Tout ce qui est en rem grossit de 12.5% */
 
-  /* Home roles full width on small screens */
-  .home-roles { grid-template-columns: 1fr 1fr; }
-}
-
-@media (max-width: 520px) {
   .page { padding: 0; }
-  .player-game-wrap { padding: 12px; }
-  .card { padding: 13px 12px; border-radius: 14px; }
-  .host-tab-body { padding: 10px 8px; }
-  .grid2 { grid-template-columns: 1fr 1fr; }
-  .grid3, .grid4 { grid-template-columns: 1fr 1fr; }
-  nav { padding: 6px 8px; }
-  .session-banner { padding: 8px 12px; font-size: .78rem; gap: 8px; }
-  .session-code { font-size: 1.1rem; letter-spacing: 4px; }
-  h1 { margin-bottom: 8px; }
-  .host-main-tab { padding: 11px 4px; font-size: .8rem; }
+  .player-game-wrap { padding: 14px 12px; }
+
+  .card {
+    padding: 20px 16px;
+    border-radius: 18px;
+    margin-bottom: 16px;
+  }
+
+  /* ── Typographie globale ── */
+  h1 { font-size: clamp(2rem, 7vw, 2.8rem); margin-bottom: 10px; }
+  h2 { font-size: clamp(1.6rem, 6vw, 2.2rem); margin-bottom: 10px; }
+  h3 { font-size: 1.3rem; }
+  p, li, span { font-size: inherit; }
+  .muted { font-size: 1rem; color: rgba(255,255,255,0.65); }
+
+  /* ── Navigation ── */
+  nav { padding: 8px 10px; }
+  nav button { padding: 8px 14px; font-size: 0.88rem; }
+
+  /* ── Session banner ── */
+  .session-banner {
+    padding: 12px 14px;
+    font-size: 1rem;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .session-code { font-size: 1.5rem; letter-spacing: 5px; }
+
+  /* ── Inputs & boutons ── */
+  input, select, textarea {
+    padding: 14px 16px;
+    font-size: 1.1rem;
+    border-radius: 12px;
+  }
+  button {
+    padding: 14px 22px;
+    font-size: 1rem;
+    border-radius: 12px;
+    min-height: 52px;
+  }
+  .btn-sm { padding: 10px 16px !important; font-size: 0.9rem !important; min-height: 40px !important; }
+  .btn-outline-danger { padding: 13px 20px; font-size: 1rem; }
+  .text-answer-send { padding: 18px !important; font-size: 1.15rem !important; border-radius: 14px !important; min-height: 58px !important; }
+
+  /* ── Grilles → colonne ── */
+  .grid2 { grid-template-columns: 1fr; gap: 12px; }
+  .grid3, .grid4 { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row { gap: 10px; }
+
+  /* ── Question bubble ── */
+  .player-question-bubble { padding: 22px 18px; margin-bottom: 18px; border-radius: 20px; }
+  .player-question-text {
+    font-size: clamp(1.4rem, 5.5vw, 1.85rem);
+    font-weight: 800; line-height: 1.4;
+  }
+
+  /* ── Answer tiles — en colonne, très grandes ── */
+  .answer-tiles { gap: 14px; }
+  .answer-tiles-2,
+  .answer-tiles-mcq-grid { grid-template-columns: 1fr; }
+  .answer-tiles-tf { grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .answer-tile {
+    min-height: 80px;
+    padding: 22px 18px;
+    font-size: 1.1rem;
+    border-radius: 18px;
+    gap: 10px;
+  }
+  .answer-tile-true,
+  .answer-tile-false {
+    min-height: 120px;
+    flex-direction: column;
+    padding: 24px 16px;
+  }
+  .answer-tile-icon { font-size: clamp(2.5rem, 11vw, 3.5rem); }
+  .answer-tile-label { font-size: clamp(1.3rem, 5.5vw, 1.7rem); font-weight: 900; }
+
+  .answer-tile-mcq { min-height: 76px; gap: 10px; flex-direction: row; justify-content: flex-start; }
+  .answer-tile-letter { font-size: 1.3rem; min-width: 36px; text-align: center; }
+  .answer-tile-text { font-size: clamp(1.05rem, 4vw, 1.25rem); font-weight: 700; text-align: left; }
+
+  .answer-tile-vote { min-height: 78px; padding: 18px 20px; }
+  .vote-tile-idx { width: 40px; height: 40px; font-size: 1.15rem; border-radius: 10px; }
+  .answer-tile-vote .answer-tile-text { font-size: 1.1rem; }
+
+  /* ── Buzzer button — très grand ── */
+  .buzzer-btn {
+    width: min(300px, 75vw) !important;
+    height: min(300px, 75vw) !important;
+    font-size: 1.8rem !important;
+    gap: 8px !important;
+  }
+  .buzzer-wrap { min-height: 60vw; padding: 20px 0 36px; }
+  #buzzer-cd-secs { font-size: 1.8rem !important; }
+
+  /* ── Réponse texte ── */
+  .text-answer-block { gap: 14px; margin-top: 8px; }
+  .text-answer-area {
+    font-size: 1.2rem;
+    min-height: 150px;
+    padding: 18px;
+    border-radius: 16px;
+    line-height: 1.5;
+  }
+
+  /* ── Attente / waiting ── */
+  .player-waiting-screen { padding: 48px 20px 36px; min-height: 62vh; }
+  .waiting-host-text { font-size: clamp(4rem, 16vw, 6rem); margin-bottom: 18px; }
+  .waiting-host-label { font-size: clamp(1.6rem, 7vw, 2.4rem); }
+  .waiting-dots span { width: 16px; height: 16px; }
+  .waiting-dots { gap: 14px; margin-top: 22px; }
+
+  /* ── Round intro (joueur) ── */
+  .player-round-intro { padding: 44px 20px 36px; min-height: 70vh; }
+  .round-intro-icon { font-size: clamp(5rem, 22vw, 8rem); margin-bottom: 20px; }
+  .round-intro-type-badge {
+    font-size: 1rem; padding: 8px 24px; margin-bottom: 16px; border-radius: 50px;
+  }
+  .round-intro-title { font-size: clamp(2rem, 8vw, 3rem); margin-bottom: 14px; }
+  .round-intro-rules {
+    font-size: clamp(1.05rem, 4vw, 1.3rem);
+    padding: 14px 20px;
+    border-radius: 16px;
+  }
+
+  /* ── Round end (joueur) ── */
+  .player-round-end { padding: 52px 20px 40px; min-height: 65vh; }
+  .round-end-icon { font-size: clamp(5rem, 22vw, 8rem); margin-bottom: 22px; }
+  .round-end-title { font-size: clamp(2rem, 8vw, 2.8rem); }
+
+  /* ── Pause ── */
+  .pause-screen { padding: 60px 20px; }
+  .pause-icon { font-size: 5rem; margin-bottom: 20px; }
+
+  /* ── Host tabs ── */
+  .host-tab-body { padding: 12px 10px; }
+  .host-main-tab { padding: 13px 6px; font-size: 0.9rem; }
   .host-nav-grid { grid-template-columns: 1fr 1fr; }
   .ctrl-nav-grid { grid-template-columns: 1fr 1fr; }
-  table { font-size: .78rem; }
-  th, td { padding: 7px 8px; }
-  .player-point-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+  .hbtn { padding: 13px 16px !important; font-size: 0.95rem !important; }
 
-  /* Answer tiles XL sur mobile */
-  .answer-tile { min-height: 100px; padding: 20px 10px; font-size: 1rem; }
-  .answer-tile-icon  { font-size: clamp(1.9rem, 10vw, 2.6rem); }
-  .answer-tile-label { font-size: clamp(1.1rem, 5.5vw, 1.3rem); }
-  .answer-tile-mcq   { min-height: 82px; }
-  .answer-tile-letter { font-size: 1.2rem; }
-  .answer-tile-text  { font-size: clamp(0.9rem, 3.8vw, 1rem); }
-  .answer-tiles-tf   { gap: 12px; }
+  /* ── Tables ── */
+  table { font-size: 0.88rem; }
+  th, td { padding: 10px; }
 
-  /* Question text bigger on mobile */
-  .player-question-text { font-size: clamp(1.15rem, 5vw, 1.4rem); }
-  .text-answer-area { font-size: 1.1rem; min-height: 120px; }
+  /* ── Home roles ── */
+  .home-roles { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .home-role-btn { min-height: 130px; padding: 26px 14px; }
+  .home-role-icon { font-size: 2.8rem; }
+  .home-role-label { font-size: 1.1rem; }
+
+  /* ── Progress bar plus haute ── */
+  .progress-bar { height: 14px; }
+
+  /* ── Alert ── */
+  .alert { font-size: 1rem; padding: 14px 18px; }
+
+  /* ── Player point grid ── */
+  .player-point-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); }
+
+  /* ── Recap ── */
+  .recap-player-row { font-size: 1rem; padding: 10px 14px; }
 }
 
-@media (max-width: 380px) {
-  .grid2, .grid3, .grid4 { grid-template-columns: 1fr; }
-  .ctrl-nav-grid { grid-template-columns: 1fr 1fr; }
-  .answer-grid   { grid-template-columns: 1fr; }
-  .answer-tiles-tf { grid-template-columns: 1fr 1fr; }
+@media (max-width: 420px) {
+  html { font-size: 19px; }  /* encore plus grand sur très petits écrans */
+
+  .player-question-text { font-size: clamp(1.5rem, 5.8vw, 2rem); }
+
+  .answer-tile-true,
+  .answer-tile-false { min-height: 130px; }
+  .answer-tile-icon  { font-size: clamp(2.8rem, 12vw, 4rem); }
+  .answer-tile-label { font-size: clamp(1.4rem, 6vw, 1.8rem); }
+
+  .answer-tile-text { font-size: clamp(1.1rem, 4.5vw, 1.3rem); }
+
+  .waiting-host-text { font-size: clamp(4.5rem, 18vw, 7rem); }
+  .waiting-host-label { font-size: clamp(1.7rem, 7.5vw, 2.5rem); }
+
+  .answer-tiles-tf { grid-template-columns: 1fr 1fr; gap: 12px; }
+
   .home-roles { grid-template-columns: 1fr; }
-  .answer-tile-true, .answer-tile-false { min-height: 110px; }
+  .home-role-btn { min-height: 110px; }
+
+  .buzzer-btn {
+    width: min(320px, 80vw) !important;
+    height: min(320px, 80vw) !important;
+    font-size: 2rem !important;
+  }
 }
 
 /* ════════════════════════════════════════════════════════════
