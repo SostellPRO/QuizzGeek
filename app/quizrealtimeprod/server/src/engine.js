@@ -184,6 +184,8 @@ function setAnswerModeFromQuestion(session) {
       answerMode = "mcq";
     } else if (qType === "burger" || round.type === "burger") {
       answerMode = "burger";
+    } else if (qType === "video_challenge" || round.type === "video_challenge") {
+      answerMode = "video_select";
     } else {
       answerMode = "text";
     }
@@ -245,12 +247,16 @@ function resetQuestionTransient(session) {
 
   // Réinitialiser l'état de vote pour la nouvelle question
   session.gameState.voteState = null;
+  session.gameState.proposalRevealState = null;
 
   // Réinitialiser l'état burger lié à la question précédente
   session.gameState.burgerSelectedPlayerId = null;
   session.gameState.burgerSelectedTeamId = null;
   session.gameState.burgerSelectedPseudo = null;
   session.gameState.burgerFinalScore = null;
+
+  // Réinitialiser l'état challenge vidéo
+  session.gameState.videoState = null;
 
   // on conserve answers globaux par question, mais on réinitialise le timer + écrans
   setPhaseMeta(session, {
@@ -1535,6 +1541,186 @@ export function voteRevealNext(session) {
 
   touch(session);
   return { ok: true, cursor, total: vs.options.length, done: cursor >= vs.options.length };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  VOTE — RÉVÉLATION DES PROPOSITIONS (étape intermédiaire)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Lance la révélation des propositions une par une sur le display,
+ * avant que les joueurs ne votent.
+ */
+export function startProposalReveal(session) {
+  ensureSessionRuntime(session);
+  const q = getCurrentQuestion(session);
+  if (!q) return { ok: false, error: "Aucune question active" };
+
+  const answerMap = getQuestionAnswersMap(session, q.id);
+  const proposals = Object.values(answerMap)
+    .filter((a) => a.answer && a.answer.trim())
+    .map((a) => {
+      const player = (session.players || []).find((p) => p.id === a.playerId);
+      return {
+        playerId: a.playerId,
+        pseudo: player?.pseudo || "?",
+        answer: a.answer.trim(),
+      };
+    });
+
+  session.gameState.proposalRevealState = {
+    proposals,
+    revealCursor: 0, // 0 = rien affiché; 1 = proposals[0] visible, etc.
+  };
+
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+    answerMode: "vote_proposal_reveal",
+    timer: null,
+  });
+
+  setStatus(session, "question");
+  touch(session);
+  return { ok: true, total: proposals.length };
+}
+
+/**
+ * Passe à la proposition suivante pendant la révélation.
+ */
+export function proposalRevealNext(session) {
+  ensureSessionRuntime(session);
+  const prs = session.gameState.proposalRevealState;
+  if (!prs) return { ok: false, error: "Pas de révélation de propositions active" };
+  prs.revealCursor = Math.min(prs.revealCursor + 1, prs.proposals.length);
+  touch(session);
+  return { ok: true, cursor: prs.revealCursor, total: prs.proposals.length };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CHALLENGE VIDÉO — Nouveau type de manche
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Initialise l'état du challenge vidéo quand une question démarre.
+ * Appelé automatiquement si le type de manche est "video_challenge".
+ */
+export function initVideoChallenge(session) {
+  ensureSessionRuntime(session);
+  const q = getCurrentQuestion(session);
+  session.gameState.videoState = {
+    questionId: q?.id || null,
+    phase: "select",              // select | ready | playing | eval | scored
+    selectedPlayerId: null,
+    selectedTeamId: null,
+    selectedPseudo: null,
+    score: null,
+    videoControl: null,           // { action: 'play'|'pause'|'rewind', at }
+  };
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+    answerMode: "video_select",
+    timer: null,
+  });
+  setStatus(session, "question");
+  touch(session);
+  return { ok: true };
+}
+
+export function videoSelectPlayer(session, playerId) {
+  ensureSessionRuntime(session);
+  const vs = session.gameState.videoState;
+  if (!vs) return { ok: false, error: "Pas de challenge vidéo actif" };
+  const player = (session.players || []).find((p) => p.id === playerId);
+  if (!player) return { ok: false, error: "Joueur introuvable" };
+  vs.selectedPlayerId = playerId;
+  vs.selectedTeamId = null;
+  vs.selectedPseudo = player.pseudo;
+  touch(session);
+  return { ok: true };
+}
+
+export function videoSelectTeam(session, teamId) {
+  ensureSessionRuntime(session);
+  const vs = session.gameState.videoState;
+  if (!vs) return { ok: false, error: "Pas de challenge vidéo actif" };
+  const team = (session.teams || []).find((t) => t.id === teamId);
+  if (!team) return { ok: false, error: "Équipe introuvable" };
+  vs.selectedTeamId = teamId;
+  vs.selectedPlayerId = null;
+  vs.selectedPseudo = team.name;
+  touch(session);
+  return { ok: true };
+}
+
+export function videoMarkReady(session) {
+  ensureSessionRuntime(session);
+  const vs = session.gameState.videoState;
+  if (!vs) return { ok: false, error: "Pas de challenge vidéo actif" };
+  vs.phase = "ready";
+  setPhaseMeta(session, { ...session.gameState.phaseMeta, answerMode: "video_ready" });
+  touch(session);
+  return { ok: true };
+}
+
+export function videoStartPlaying(session) {
+  ensureSessionRuntime(session);
+  const vs = session.gameState.videoState;
+  if (!vs) return { ok: false, error: "Pas de challenge vidéo actif" };
+  vs.phase = "playing";
+  vs.videoControl = { action: "play", at: new Date().toISOString() };
+  setPhaseMeta(session, { ...session.gameState.phaseMeta, answerMode: "video_playing" });
+  touch(session);
+  return { ok: true };
+}
+
+export function videoControl(session, action) {
+  ensureSessionRuntime(session);
+  const vs = session.gameState.videoState;
+  if (!vs) return { ok: false, error: "Pas de challenge vidéo actif" };
+  vs.videoControl = { action, at: new Date().toISOString() };
+  touch(session);
+  return { ok: true };
+}
+
+export function videoStartEval(session) {
+  ensureSessionRuntime(session);
+  const vs = session.gameState.videoState;
+  if (!vs) return { ok: false, error: "Pas de challenge vidéo actif" };
+  vs.phase = "eval";
+  vs.videoControl = { action: "pause", at: new Date().toISOString() };
+  setPhaseMeta(session, { ...session.gameState.phaseMeta, answerMode: "video_eval" });
+  setStatus(session, "manual_scoring");
+  touch(session);
+  return { ok: true };
+}
+
+export function videoSetScore(session, score) {
+  ensureSessionRuntime(session);
+  const vs = session.gameState.videoState;
+  if (!vs) return { ok: false, error: "Pas de challenge vidéo actif" };
+  const s = Number(score);
+  if (!Number.isFinite(s) || s < 0 || s > 10) return { ok: false, error: "Score invalide (0–10)" };
+
+  vs.score = s;
+  vs.phase = "scored";
+  setPhaseMeta(session, { ...session.gameState.phaseMeta, answerMode: "video_scored" });
+
+  // Attribuer les points comme pour burger
+  if (vs.selectedTeamId) {
+    const teamMembers = (session.players || []).filter(
+      (p) => p.teamId === vs.selectedTeamId && p.connected
+    );
+    for (const member of teamMembers) {
+      awardPointsToPlayer(session, member.id, s);
+    }
+  } else if (vs.selectedPlayerId) {
+    awardPointsToPlayer(session, vs.selectedPlayerId, s);
+  }
+
+  touch(session);
+  return { ok: true };
 }
 
 export function resetEngineRuntime(session) {

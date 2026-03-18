@@ -602,7 +602,7 @@ function renderPlayerGame() {
   const phase = gs?.status || 'lobby';
 
   const roundType = gs?.currentRound?.type || gs?.currentQuestion?.type || 'qcm';
-  const roundTypeIcons = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', burger:'🍔', vote:'🗳️' };
+  const roundTypeIcons = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', burger:'🍔', vote:'🗳️', video_challenge:'🎬' };
   const rtIcon = roundTypeIcons[roundType] || '🎯';
 
   let content = `
@@ -814,6 +814,72 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
           BUZZER
         </button>
         <p class="muted" style="margin-top:10px;font-size:.88rem;">En attente du signal du maître de jeu…</p>
+      </div>`;
+  }
+
+  // Phase de révélation des propositions : afficher un écran "en attente" élaboré
+  if (answerMode === 'vote_proposal_reveal') {
+    return `
+      ${timer}
+      <div class="player-waiting-screen">
+        <div class="waiting-host-text">🗳️</div>
+        <div class="waiting-host-label">RÉVÉLATION DES<br>PROPOSITIONS</div>
+        <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
+        <p class="muted" style="font-size:.9rem;">Regardez l'écran TV…</p>
+      </div>`;
+  }
+
+  // Challenge vidéo : écrans dédiés
+  if (answerMode === 'video_select') {
+    const vs = gs?.videoState;
+    const isMe = vs?.selectedPlayerId === playerId;
+    const myTeamId = state.players.find(p => p.id === playerId)?.teamId;
+    const isMyTeam = myTeamId && vs?.selectedTeamId === myTeamId;
+    return `
+      ${timer}
+      <div class="player-waiting-screen">
+        <div class="waiting-host-text">🎬</div>
+        <div class="waiting-host-label">CHALLENGE<br>VIDÉO</div>
+        <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
+        <p class="muted" style="font-size:.9rem;">Le maître de jeu choisit un participant…</p>
+      </div>`;
+  }
+  if (answerMode === 'video_ready') {
+    const vs = gs?.videoState;
+    const isMe = vs?.selectedPlayerId === playerId;
+    const myPlayer = state.players.find(p => p.id === playerId);
+    const myTeamId = myPlayer?.teamId;
+    const isMyTeam = myTeamId && vs?.selectedTeamId === myTeamId;
+    const isSelected = isMe || isMyTeam;
+    return `
+      ${timer}
+      <div class="player-waiting-screen" style="background:${isSelected ? 'rgba(255,215,0,.07)' : 'transparent'};">
+        <div class="waiting-host-text">${isSelected ? '🎬' : '👀'}</div>
+        <div class="waiting-host-label">${isSelected ? 'TENEZ-VOUS PRÊT !' : 'REGARDEZ L\'ÉCRAN'}</div>
+        ${isSelected ? `<p style="margin-top:14px;font-size:1rem;color:#ffd700;">La vidéo va démarrer !</p>` : '<p class="muted" style="margin-top:14px;font-size:.9rem;">Un participant passe le challenge…</p>'}
+        <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
+      </div>`;
+  }
+  if (answerMode === 'video_playing') {
+    return `
+      ${timer}
+      <div class="player-waiting-screen">
+        <div class="waiting-host-text">🎥</div>
+        <div class="waiting-host-label">VIDÉO EN COURS</div>
+        <p class="muted" style="margin-top:14px;font-size:.9rem;">Regardez l'écran TV</p>
+        <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
+      </div>`;
+  }
+  if (answerMode === 'video_eval' || answerMode === 'video_scored') {
+    const vs = gs?.videoState;
+    return `
+      ${timer}
+      <div class="player-waiting-screen">
+        <div class="waiting-host-text">${answerMode === 'video_scored' ? '🏆' : '⚖️'}</div>
+        <div class="waiting-host-label">${answerMode === 'video_scored' ? `${vs?.score ?? '?'}/10` : 'ÉVALUATION EN COURS'}</div>
+        ${answerMode === 'video_scored' && vs?.selectedPseudo ? `<p style="margin-top:10px;color:#f7971e;font-size:1rem;">Score de <strong>${vs.selectedPseudo}</strong></p>` : ''}
+        <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
+        <button class="btn-recap-mini" onclick="showPlayerRecap()">📊 Voir mes scores</button>
       </div>`;
   }
 
@@ -1723,7 +1789,10 @@ function renderHostPilotageTab(gs, phase) {
         <div style="text-align:center;padding:12px 8px;">
           <p style="font-size:1.6rem;font-weight:700;color:#f59e0b;margin-bottom:4px;">${submittedCount}<span class="muted" style="font-size:.9rem;">/${connectedCount}</span></p>
           <p class="muted" style="font-size:.8rem;margin-bottom:14px;">réponses reçues</p>
-          <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer le vote</button>
+          <div class="host-ctrl-row">
+            <button class="hbtn hbtn-warning hbtn-wide hbtn-pulse" onclick="hostAction('vote_proposal_reveal_start')">👁 Révéler les propositions</button>
+            <button class="hbtn hbtn-primary hbtn-sm" onclick="hostAction('vote_start_voting')">⏩ Passer au vote</button>
+          </div>
         </div>`;
       // Liste des réponses reçues (anonymisées dans l'ordre d'arrivée)
       const submittedAnswers = Object.values(answersForQ).filter(a => a.answer?.trim());
@@ -1738,6 +1807,26 @@ function renderHostPilotageTab(gs, phase) {
         }
         out += `</div>`;
       }
+    } else if (answerMode === 'vote_proposal_reveal') {
+      // Phase 1b : révélation des propositions une par une sur le TV
+      const prs = gs?.proposalRevealState;
+      const cursor = prs?.revealCursor || 0;
+      const total  = prs?.proposals?.length || 0;
+      const current = total > 0 && cursor > 0 ? prs.proposals[cursor - 1] : null;
+      out += `
+        <div style="text-align:center;padding:10px 8px;">
+          <p class="muted" style="font-size:.8rem;margin-bottom:10px;">Révélation des propositions — <strong>${cursor}/${total}</strong> affichée(s)</p>
+          ${current ? `<div style="padding:8px 12px;border-radius:10px;background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.2);margin-bottom:10px;text-align:left;">
+            <span style="font-size:.7rem;color:#f59e0b;display:block;margin-bottom:3px;">👁 Proposition affichée :</span>
+            <strong>"${current.answer}"</strong>
+          </div>` : '<p class="muted" style="margin-bottom:10px;font-size:.8rem;">Appuyez sur le bouton pour afficher la première proposition.</p>'}
+          <div class="host-ctrl-row">
+            ${cursor < total ? `<button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('vote_proposal_reveal_next')">▶ Proposition suivante (${total - cursor} restante${total - cursor > 1 ? 's' : ''})</button>` : `<p class="muted" style="font-size:.8rem;">✅ Toutes les propositions ont été affichées</p>`}
+          </div>
+          <div class="host-ctrl-row" style="margin-top:8px;">
+            <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer le vote</button>
+          </div>
+        </div>`;
     } else if (answerMode === 'vote_voting') {
       // Phase 2 : vote en cours
       const options = voteState?.options || [];
@@ -1871,6 +1960,88 @@ function renderHostPilotageTab(gs, phase) {
             </div>` : scoreForm}
         `}
       </div>`;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SECTION 6b : CHALLENGE VIDÉO
+  // ═══════════════════════════════════════════════════════════
+  const isVideoChallenge = gs?.currentRound?.type === 'video_challenge' || gs?.currentQuestion?.type === 'video_challenge';
+  if (isVideoChallenge && ['question','waiting','manual_scoring'].includes(phase)) {
+    const vs = gs?.videoState;
+    const vPhase = vs?.phase || 'select';
+    const vPseudo = vs?.selectedPseudo;
+    const connPlayers = state.players.filter(p => p.connected);
+    const availTeams = state.teams?.filter(t => connPlayers.some(p => p.teamId === t.id)) || [];
+
+    const playerBtns = connPlayers.map(p =>
+      `<button class="burger-player-btn ${vs?.selectedPlayerId===p.id?'selected':''}"
+        onclick="hostAction('video_select_player',{playerId:'${p.id}'})">${p.avatar||'🎮'} ${p.pseudo}</button>`
+    ).join('');
+    const teamBtns = availTeams.map(t =>
+      `<button class="burger-player-btn ${vs?.selectedTeamId===t.id?'selected':''}"
+        onclick="hostAction('video_select_team',{teamId:'${t.id}'})">⚽ ${t.name}</button>`
+    ).join('');
+
+    const videoUrl = gs?.currentQuestion?.mediaUrl ? resolveMedia(gs.currentQuestion.mediaUrl) : null;
+
+    const scoreForm = `
+      <div style="padding:8px 0;">
+        <div style="font-size:.85rem;color:rgba(255,255,255,.6);margin-bottom:8px;text-align:center;">Attribuez un score pour <strong style="color:#f7971e;">${vPseudo}</strong></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input type="number" id="video-score-input" min="0" max="10" step="1" value="5"
+            style="width:70px;text-align:center;font-size:1.4rem;font-weight:700;padding:8px;">
+          <span class="muted" style="font-size:.85rem;">/10</span>
+          <button class="hbtn hbtn-success" style="flex:1;" onclick="submitVideoScore()">✅ Valider le score</button>
+        </div>
+        ${vs?.score != null ? `<p style="margin-top:8px;font-size:.85rem;color:#38ef7d;text-align:center;">✓ Score de ${vs.score}/10 attribué à <strong>${vPseudo}</strong></p>` : ''}
+      </div>`;
+
+    out += `<div class="host-section host-section-buzzer">
+      <div class="host-section-label">🎬 CHALLENGE VIDÉO</div>`;
+
+    if (vPhase === 'select') {
+      out += `<p class="muted" style="font-size:.8rem;margin-bottom:10px;">Choisissez qui réalise l'épreuve :</p>`;
+      if (availTeams.length) {
+        out += `<p class="muted" style="font-size:.73rem;margin-bottom:4px;">⚽ Équipes</p><div class="burger-player-grid">${teamBtns}</div>`;
+        out += `<p class="muted" style="font-size:.73rem;margin-bottom:4px;margin-top:6px;">🎮 Joueurs</p>`;
+      }
+      out += `<div class="burger-player-grid">${playerBtns || '<p class="muted">Aucun joueur connecté</p>'}</div>`;
+      if (vs?.selectedPlayerId || vs?.selectedTeamId) {
+        out += `<div class="host-ctrl-row" style="margin-top:10px;">
+          <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('video_mark_ready')">▶ Écran "Tenez-vous prêt" →</button>
+        </div>`;
+      }
+    } else if (vPhase === 'ready') {
+      out += `<div style="text-align:center;padding:8px;">
+        <div style="font-size:1.1rem;font-weight:700;color:#f7971e;margin-bottom:12px;">🎬 ${vPseudo}</div>
+        <p class="muted" style="font-size:.85rem;margin-bottom:14px;">L'écran affiche "Tenez-vous prêt !"</p>
+        <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('video_start_playing')">▶ Lancer la vidéo</button>
+      </div>`;
+    } else if (vPhase === 'playing') {
+      out += `<div style="text-align:center;padding:8px;">
+        <div style="font-size:1.1rem;font-weight:700;color:#f7971e;margin-bottom:8px;">🎬 Vidéo en cours — ${vPseudo}</div>
+        <div class="host-ctrl-row" style="margin-bottom:10px;">
+          <button class="hbtn hbtn-success hbtn-sm" onclick="hostAction('video_control',{action:'play'})">▶ Play</button>
+          <button class="hbtn hbtn-warning hbtn-sm" onclick="hostAction('video_control',{action:'pause'})">⏸ Pause</button>
+          <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('video_control',{action:'rewind'})">⏮ Début</button>
+        </div>
+        <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" onclick="hostAction('video_start_eval')">⏭ Passer à l'évaluation</button>
+      </div>`;
+    } else if (vPhase === 'eval') {
+      out += scoreForm;
+    } else if (vPhase === 'scored') {
+      out += `<div style="text-align:center;padding:12px;">
+        <div style="font-size:2.5rem;font-weight:900;color:#f7971e;">${vs.score}<span style="font-size:1rem;color:rgba(255,255,255,.4);">/10</span></div>
+        <div style="font-size:.9rem;margin-top:4px;">Score attribué à <strong style="color:#f7971e;">${vPseudo}</strong></div>
+      </div>`;
+    }
+
+    // Vidéos d'entraînement accessibles si en phase select ou ready
+    if ((vPhase === 'select' || vPhase === 'ready') && gs?.currentQuestion?.trainingVideos?.length > 0) {
+      out += showTrainingVideos(gs) || '';
+    }
+
+    out += `</div>`;
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -2226,6 +2397,18 @@ function awardPoints(playerId, points) {
   hostAction('award_manual_points', { playerId, points });
 }
 
+function submitVideoScore() {
+  const input = document.getElementById('video-score-input');
+  const val = input ? Number(input.value) : NaN;
+  if (!Number.isFinite(val) || val < 0 || val > 10) {
+    alert$('host-alert', 'Entrez un score entre 0 et 10', 'error');
+    return;
+  }
+  hostAction('video_set_score', { score: val });
+  playSound('correct');
+}
+window.submitVideoScore = submitVideoScore;
+
 function submitBurgerScore() {
   const input = document.getElementById('burger-score-input');
   const val = input ? Number(input.value) : NaN;
@@ -2415,8 +2598,11 @@ function renderDisplay() {
   } else if (phase === 'end') {
     content += renderFinalCeremony(gs, state.leaderboardPlayers, state.leaderboardTeams);
   } else if (phase === 'manual_scoring') {
-    const isBurgerManual = gs?.currentRound?.type === 'burger' || gs?.currentQuestion?.type === 'burger';
-    if (isBurgerManual) {
+    const isVideoManual  = gs?.currentRound?.type === 'video_challenge' || gs?.currentQuestion?.type === 'video_challenge';
+    const isBurgerManual = !isVideoManual && (gs?.currentRound?.type === 'burger' || gs?.currentQuestion?.type === 'burger');
+    if (isVideoManual) {
+      content += renderDisplayVideoChallenge(gs);
+    } else if (isBurgerManual) {
       const bfScore = gs?.burgerFinalScore;
       const bPseudo = gs?.burgerSelectedPseudo || '?';
       const bIsTeam = !!(gs?.burgerSelectedTeamId);
@@ -2621,20 +2807,64 @@ function renderDisplayQuestion(gs) {
         <p class="muted" style="margin-top:10px;font-size:1rem;">${answered}/${connected} réponse(s) reçue(s)</p>
         <div class="progress-bar" style="margin-top:12px;"><div class="fill" style="width:${connected > 0 ? Math.round(answered/connected*100) : 0}%"></div></div>
       </div>`;
+  } else if (pm.answerMode === 'vote_proposal_reveal') {
+    // Phase intermédiaire : révélation des propositions avant le vote
+    const prs = gs?.proposalRevealState;
+    const cursor = prs?.revealCursor || 0;
+    const total  = prs?.proposals?.length || 0;
+    const current = total > 0 && cursor > 0 ? prs.proposals[cursor - 1] : null;
+
+    // Afficher le média de la question (image/vidéo/audio)
+    const qUrl = q?.mediaUrl ? resolveMedia(q.mediaUrl) : '';
+    const qIsImg   = qUrl && /\.(jpg|jpeg|png|gif|webp)$/i.test(qUrl);
+    const qIsVid   = qUrl && /\.(mp4|webm|mov)$/i.test(qUrl);
+    const qIsAudio = qUrl && /\.(mp3|wav|ogg)$/i.test(qUrl);
+    const qMedia   = qIsImg ? `<img src="${qUrl}" style="max-height:200px;border-radius:12px;margin-bottom:16px;">` :
+                     qIsVid ? `<video src="${qUrl}" controls style="max-height:200px;border-radius:12px;margin-bottom:16px;"></video>` :
+                     qIsAudio ? `<audio controls src="${qUrl}" style="margin-bottom:14px;"></audio>` : '';
+
+    voteDisplay = `
+      <div class="card" style="padding:30px 24px;background:rgba(167,139,250,.07);border-color:rgba(167,139,250,.3);">
+        <div style="font-size:.85rem;color:rgba(167,139,250,.7);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;">🗳️ PROPOSITION ${cursor > 0 ? cursor : '—'} / ${total}</div>
+        <div class="display-question-text" style="margin-bottom:${qMedia?'14px':'0'};font-size:clamp(1.4rem,4vw,2rem);">${q.content || ''}</div>
+        ${qMedia}
+        ${current ? `
+          <div style="margin-top:20px;padding:20px 24px;border-radius:14px;background:rgba(255,255,255,.06);border:2px solid rgba(167,139,250,.4);">
+            <div style="font-size:.8rem;color:rgba(167,139,250,.6);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">Proposition</div>
+            <div style="font-size:clamp(1.4rem,5vw,2.2rem);font-weight:800;line-height:1.25;">"${current.answer}"</div>
+          </div>` : `
+          <div style="margin-top:20px;text-align:center;padding:24px;border-radius:14px;background:rgba(255,255,255,.03);">
+            <div class="waiting-dots"><span></span><span></span><span></span></div>
+            <p class="muted" style="margin-top:12px;">Le maître de jeu va révéler les propositions…</p>
+          </div>`}
+      </div>`;
   } else if (pm.answerMode === 'vote_voting') {
     voteDisplay = renderDisplayVoteVoting(gs);
   }
 
-  // Compteur de réponses (pas pour burger/buzzer/vote)
+  // Challenge Vidéo : affichage selon la phase
+  let videoDisplay = '';
+  if (pm.answerMode === 'video_select' || pm.answerMode === 'video_ready' ||
+      pm.answerMode === 'video_playing' || pm.answerMode === 'video_eval' || pm.answerMode === 'video_scored') {
+    videoDisplay = renderDisplayVideoChallenge(gs);
+  }
+
+  // Compteur de réponses (pas pour burger/buzzer/vote/vidéo)
   const answered = gs.answers?.[q.id] ? Object.keys(gs.answers[q.id]).length : 0;
   const connected = state.players.filter(p => p.connected).length;
-  const showCounter = pm.answerMode !== 'buzzer' && pm.answerMode !== 'vote_input' && pm.answerMode !== 'vote_voting' && q.type !== 'burger' && q.type !== 'rapidite';
+  const noCounterModes = ['buzzer','vote_input','vote_voting','vote_proposal_reveal','video_select','video_ready','video_playing','video_eval','video_scored'];
+  const showCounter = !noCounterModes.includes(pm.answerMode) && q.type !== 'burger' && q.type !== 'rapidite' && q.type !== 'video_challenge';
+
+  if (pm.answerMode === 'video_select' || pm.answerMode === 'video_ready' ||
+      pm.answerMode === 'video_playing' || pm.answerMode === 'video_eval' || pm.answerMode === 'video_scored') {
+    return videoDisplay;
+  }
 
   return `
     ${timerHtml}
     <div class="display-question-card">
       <div class="display-question-text">${q.content || ''}</div>
-      ${media}
+      ${pm.answerMode !== 'vote_proposal_reveal' ? media : ''}
       ${showCounter ? `<p class="muted" style="margin-top:8px;font-size:.9rem;">${answered}/${connected} réponse(s)</p>` : ''}
     </div>
     ${opts}
@@ -2642,6 +2872,78 @@ function renderDisplayQuestion(gs) {
     ${buzzerDisplay}
     ${burgerDisplay}
     ${voteDisplay}`;
+}
+
+// ── Display : challenge vidéo ──────────────────────────────
+function renderDisplayVideoChallenge(gs) {
+  const vs = gs?.videoState;
+  const phase = vs?.phase || 'select';
+  const pseudo = vs?.selectedPseudo || '?';
+  const q = gs?.currentQuestion;
+  const videoUrl = q?.mediaUrl ? resolveMedia(q.mediaUrl) : null;
+
+  if (phase === 'select') {
+    return `
+      <div class="card" style="text-align:center;padding:60px 20px;background:rgba(255,215,0,.05);border-color:rgba(255,215,0,.2);">
+        <div style="font-size:5rem;margin-bottom:20px;">🎬</div>
+        <h2 style="color:#ffd700;font-size:2rem;">Challenge Vidéo</h2>
+        <p class="muted" style="margin-top:16px;font-size:1.1rem;">Le maître de jeu choisit un participant…</p>
+        <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
+      </div>`;
+  }
+
+  if (phase === 'ready') {
+    return `
+      <div class="card" style="text-align:center;padding:60px 20px;background:rgba(255,215,0,.07);border-color:rgba(255,215,0,.3);">
+        <div style="font-size:5rem;margin-bottom:20px;animation:pulse-pause 1.5s ease-in-out infinite;">🎬</div>
+        <h2 style="color:#ffd700;font-size:clamp(1.8rem,6vw,3rem);">${pseudo}</h2>
+        <div style="font-size:clamp(2rem,8vw,4rem);font-weight:900;color:#fff;margin:20px 0;letter-spacing:.02em;">TENEZ-VOUS PRÊT !</div>
+        <div class="waiting-dots" style="margin-top:16px;"><span></span><span></span><span></span></div>
+      </div>`;
+  }
+
+  if (phase === 'playing' || phase === 'eval') {
+    // Contrôle de la vidéo via videoControl
+    const ctrl = vs?.videoControl;
+    return `
+      <div class="card" style="padding:20px;background:#000;border-color:rgba(255,215,0,.2);">
+        <div style="font-size:.85rem;color:rgba(255,215,0,.6);text-align:center;margin-bottom:12px;">🎬 ${pseudo} — ${q?.content || ''}</div>
+        ${videoUrl ? `
+          <video id="display-challenge-video" src="${videoUrl}" style="width:100%;max-height:55vh;border-radius:12px;background:#000;"
+            ${phase === 'playing' && ctrl?.action === 'play' ? 'autoplay' : ''}
+            playsinline></video>
+          <script>
+            (function() {
+              const vid = document.getElementById('display-challenge-video');
+              if (!vid) return;
+              const action = '${ctrl?.action || 'pause'}';
+              const at = '${ctrl?.at || ''}';
+              if (!window._lastVidCtrl || window._lastVidCtrl !== at) {
+                window._lastVidCtrl = at;
+                if (action === 'play')   vid.play().catch(()=>{});
+                else if (action === 'pause') vid.pause();
+                else if (action === 'rewind') { vid.currentTime = 0; vid.pause(); }
+              }
+            })();
+          <\/script>` : '<p class="muted" style="text-align:center;padding:40px;">Aucune vidéo configurée pour ce challenge</p>'}
+        ${phase === 'eval' ? `<div style="text-align:center;margin-top:14px;padding:14px;background:rgba(255,255,255,.05);border-radius:10px;">
+          <p style="font-size:1rem;color:rgba(255,255,255,.6);">Le maître de jeu attribue le score…</p>
+          <div class="waiting-dots" style="margin-top:10px;"><span></span><span></span><span></span></div>
+        </div>` : ''}
+      </div>`;
+  }
+
+  if (phase === 'scored') {
+    return `
+      <div class="card" style="text-align:center;padding:50px 20px;background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
+        <div style="font-size:4rem;margin-bottom:16px;">🎬</div>
+        <h2 style="color:#f7971e;font-size:clamp(1.6rem,5vw,2.4rem);">${pseudo}</h2>
+        <div style="font-size:clamp(5rem,18vw,9rem);font-weight:900;color:#f7971e;line-height:1;margin:16px 0;">${vs.score}<span style="font-size:2.5rem;color:rgba(255,255,255,.4);">/10</span></div>
+        <p class="muted">Score attribué par le maître de jeu</p>
+      </div>`;
+  }
+
+  return '';
 }
 
 // ── Révélation progressive du vote (step-by-step, style burger) ──
@@ -3040,7 +3342,15 @@ function emptyQuestion(type = 'qcm') {
     return {
       ...base,
       type: 'vote',
-      fakeAnswers: [''],  // 1 leurre vide par défaut (non affiché si non modifié)
+      fakeAnswers: [''],
+    };
+  }
+  // Challenge Vidéo — une vidéo est jouée, les joueurs répondent à l'oral
+  if (type === 'video_challenge') {
+    return {
+      ...base,
+      type: 'video_challenge',
+      trainingVideos: [],  // [{ id, title, url }]
     };
   }
   return { ...base, type: type };
@@ -3129,11 +3439,12 @@ function switchRound(idx) {
 
 function renderRoundBlock(round, ri) {
   const roundTypes = [
-    { v:'qcm',       l:'🔘 QCM (choix multiple)' },
-    { v:'rapidite',  l:'⚡ Rapidité (buzzer)' },
-    { v:'true_false',l:'✅ Vrai / Faux' },
-    { v:'burger',    l:'🍔 Burger (liste révélée)' },
-    { v:'vote',      l:'🗳️ Vote (propositions + votes)' },
+    { v:'qcm',             l:'🔘 QCM (choix multiple)' },
+    { v:'rapidite',        l:'⚡ Rapidité (buzzer)' },
+    { v:'true_false',      l:'✅ Vrai / Faux' },
+    { v:'burger',          l:'🍔 Burger (liste révélée)' },
+    { v:'vote',            l:'🗳️ Vote (propositions + votes)' },
+    { v:'video_challenge', l:'🎬 Challenge Vidéo' },
   ];
 
   const bgPreview = round.backgroundUrl
@@ -3361,6 +3672,44 @@ function renderQuestionRow(q, qi, roundId, roundType) {
       </div>`;
   }
 
+  // ── CHALLENGE VIDÉO ──────────────────────────────────────
+  if (effectiveType === 'video_challenge') {
+    const trainVids = Array.isArray(q.trainingVideos) ? q.trainingVideos : [];
+    body = `
+      <div style="margin:8px 0 4px 28px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:10px;">
+        <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">🎬 Challenge Vidéo</div>
+        <p style="font-size:.78rem;color:rgba(255,255,255,.5);margin-bottom:12px;">
+          Le host choisit un joueur ou une équipe. La vidéo est jouée sur l'écran TV. Le host attribue de 0 à 10 points.
+        </p>
+
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
+          <label style="font-size:.78rem;color:rgba(255,255,255,.5);white-space:nowrap;">🎥 Vidéo du challenge :</label>
+          <input value="${(q.mediaUrl||'').replace(/"/g,'&quot;')}" placeholder="URL ou chemin de la vidéo"
+            oninput="updateQuestion('${roundId}','${q.id}','mediaUrl',this.value)"
+            style="flex:1;font-size:.82rem;padding:5px 8px;">
+          <button class="btn-secondary" style="padding:3px 7px;font-size:.75rem;" onclick="uploadQuestionMedia('${roundId}','${q.id}')" title="Uploader">📤</button>
+        </div>
+        ${q.mediaUrl ? `<div style="margin-bottom:10px;"><video src="${resolveMedia(q.mediaUrl)}" controls style="max-width:100%;max-height:120px;border-radius:8px;"></video></div>` : ''}
+
+        <div style="margin-top:12px;">
+          <div style="font-size:.78rem;color:rgba(255,255,255,.45);margin-bottom:8px;">🏋️ Vidéos d'entraînement (facultatif — visibles par le host avant la partie)</div>
+          ${trainVids.map((v, i) => `
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+              <input value="${(v.title||'').replace(/"/g,'&quot;')}" placeholder="Titre"
+                oninput="updateTrainingVideo('${roundId}','${q.id}',${i},'title',this.value)"
+                style="width:120px;font-size:.82rem;padding:5px 8px;">
+              <input value="${(v.url||'').replace(/"/g,'&quot;')}" placeholder="URL ou chemin"
+                oninput="updateTrainingVideo('${roundId}','${q.id}',${i},'url',this.value)"
+                style="flex:1;font-size:.82rem;padding:5px 8px;">
+              <button class="btn-secondary" style="padding:3px 7px;font-size:.75rem;" onclick="uploadTrainingVideo('${roundId}','${q.id}',${i})" title="Uploader">📤</button>
+              <button class="btn-secondary" style="padding:3px 7px;font-size:.75rem;color:#eb3349;" onclick="removeTrainingVideo('${roundId}','${q.id}',${i})">✕</button>
+            </div>`).join('')}
+          <button class="btn-secondary" style="padding:4px 10px;font-size:.78rem;margin-top:4px;" onclick="addTrainingVideo('${roundId}','${q.id}')">+ Ajouter une vidéo d'entraînement</button>
+        </div>
+        <div style="margin-top:10px;font-size:.75rem;color:rgba(255,255,255,.4);">📋 Déroulement : 1. Host choisit joueur/équipe · 2. Écran "Tenez-vous prêt" · 3. Vidéo jouée sur le TV · 4. Réponse orale · 5. Host attribue 0–10 pts</div>
+      </div>`;
+  }
+
   return `
     <div class="question-row" id="question-${q.id}" style="flex-direction:column;align-items:stretch;gap:4px;margin-bottom:10px;">
       ${headerRow}
@@ -3421,6 +3770,68 @@ function removeFakeAnswer(roundId, qId, idx) {
   q.fakeAnswers.splice(idx, 1);
   if (q.fakeAnswers.length === 0) q.fakeAnswers = [''];
   renderQuizEditor();
+}
+
+// ── Fonctions admin pour les vidéos d'entraînement (challenge vidéo) ──
+function updateTrainingVideo(roundId, qId, idx, field, value) {
+  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+  const q = round?.questions?.find(q => q.id === qId);
+  if (!q) return;
+  if (!Array.isArray(q.trainingVideos)) q.trainingVideos = [];
+  if (!q.trainingVideos[idx]) q.trainingVideos[idx] = { id: uid('tv'), title: '', url: '' };
+  q.trainingVideos[idx][field] = value;
+}
+window.updateTrainingVideo = updateTrainingVideo;
+
+function addTrainingVideo(roundId, qId) {
+  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+  const q = round?.questions?.find(q => q.id === qId);
+  if (!q) return;
+  if (!Array.isArray(q.trainingVideos)) q.trainingVideos = [];
+  q.trainingVideos.push({ id: uid('tv'), title: '', url: '' });
+  renderQuizEditor();
+}
+window.addTrainingVideo = addTrainingVideo;
+
+function removeTrainingVideo(roundId, qId, idx) {
+  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+  const q = round?.questions?.find(q => q.id === qId);
+  if (!q || !Array.isArray(q.trainingVideos)) return;
+  q.trainingVideos.splice(idx, 1);
+  renderQuizEditor();
+}
+window.removeTrainingVideo = removeTrainingVideo;
+
+async function uploadTrainingVideo(roundId, qId, idx) {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'video/*';
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    const fd = new FormData(); fd.append('file', file);
+    const res = await fetch('/upload', { method: 'POST', body: fd }).then(r => r.json());
+    if (res.url) updateTrainingVideo(roundId, qId, idx, 'url', res.url);
+    renderQuizEditor();
+  };
+  input.click();
+}
+window.uploadTrainingVideo = uploadTrainingVideo;
+
+// ── Fonction pour afficher les vidéos d'entraînement (host, avant la partie) ──
+function showTrainingVideos(gs) {
+  const q = gs?.currentQuestion;
+  if (!q || !Array.isArray(q.trainingVideos) || q.trainingVideos.length === 0) return;
+  let html = `<div class="card" style="margin-top:12px;border-color:rgba(255,215,0,.3);background:rgba(255,215,0,.05);">
+    <div style="font-size:.8rem;color:rgba(255,215,0,.7);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">🏋️ Vidéos d'entraînement</div>`;
+  for (const v of q.trainingVideos) {
+    if (!v.url) continue;
+    html += `<div style="margin-bottom:10px;">
+      ${v.title ? `<div style="font-size:.85rem;font-weight:600;margin-bottom:4px;">${v.title}</div>` : ''}
+      <video src="${resolveMedia(v.url)}" controls style="width:100%;max-height:200px;border-radius:10px;"></video>
+    </div>`;
+  }
+  html += `</div>`;
+  return html;
 }
 
 function addRound() {

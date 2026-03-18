@@ -49,8 +49,18 @@ import {
   recordVoteCast,
   revealVoteResults,
   voteRevealNext,
+  startProposalReveal,
+  proposalRevealNext,
   returnToQuestion,
   resetBuzzerRapidite,
+  initVideoChallenge,
+  videoSelectPlayer,
+  videoSelectTeam,
+  videoMarkReady,
+  videoStartPlaying,
+  videoControl,
+  videoStartEval,
+  videoSetScore,
 } from "./engine.js";
 
 function sessionRoom(code) {
@@ -918,6 +928,14 @@ export function setupSocketHandlers(io) {
             res = returnToQuestion(session);
             break;
 
+          case "vote_proposal_reveal_start":
+            res = startProposalReveal(session);
+            break;
+
+          case "vote_proposal_reveal_next":
+            res = proposalRevealNext(session);
+            break;
+
           case "vote_start_voting":
             res = startVotePhase(session);
             break;
@@ -928,6 +946,39 @@ export function setupSocketHandlers(io) {
 
           case "vote_reveal_next":
             res = voteRevealNext(session);
+            break;
+
+          // ── Challenge Vidéo ──────────────────────────────────
+          case "video_init":
+            res = initVideoChallenge(session);
+            break;
+
+          case "video_select_player":
+            res = videoSelectPlayer(session, payload.playerId);
+            break;
+
+          case "video_select_team":
+            res = videoSelectTeam(session, payload.teamId);
+            break;
+
+          case "video_mark_ready":
+            res = videoMarkReady(session);
+            break;
+
+          case "video_start_playing":
+            res = videoStartPlaying(session);
+            break;
+
+          case "video_control":
+            res = videoControl(session, payload.action);
+            break;
+
+          case "video_start_eval":
+            res = videoStartEval(session);
+            break;
+
+          case "video_set_score":
+            res = videoSetScore(session, payload.score);
             break;
 
           case "ceremony_view": {
