@@ -519,6 +519,37 @@ export function startRound(session) {
   return { ok: true };
 }
 
+// ── Vidéo d'entraînement (entre round_intro et première question) ─────────────
+
+export function startTrainingVideo(session) {
+  ensureSessionRuntime(session);
+  const round = getCurrentRound(session);
+  if (!round?.trainingVideoUrl) return { ok: false, error: "Pas de vidéo d'entraînement configurée" };
+  session.gameState.trainingVideoControl = { action: "pause", at: new Date().toISOString() };
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+    answerMode: "training_video",
+    timer: null,
+  });
+  setStatus(session, "training_video");
+  touch(session);
+  return { ok: true };
+}
+
+export function trainingVideoControl(session, action) {
+  ensureSessionRuntime(session);
+  session.gameState.trainingVideoControl = { action, at: new Date().toISOString() };
+  touch(session);
+  return { ok: true };
+}
+
+export function stopTrainingVideo(session) {
+  ensureSessionRuntime(session);
+  session.gameState.trainingVideoControl = null;
+  return nextQuestion(session);
+}
+
 export function nextQuestion(session) {
   ensureSessionRuntime(session);
 
@@ -586,6 +617,20 @@ export function nextQuestion(session) {
   // Réinitialiser le dernier résultat buzzer et les cooldowns
   session.gameState.buzzerLastResult = null;
   session.gameState.buzzerCooldowns = {};
+
+  // Challenge vidéo : initialiser videoState automatiquement
+  if (newAnswerMode === "video_select") {
+    const q = getCurrentQuestion(session);
+    session.gameState.videoState = {
+      questionId: q?.id || null,
+      phase: "select",
+      selectedPlayerId: null,
+      selectedTeamId: null,
+      selectedPseudo: null,
+      score: null,
+      videoControl: null,
+    };
+  }
 
   setStatus(session, "question");
   return { ok: true };

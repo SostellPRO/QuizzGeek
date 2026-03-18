@@ -61,6 +61,9 @@ import {
   videoControl,
   videoStartEval,
   videoSetScore,
+  startTrainingVideo,
+  trainingVideoControl,
+  stopTrainingVideo,
 } from "./engine.js";
 
 function sessionRoom(code) {
@@ -979,6 +982,19 @@ export function setupSocketHandlers(io) {
 
           case "video_set_score":
             res = videoSetScore(session, payload.score);
+            break;
+
+          // ── Vidéo d'entraînement ─────────────────────────────
+          case "start_training_video":
+            res = startTrainingVideo(session);
+            break;
+
+          case "training_video_control":
+            res = trainingVideoControl(session, payload.action);
+            break;
+
+          case "stop_training_video":
+            res = stopTrainingVideo(session);
             break;
 
           case "ceremony_view": {
