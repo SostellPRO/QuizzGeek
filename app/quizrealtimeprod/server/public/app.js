@@ -3754,12 +3754,14 @@ function renderQuestionRow(q, qi, roundId, roundType) {
         <p style="font-size:.78rem;color:rgba(255,255,255,.5);margin-bottom:12px;">
           Le host choisit un joueur ou une équipe. La vidéo est jouée sur l'écran TV. Le host attribue de 0 à 10 points.
         </p>
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
           <label style="font-size:.78rem;color:rgba(255,255,255,.5);white-space:nowrap;">🎥 Vidéo du challenge :</label>
-          <input value="${(q.mediaUrl||'').replace(/"/g,'&quot;')}" placeholder="URL ou chemin de la vidéo"
-            oninput="updateQuestion('${roundId}','${q.id}','mediaUrl',this.value)"
-            style="flex:1;font-size:.82rem;padding:5px 8px;">
-          <button class="btn-secondary" style="padding:3px 7px;font-size:.75rem;" onclick="openMediaUpload('${q.id}')" title="Uploader">📤</button>
+          <button class="btn-secondary" style="padding:5px 12px;font-size:.82rem;" onclick="openMediaUpload('${q.id}')">📤 Uploader une vidéo</button>
+          ${q.mediaUrl
+            ? `<span style="font-size:.75rem;color:rgba(255,255,255,.4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;" title="${q.mediaUrl}">${q.mediaUrl.split('/').pop()}</span>
+               <button class="btn-secondary" style="padding:2px 6px;font-size:.72rem;color:#eb3349;" onclick="updateQuestion('${roundId}','${q.id}','mediaUrl','');renderQuizEditor()" title="Supprimer la vidéo">✕</button>`
+            : `<span style="font-size:.75rem;color:rgba(255,255,255,.3);font-style:italic;">Aucune vidéo uploadée</span>`
+          }
         </div>
         ${q.mediaUrl ? `<div style="margin-bottom:10px;"><video src="${resolveMedia(q.mediaUrl)}" controls style="max-width:100%;max-height:120px;border-radius:8px;"></video></div>` : ''}
         <div style="margin-top:8px;font-size:.75rem;color:rgba(255,255,255,.4);">📋 Déroulement : 1. Host choisit joueur/équipe · 2. Écran "Tenez-vous prêt" · 3. Vidéo jouée sur le TV · 4. Réponse orale · 5. Host attribue 0–10 pts<br>💡 La vidéo d'entraînement se configure au niveau de la manche, pas de la question.</div>
