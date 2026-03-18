@@ -2684,15 +2684,18 @@ function renderDisplay() {
 
 // ── Contrôle effectif de la vidéo TV après rendu du DOM ──────────────────────
 // Les <script> dans innerHTML ne s'exécutent pas → on applique le contrôle ici.
-function _applyVidCtrl(vid, action, at, stateKey) {
+// IMPORTANT : on stocke le suivi sur l'élément lui-même (_lastAppliedAt) et NON
+// dans une variable globale. Ainsi, chaque fois que html() recrée l'élément,
+// il repart à zéro et la commande en cours (play, pause, rewind) est ré-appliquée.
+function _applyVidCtrl(vid, action, at) {
   if (!vid) return;
-  if (!window[stateKey] || window[stateKey] !== at) {
-    window[stateKey] = at;
+  if (vid._lastAppliedAt !== at) {
+    vid._lastAppliedAt = at;
     if (action === 'play') {
-      // Si autoplay bloqué par le navigateur (pas de gesture), on attend un clic
+      // Si autoplay bloqué par le navigateur (pas de gesture), on retente en muet
       vid.play().catch(() => {
-        vid.muted = true;         // retry muet (autoplay muted est toujours autorisé)
-        vid.play().catch(() => {}); // si ça échoue encore, l'host peut cliquer Play
+        vid.muted = true;
+        vid.play().catch(() => {});
       });
     } else if (action === 'pause') {
       vid.pause();
@@ -2703,9 +2706,9 @@ function _applyVidCtrl(vid, action, at, stateKey) {
 }
 function applyDisplayVideoControl(gs) {
   const vid  = document.getElementById('display-challenge-video');
-  if (vid)  _applyVidCtrl(vid,  vid.dataset.ctrlAction  || 'pause', vid.dataset.ctrlAt  || '', '_lastVidCtrl');
+  if (vid)  _applyVidCtrl(vid,  vid.dataset.ctrlAction  || 'pause', vid.dataset.ctrlAt  || '');
   const tvid = document.getElementById('display-training-video');
-  if (tvid) _applyVidCtrl(tvid, tvid.dataset.ctrlAction || 'pause', tvid.dataset.ctrlAt || '', '_lastTrainVidCtrl');
+  if (tvid) _applyVidCtrl(tvid, tvid.dataset.ctrlAction || 'pause', tvid.dataset.ctrlAt || '');
 }
 
 function renderDisplayQuestion(gs) {
