@@ -1219,23 +1219,23 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
   }
 
   /* ══════════════════════════════════════════════════
-     QCM — Bloc tuiles : 80% largeur × 60% hauteur écran
+     QCM — Bloc tuiles : 90% largeur × 60% hauteur écran
      ══════════════════════════════════════════════════ */
   .answer-tiles {
     gap: 10px;
-    width: 80vw;
+    width: 90vw;
     margin: 0 auto;
   }
   .answer-tiles-mcq-grid {
     grid-template-columns: 1fr;
-    width: 80vw;
+    width: 90vw;
     height: 60vh;
     margin: 0 auto;
-    grid-auto-rows: 1fr;  /* chaque tuile prend la même hauteur */
+    grid-auto-rows: 1fr;
   }
   .answer-tiles-2 {
     grid-template-columns: 1fr;
-    width: 80vw;
+    width: 90vw;
     margin: 0 auto;
   }
   .answer-tile-mcq {
@@ -1244,15 +1244,15 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
     gap: 12px;
     flex-direction: row;
     justify-content: flex-start;
-    padding: 16px 20px;
+    padding: 16px 22px;
     font-size: 1.1rem;
     border-radius: 16px;
   }
-  .answer-tile-letter { font-size: 1.4rem; min-width: 38px; text-align: center; }
-  .answer-tile-text { font-size: clamp(1.05rem, 4vw, 1.3rem); font-weight: 700; text-align: left; }
+  .answer-tile-letter { font-size: 1.5rem; min-width: 42px; text-align: center; }
+  .answer-tile-text { font-size: clamp(1.1rem, 4.2vw, 1.35rem); font-weight: 700; text-align: left; }
 
   /* ══════════════════════════════════════════════════
-     VRAI / FAUX — Boutons : 50% hauteur × 90% largeur
+     VRAI / FAUX — Boutons : 60% hauteur × 90% largeur
      ══════════════════════════════════════════════════ */
   .answer-tiles-tf {
     grid-template-columns: 1fr 1fr;
@@ -1262,45 +1262,47 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
   }
   .answer-tile-true,
   .answer-tile-false {
-    min-height: 48vh;
-    height: 48vh;
+    min-height: 60vh;
+    height: 60vh;
     flex-direction: column;
     padding: 20px 12px;
     border-radius: 20px;
     justify-content: center;
   }
-  .answer-tile-icon { font-size: clamp(3rem, 13vw, 4.5rem); }
-  .answer-tile-label { font-size: clamp(1.5rem, 6vw, 2rem); font-weight: 900; }
+  .answer-tile-icon { font-size: clamp(3.2rem, 14vw, 5rem); }
+  .answer-tile-label { font-size: clamp(1.6rem, 6.5vw, 2.2rem); font-weight: 900; }
 
   /* ══════════════════════════════════════════════════
-     BUZZER — Bouton : 30% de la hauteur totale de l'écran
+     BUZZER — Bouton : 80% largeur × 60% hauteur écran
      ══════════════════════════════════════════════════ */
   .buzzer-btn {
-    width: 30vh !important;
-    height: 30vh !important;
-    font-size: clamp(1.6rem, 6vw, 2.2rem) !important;
-    gap: 8px !important;
+    width: 80vw !important;
+    height: 60vh !important;
+    border-radius: 32px !important;
+    font-size: clamp(2rem, 8vw, 3rem) !important;
+    gap: 14px !important;
     min-width: unset !important;
     min-height: unset !important;
+    margin: 0 auto !important;
   }
   .buzzer-wrap {
-    min-height: 45vh;
-    padding: 16px 0 28px;
+    min-height: 72vh;
+    padding: 16px 0 24px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
   }
-  #buzzer-cd-secs { font-size: 2rem !important; }
+  #buzzer-cd-secs { font-size: 2.4rem !important; }
 
   /* ══════════════════════════════════════════════════
-     VOTE — Boîtes de dialogue : 30% hauteur × 90% largeur
+     VOTE — Choix : 90% largeur, tuiles hautes
      ══════════════════════════════════════════════════ */
   .answer-tile-vote {
-    min-height: 28vh;
-    height: 28vh;
+    min-height: 22vh;
+    height: auto;
     width: 90vw;
-    padding: 20px 22px;
+    padding: 22px 24px;
     border-radius: 18px;
     margin: 0 auto;
     gap: 16px;
@@ -1308,26 +1310,67 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
     align-items: center;
   }
   .vote-tile-idx {
-    width: 46px;
-    height: 46px;
-    min-width: 46px;
-    font-size: 1.3rem;
+    width: 50px;
+    height: 50px;
+    min-width: 50px;
+    font-size: 1.4rem;
     border-radius: 12px;
   }
   .answer-tile-vote .answer-tile-text {
-    font-size: clamp(1.15rem, 4.5vw, 1.4rem);
+    font-size: clamp(1.2rem, 4.8vw, 1.5rem);
     font-weight: 700;
     line-height: 1.4;
   }
 
-  /* ── Réponse texte ── */
-  .text-answer-block { gap: 14px; margin-top: 8px; }
+  /* ══════════════════════════════════════════════════
+     VOTE TEXTE (saisie proposition) — 90% largeur × zone haute
+     ══════════════════════════════════════════════════ */
+  .text-answer-block {
+    gap: 14px;
+    margin-top: 8px;
+    width: 90vw;
+    margin-left: auto;
+    margin-right: auto;
+  }
   .text-answer-area {
-    font-size: 1.2rem;
-    min-height: 150px;
-    padding: 18px;
+    font-size: 1.25rem;
+    min-height: 52vh;
+    height: 52vh;
+    padding: 20px;
     border-radius: 16px;
-    line-height: 1.5;
+    line-height: 1.6;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .text-answer-send {
+    padding: 22px !important;
+    font-size: 1.2rem !important;
+    border-radius: 16px !important;
+    min-height: 68px !important;
+    width: 100% !important;
+  }
+
+  /* ══════════════════════════════════════════════════
+     BURGER — Zone "observez" plus grande et lisible
+     ══════════════════════════════════════════════════ */
+  .player-question-bubble {
+    padding: 32px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 42vh;
+  }
+  .player-question-bubble h3 {
+    font-size: clamp(1.9rem, 7.5vw, 2.6rem);
+    font-weight: 800;
+    text-align: center;
+    line-height: 1.3;
+  }
+  .player-question-bubble p {
+    font-size: clamp(1.1rem, 4.5vw, 1.4rem);
+    margin-top: 12px;
+    text-align: center;
   }
 
   /* ── Attente / waiting ── */
@@ -1394,31 +1437,40 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
 
   .player-question-text { font-size: clamp(1.5rem, 5.8vw, 2rem); }
 
-  /* QCM : légèrement plus larges */
-  .answer-tiles-mcq-grid {
-    width: 92vw;
-    height: 62vh;
-  }
-  .answer-tiles-2 { width: 92vw; }
-  .answer-tile-text { font-size: clamp(1.1rem, 4.5vw, 1.3rem); }
+  /* QCM : pleine largeur sur petits écrans */
+  .answer-tiles { width: 94vw; }
+  .answer-tiles-mcq-grid { width: 94vw; height: 62vh; }
+  .answer-tiles-2 { width: 94vw; }
+  .answer-tile-text { font-size: clamp(1.1rem, 4.5vw, 1.35rem); }
+  .answer-tile-letter { font-size: 1.4rem; min-width: 38px; }
 
-  /* Vrai/Faux : boutons encore plus hauts */
+  /* Vrai/Faux : 60vh maintenu sur petit écran */
   .answer-tiles-tf { width: 96vw; gap: 10px; }
   .answer-tile-true,
-  .answer-tile-false { min-height: 46vh; height: 46vh; }
-  .answer-tile-icon  { font-size: clamp(3.2rem, 14vw, 5rem); }
-  .answer-tile-label { font-size: clamp(1.6rem, 7vw, 2.2rem); }
+  .answer-tile-false { min-height: 60vh; height: 60vh; }
+  .answer-tile-icon  { font-size: clamp(3.4rem, 15vw, 5.5rem); }
+  .answer-tile-label { font-size: clamp(1.7rem, 7vw, 2.4rem); }
 
-  /* Buzzer : encore plus grand */
+  /* Buzzer : 86vw × 60vh sur petit écran */
   .buzzer-btn {
-    width: 34vh !important;
-    height: 34vh !important;
-    font-size: clamp(1.8rem, 7vw, 2.4rem) !important;
+    width: 86vw !important;
+    height: 60vh !important;
+    font-size: clamp(2rem, 8.5vw, 2.8rem) !important;
+    border-radius: 28px !important;
   }
+  .buzzer-wrap { min-height: 74vh; }
 
-  /* Vote : légèrement plus larges */
-  .answer-tile-vote { width: 96vw; min-height: 26vh; height: 26vh; }
-  .answer-tile-vote .answer-tile-text { font-size: clamp(1.2rem, 4.8vw, 1.5rem); }
+  /* Vote choix : pleine largeur */
+  .answer-tile-vote { width: 96vw; }
+  .answer-tile-vote .answer-tile-text { font-size: clamp(1.2rem, 5vw, 1.55rem); }
+
+  /* Vote texte : zone encore plus haute */
+  .text-answer-block { width: 96vw; }
+  .text-answer-area { min-height: 54vh; height: 54vh; font-size: 1.3rem; }
+
+  /* Burger */
+  .player-question-bubble h3 { font-size: clamp(2rem, 8vw, 2.8rem); }
+  .player-question-bubble { min-height: 44vh; }
 
   .waiting-host-text { font-size: clamp(4.5rem, 18vw, 7rem); }
   .waiting-host-label { font-size: clamp(1.7rem, 7.5vw, 2.5rem); }
