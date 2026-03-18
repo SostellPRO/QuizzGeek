@@ -48,6 +48,7 @@ import {
   startVotePhase,
   recordVoteCast,
   revealVoteResults,
+  voteRevealNext,
   returnToQuestion,
   resetBuzzerRapidite,
 } from "./engine.js";
@@ -257,18 +258,22 @@ export function setupSocketHandlers(io) {
     });
 
     // --- PLAYER JOIN ---
-    socket.on("join:player", ({ sessionCode, pseudo, teamId } = {}, ack) => {
+    socket.on("join:player", ({ sessionCode, pseudo, teamId, avatar } = {}, ack) => {
       try {
         const session = getSession(sessionCode);
         if (!session) {
           safeAck(ack, { ok: false, error: "Session introuvable" });
           return;
         }
+        // Limiter la taille de l'avatar (data URL ou emoji) à 200KB pour éviter les abus
+        const safeAvatar = avatar && typeof avatar === 'string' && avatar.length < 204800
+          ? avatar : null;
         const result = addOrReconnectPlayer({
           session,
           pseudo,
           teamId: teamId || null,
           socketId: socket.id,
+          avatar: safeAvatar,
         });
         if (result.error) {
           safeAck(ack, { ok: false, error: result.error });
@@ -300,18 +305,21 @@ export function setupSocketHandlers(io) {
     // --- PLAYER RECONNECT ---
     socket.on(
       "player:reconnect",
-      ({ sessionCode, reconnectToken } = {}, ack) => {
+      ({ sessionCode, reconnectToken, avatar } = {}, ack) => {
         try {
           const session = getSession(sessionCode);
           if (!session) {
             safeAck(ack, { ok: false, error: "Session introuvable" });
             return;
           }
+          const safeAvatar = avatar && typeof avatar === 'string' && avatar.length < 204800
+            ? avatar : null;
           const result = addOrReconnectPlayer({
             session,
             pseudo: "",
             reconnectToken,
             socketId: socket.id,
+            avatar: safeAvatar,
           });
           if (result.error) {
             safeAck(ack, { ok: false, error: result.error });
@@ -917,6 +925,20 @@ export function setupSocketHandlers(io) {
           case "vote_reveal":
             res = revealVoteResults(session);
             break;
+
+          case "vote_reveal_next":
+            res = voteRevealNext(session);
+            break;
+
+          case "ceremony_view": {
+            // Propager la vue sélectionnée (players/teams) à tous les écrans
+            const safeView = payload.view === 'teams' ? 'teams' : 'players';
+            if (session.gameState?.phaseMeta) {
+              session.gameState.phaseMeta.ceremonyView = safeView;
+            }
+            res = { ok: true };
+            break;
+          }
 
           case "reset_game": {
             // Resets game to lobby while keeping players

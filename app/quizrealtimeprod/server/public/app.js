@@ -70,6 +70,8 @@ function randCode() { return Math.floor(1000 + Math.random() * 9000).toString();
 let _lastBuzzerResultAt   = null;
 let _currentMusicUrl      = null;
 let _buzzerCooldownTimer  = null;  // setInterval pour le compte à rebours du cooldown
+let _lastVoteRevealCursor = null;  // pour détecter un nouveau reveal de vote
+let _showAllTeams         = false; // afficher toutes les équipes dans le formulaire de connexion
 
 // ── P6 : Sons d'interaction (Web Audio API) ───────────────────
 let _audioCtx = null;
@@ -127,6 +129,26 @@ function playSound(type) {
       gain.gain.setValueAtTime(0.25, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
       osc.start(now); osc.stop(now + 0.4);
+    } else if (type === 'cashRegister') {
+      // Caisse enregistreuse : "ka-ching" — deux tones courts + cliquetis
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.connect(gain2); gain2.connect(ctx.destination);
+      // Premier ping (métal aigu)
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(1200, now);
+      osc.frequency.exponentialRampToValueAtTime(800, now + 0.06);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc.start(now); osc.stop(now + 0.12);
+      // Second ping (cloche de caisse)
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(1800, now + 0.08);
+      osc2.frequency.exponentialRampToValueAtTime(1200, now + 0.18);
+      gain2.gain.setValueAtTime(0.0, now);
+      gain2.gain.setValueAtTime(0.28, now + 0.08);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc2.start(now + 0.08); osc2.stop(now + 0.35);
     }
   } catch { /* noop si Web Audio non supporté */ }
 }
@@ -194,6 +216,12 @@ function initSocket() {
     // Fermer le récap joueur si nouvelle question
     checkAndCloseRecapOnNewQuestion();
 
+    // Synchroniser la vue cérémonie depuis le serveur
+    const serverCeremonyView = state.gameState?.phaseMeta?.ceremonyView;
+    if (serverCeremonyView && serverCeremonyView !== state.admin.ceremonyView) {
+      state.admin.ceremonyView = serverCeremonyView;
+    }
+
     // Détecter changement de résultat buzzer pour jouer un son (côté display)
     const blr = state.gameState?.buzzerLastResult;
     if (blr && blr.at && blr.at !== _lastBuzzerResultAt) {
@@ -201,6 +229,25 @@ function initSocket() {
       if (state.currentPage === 'display' || state.currentPage === 'player') {
         playSound(blr.result === 'correct' ? 'correct' : 'wrong');
       }
+    }
+
+    // Détecter une nouvelle révélation de vote (cursor avancé)
+    const voteRevealCursor = state.gameState?.voteState?.revealCursor;
+    const answerModeNow = state.gameState?.phaseMeta?.answerMode;
+    if ((answerModeNow === 'vote_revealing' || answerModeNow === 'vote_revealed') &&
+        voteRevealCursor != null && voteRevealCursor !== _lastVoteRevealCursor) {
+      const justRevealed = _lastVoteRevealCursor != null; // pas la première fois
+      _lastVoteRevealCursor = voteRevealCursor;
+      if (justRevealed && (state.currentPage === 'display' || state.currentPage === 'host')) {
+        // Jouer le son de caisse enregistreuse
+        playSound('cashRegister');
+        // Déclencher l'animation floating score sur le display
+        if (state.currentPage === 'display') {
+          triggerVoteRevealAnimation(state.gameState);
+        }
+      }
+    } else if (answerModeNow !== 'vote_revealing' && answerModeNow !== 'vote_revealed') {
+      _lastVoteRevealCursor = null; // réinitialiser entre les questions
     }
 
     // Mettre à jour la page courante si elle est active
@@ -295,13 +342,111 @@ const AVATARS = [
   '🐺','🐗','🦝','🦄','🦋','🐙','🦑','🐬','🦈','🐊',
   '🎮','🚀','⚡','🔥','🎸','🎯','🏆','💎','🌟','🍕',
 ];
+const AVATARS_DEFAULT_VISIBLE = 12;
 let _selectedAvatar = AVATARS[0];
+let _showAllAvatars = false;
 
 function selectAvatar(emoji) {
   _selectedAvatar = emoji;
-  $$('.avatar-opt').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.emoji === emoji);
-  });
+  // Rafraîchir uniquement la grille pour éviter de perdre le focus
+  const grid = document.getElementById('avatar-grid-container');
+  if (grid) {
+    grid.innerHTML = buildAvatarGridInner();
+  }
+}
+
+function toggleAvatarExpand() {
+  _showAllAvatars = !_showAllAvatars;
+  const grid = document.getElementById('avatar-grid-container');
+  if (grid) grid.innerHTML = buildAvatarGridInner();
+}
+
+function handleCustomAvatarUpload(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const MAX_SIZE = 5 * 1024 * 1024; // 5 Mo
+  if (file.size > MAX_SIZE) {
+    alert('Image trop volumineuse (max 5 Mo). Veuillez choisir une image plus petite.');
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      // Redimensionner à max 128x128 pour l'avatar
+      const MAX_DIM = 128;
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      if (w > MAX_DIM || h > MAX_DIM) {
+        if (w > h) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+        else { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+      }
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      _selectedAvatar = canvas.toDataURL('image/jpeg', 0.85);
+      const grid = document.getElementById('avatar-grid-container');
+      if (grid) grid.innerHTML = buildAvatarGridInner();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function buildAvatarGridInner() {
+  const visibleAvatars = _showAllAvatars ? AVATARS : AVATARS.slice(0, AVATARS_DEFAULT_VISIBLE);
+  const isCustom = _selectedAvatar && _selectedAvatar.startsWith('data:');
+  const avatarBtns = visibleAvatars.map(e => `<button type="button" class="avatar-opt ${e===_selectedAvatar?'active':''}" data-emoji="${e}" onclick="selectAvatar('${e}')">${e}</button>`).join('');
+  const moreBtn = !_showAllAvatars
+    ? `<button type="button" class="avatar-opt" onclick="toggleAvatarExpand()" title="Voir plus" style="font-size:.85rem;color:rgba(255,255,255,.6);">…</button>`
+    : `<button type="button" class="avatar-opt" onclick="toggleAvatarExpand()" title="Réduire" style="font-size:.75rem;color:rgba(255,255,255,.5);">▲</button>`;
+  const uploadBtn = `<label class="avatar-opt ${isCustom ? 'active' : ''}" title="Image personnalisée (max 5 Mo)" style="cursor:pointer;overflow:hidden;position:relative;display:flex;align-items:center;justify-content:center;">
+    ${isCustom ? `<img src="${_selectedAvatar}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">` : '<span style="font-size:1.4rem;">📷</span>'}
+    <input type="file" accept="image/*" style="position:absolute;opacity:0;inset:0;cursor:pointer;" onchange="handleCustomAvatarUpload(this)">
+  </label>`;
+  return avatarBtns + moreBtn + uploadBtn;
+}
+
+function buildAvatarGrid() {
+  return `<div>
+    <label>Avatar <span class="muted" style="font-size:.78rem;">(optionnel)</span></label>
+    <div id="avatar-grid-container" class="avatar-grid">
+      ${buildAvatarGridInner()}
+    </div>
+  </div>`;
+}
+
+const TEAMS_DEFAULT_VISIBLE = 12;
+
+function toggleTeamsExpand() {
+  _showAllTeams = !_showAllTeams;
+  const container = document.getElementById('teams-grid-container');
+  if (container) container.innerHTML = buildTeamsGridInner(state.teams);
+}
+
+function buildTeamsGridInner(teams) {
+  const visible = _showAllTeams ? teams : teams.slice(0, TEAMS_DEFAULT_VISIBLE);
+  const rows = visible.map(t => `
+    <label style="display:flex;align-items:center;gap:6px;padding:10px;border-radius:10px;
+      border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);cursor:pointer;">
+      <input type="radio" name="team-pick" value="${t.id}" style="accent-color:#79b8ff;">
+      <span style="font-size:.9rem;">${t.name}</span>
+    </label>`).join('');
+  const noTeam = `
+    <label style="display:flex;align-items:center;gap:6px;padding:10px;border-radius:10px;
+      border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);cursor:pointer;">
+      <input type="radio" name="team-pick" value="" checked style="accent-color:#79b8ff;">
+      <span style="font-size:.9rem;color:rgba(255,255,255,.5);">Sans équipe</span>
+    </label>`;
+  const moreBtn = teams.length > TEAMS_DEFAULT_VISIBLE
+    ? `<button type="button" onclick="toggleTeamsExpand()" style="grid-column:1/-1;padding:8px;border-radius:10px;
+        border:1px dashed rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.5);
+        cursor:pointer;font-size:.85rem;">
+        ${_showAllTeams ? '▲ Réduire' : `… Voir les ${teams.length - TEAMS_DEFAULT_VISIBLE} autres équipes`}
+      </button>`
+    : '';
+  return rows + noTeam + moreBtn;
 }
 
 // ── Page : PLAYER ────────────────────────────────────────────
@@ -326,35 +471,14 @@ pageInits.player = function() {
 };
 
 function renderPlayerJoin(suggestedCode = '') {
-  const teamsOptions = state.teams.length
-    ? state.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')
-    : '';
+  _showAllTeams = false; // réinitialiser à chaque affichage
 
-  // Galerie d'avatars
-  const avatarGrid = `
-    <div>
-      <label>Avatar</label>
-      <div class="avatar-grid">
-        ${AVATARS.map(e => `<button type="button" class="avatar-opt ${e===_selectedAvatar?'active':''}" data-emoji="${e}" onclick="selectAvatar('${e}')">${e}</button>`).join('')}
-      </div>
-    </div>`;
-
-  // Cartes d'équipes si disponibles
+  // Cartes d'équipes si disponibles (12 par défaut, "voir plus" si besoin)
   const teamCards = state.teams.length
     ? `<div>
         <label>Choisir votre équipe</label>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:8px;">
-          ${state.teams.map(t => `
-            <label style="display:flex;align-items:center;gap:6px;padding:10px;border-radius:10px;
-              border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);cursor:pointer;">
-              <input type="radio" name="team-pick" value="${t.id}" style="accent-color:#79b8ff;">
-              <span style="font-size:.9rem;">${t.name}</span>
-            </label>`).join('')}
-          <label style="display:flex;align-items:center;gap:6px;padding:10px;border-radius:10px;
-            border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);cursor:pointer;">
-            <input type="radio" name="team-pick" value="" checked style="accent-color:#79b8ff;">
-            <span style="font-size:.9rem;color:rgba(255,255,255,.5);">Sans équipe</span>
-          </label>
+        <div id="teams-grid-container" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:8px;">
+          ${buildTeamsGridInner(state.teams)}
         </div>
       </div>`
     : '';
@@ -378,7 +502,7 @@ function renderPlayerJoin(suggestedCode = '') {
           <label>Pseudo</label>
           <input id="in-pseudo" placeholder="Votre nom de joueur" maxlength="32">
         </div>
-        ${avatarGrid}
+        ${buildAvatarGrid()}
         ${teamCards}
         <button class="btn-primary" onclick="submitJoinPlayer()" style="margin-top:4px;">
           🚀 Rejoindre la partie
@@ -409,7 +533,7 @@ function submitJoinPlayer() {
   if (!sessionCode) { alert$('player-alert', 'Code de session requis', 'error'); return; }
   if (!pseudo) { alert$('player-alert', 'Pseudo requis', 'error'); return; }
 
-  state.socket.emit('join:player', { sessionCode, pseudo, teamId: teamId || null }, (res) => {
+  state.socket.emit('join:player', { sessionCode, pseudo, teamId: teamId || null, avatar: _selectedAvatar || null }, (res) => {
     if (!res?.ok) {
       alert$('player-alert', res?.error || 'Impossible de rejoindre', 'error');
       return;
@@ -433,7 +557,7 @@ function reconnectPlayer() {
   const s = state.playerSession;
   if (!s?.sessionCode || !s?.reconnectToken) { renderPlayerJoin(); return; }
 
-  state.socket.emit('player:reconnect', { sessionCode: s.sessionCode, reconnectToken: s.reconnectToken }, (res) => {
+  state.socket.emit('player:reconnect', { sessionCode: s.sessionCode, reconnectToken: s.reconnectToken, avatar: s.avatar || null }, (res) => {
     if (!res?.ok) {
       state.playerSession = null;
       localStorage.removeItem('quiz_player_session');
@@ -1452,7 +1576,11 @@ function renderHostPilotageTab(gs, phase) {
   // ═══════════════════════════════════════════════════════════
   // SECTION 3 : GESTION DE L'AFFICHAGE
   // ═══════════════════════════════════════════════════════════
-  const isVotePhase = gs?.phaseMeta?.answerMode === 'vote_input' || gs?.phaseMeta?.answerMode === 'vote_voting';
+  const _voteAM = gs?.phaseMeta?.answerMode;
+  const isVotePhase = _voteAM === 'vote_input' || _voteAM === 'vote_voting' || _voteAM === 'vote_revealing' || _voteAM === 'vote_revealed';
+  const isVoteRevealing = _voteAM === 'vote_revealing';
+  const voteRevCursor = gs?.voteState?.revealCursor ?? 0;
+  const voteRevTotal  = gs?.voteState?.options?.length ?? 0;
   out += `<div class="host-section host-section-display">
     <div class="host-section-label">📺 AFFICHAGE</div>
     <div class="host-ctrl-row">
@@ -1460,11 +1588,18 @@ function renderHostPilotageTab(gs, phase) {
         <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Scores</button>` : ''}
       ${!isBurger && !isBuzzer && !isVotePhase && ['question','waiting','manual_scoring'].includes(phase) ? `
         <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reveal_answer')">📋 Solution</button>` : ''}
-      ${isVotePhase && gs?.phaseMeta?.answerMode === 'vote_input' ? `
+      ${_voteAM === 'vote_input' ? `
         <button class="hbtn hbtn-primary hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer le vote</button>` : ''}
-      ${isVotePhase && gs?.phaseMeta?.answerMode === 'vote_voting' ? `
+      ${_voteAM === 'vote_voting' ? `
         <button class="hbtn hbtn-success hbtn-pulse" onclick="hostAction('vote_reveal')">📋 Révéler les votes</button>` : ''}
-      ${phase === 'answer_reveal' ? `
+      ${isVoteRevealing ? `
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <button class="hbtn hbtn-success hbtn-pulse" onclick="hostAction('vote_reveal_next')" ${voteRevCursor >= voteRevTotal ? 'disabled' : ''}>
+            ▶ Révéler suivant <span style="font-size:.78rem;opacity:.7;">(${voteRevCursor}/${voteRevTotal})</span>
+          </button>
+          ${voteRevCursor >= voteRevTotal ? `<button class="hbtn hbtn-primary hbtn-sm" onclick="hostAction('next_question')">➡ Question suivante</button>` : ''}
+        </div>` : ''}
+      ${phase === 'answer_reveal' && !isVoteRevealing ? `
         <button class="hbtn hbtn-primary hbtn-sm" onclick="hostAction('return_to_question')">↩ Retour question</button>` : ''}
       <button class="hbtn hbtn-secondary hbtn-sm" onclick="showBroadcastModal()">📡 Message</button>
     </div>
@@ -1728,7 +1863,7 @@ function renderHostPilotageTab(gs, phase) {
   // ═══════════════════════════════════════════════════════════
   if (['manual_scoring','answer_reveal','waiting','question','results'].includes(phase)) {
     const allPlayers = state.leaderboardPlayers.slice(0, 20);
-    const allTeams = state.leaderboardTeams.slice(0, 10);
+    const allTeams = state.leaderboardTeams; // déjà filtrées côté serveur (uniquement équipes avec joueurs)
 
     if (allPlayers.length) {
       out += `
@@ -2225,9 +2360,10 @@ function renderDisplay() {
     const isBuzzerReveal = gs?.phaseMeta?.answerMode === 'buzzer' || (gs?.buzzerState?.firstPseudo && !gs?.phaseMeta?.finalCeremony);
     const isTrueFalseReveal = gs?.phaseMeta?.answerMode === 'true_false';
     const isVoteReveal = gs?.phaseMeta?.answerMode === 'vote_revealed';
+    const isVoteRevealing = gs?.phaseMeta?.answerMode === 'vote_revealing';
 
-    if (isVoteReveal && gs?.voteState) {
-      content += renderDisplayVoteResults(gs);
+    if ((isVoteReveal || isVoteRevealing) && gs?.voteState) {
+      content += renderDisplayVoteRevealing(gs);
     } else if (isBuzzerReveal) {
       // Pour le buzzer : on affiche la réponse mais PAS les scores
       content += `
@@ -2491,6 +2627,100 @@ function renderDisplayQuestion(gs) {
     ${buzzerDisplay}
     ${burgerDisplay}
     ${voteDisplay}`;
+}
+
+// ── Révélation progressive du vote (step-by-step, style burger) ──
+function renderDisplayVoteRevealing(gs) {
+  const vs = gs?.voteState;
+  if (!vs || !vs.options) return '<div class="card" style="text-align:center;padding:40px;"><p class="muted">Révélation…</p></div>';
+
+  const cursor = vs.revealCursor ?? 0;
+  const done   = gs?.phaseMeta?.answerMode === 'vote_revealed';
+  const total  = vs.options.length;
+
+  // Trier les options : d'abord celles déjà révélées (par ordre d'apparition), puis les cachées
+  const rows = vs.options.map((opt, i) => {
+    const revealed = i < cursor;
+    const votes    = opt.voteCount || 0;
+    const isDecoy  = opt.isDecoy;
+    const hasVotes = votes > 0;
+
+    if (!revealed) {
+      // Option encore cachée
+      return `
+        <div style="padding:14px 16px;border-radius:12px;background:rgba(255,255,255,.04);
+          border:1px solid rgba(255,255,255,.1);margin-bottom:8px;opacity:.35;">
+          <div style="font-weight:600;font-size:1rem;filter:blur(6px);">████████</div>
+        </div>`;
+    }
+
+    // Option révélée
+    const bgColor     = isDecoy ? 'rgba(235,51,73,.15)' : 'rgba(56,239,125,.1)';
+    const borderColor = isDecoy ? 'rgba(235,51,73,.4)'  : 'rgba(56,239,125,.3)';
+    const scoreTag    = isDecoy && hasVotes
+      ? `<span class="float-score float-score-neg" style="animation-delay:0.1s;">-1</span>`
+      : (!isDecoy && hasVotes
+        ? `<span class="float-score float-score-pos" style="animation-delay:0.1s;">+1</span>`
+        : '');
+    const isNew = i === cursor - 1; // la toute dernière révélée
+
+    return `
+      <div style="padding:14px 16px;border-radius:12px;background:${bgColor};border:1px solid ${borderColor};
+        margin-bottom:8px;position:relative;${isNew ? 'animation:podium-entry .45s ease forwards;' : ''}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${done ? '8px' : '0'};">
+          <span style="font-weight:600;font-size:1rem;">${opt.text}</span>
+          <div style="display:flex;align-items:center;gap:8px;position:relative;">
+            ${isDecoy ? '<span style="color:#eb3349;font-size:.75rem;font-weight:700;">🎭 LEURRE</span>' : ''}
+            <strong style="font-size:1.3rem;color:${isDecoy?'#eb3349':'#38ef7d'};">${votes} 🗳️</strong>
+            ${isNew ? scoreTag : ''}
+          </div>
+        </div>
+        ${done ? `<div class="progress-bar"><div class="fill" style="width:${Math.round((votes / Math.max(...vs.options.map(o=>o.voteCount||0),1)) * 100)}%;background:${isDecoy?'linear-gradient(90deg,#eb3349,#ff6b7a)':'linear-gradient(90deg,#38ef7d,#00b09b)'}"></div></div>` : ''}
+      </div>`;
+  }).join('');
+
+  const progressLabel = done
+    ? '<p class="muted" style="text-align:center;font-size:.85rem;margin-bottom:16px;">✅ Tous les résultats révélés</p>'
+    : `<p class="muted" style="text-align:center;font-size:.85rem;margin-bottom:16px;">Révélation en cours… (${cursor}/${total})</p>`;
+
+  return `
+    <div class="card" style="padding:30px;">
+      <h2 style="text-align:center;margin-bottom:12px;">🗳️ Résultats du vote</h2>
+      ${progressLabel}
+      ${rows}
+    </div>`;
+}
+
+// ── Animation floating score déclenchée sur le display ──
+function triggerVoteRevealAnimation(gs) {
+  const vs = gs?.voteState;
+  if (!vs || !vs.options) return;
+  const cursor = vs.revealCursor ?? 0;
+  if (cursor <= 0) return;
+  const justRevealedOpt = vs.options[cursor - 1];
+  if (!justRevealedOpt) return;
+
+  const container = document.getElementById('display-content');
+  if (!container) return;
+
+  const isDecoy = justRevealedOpt.isDecoy;
+  const hasVotes = (justRevealedOpt.voteCount || 0) > 0;
+  if (!hasVotes) return; // pas d'animation si aucun vote
+
+  const floater = document.createElement('span');
+  floater.textContent = isDecoy ? '-1' : '+1';
+  floater.className = `float-score ${isDecoy ? 'float-score-neg' : 'float-score-pos'}`;
+  floater.style.cssText = `
+    position:fixed;
+    right:${20 + Math.random() * 60}px;
+    top:${30 + Math.random() * 40}%;
+    font-size:3.5rem;
+    font-weight:900;
+    z-index:9999;
+    pointer-events:none;
+  `;
+  document.body.appendChild(floater);
+  floater.addEventListener('animationend', () => floater.remove());
 }
 
 // ── Affichage des résultats de vote sur le display ────────────
@@ -3425,6 +3655,17 @@ function renderPodiumStage(revealed, total) {
 function toggleCeremonyView(view) {
   state.admin.ceremonyView = view || (state.admin.ceremonyView === 'players' ? 'teams' : 'players');
   renderHostGame();
+  // Propager la vue au serveur pour que l'écran TV se mette à jour
+  if (state.host?.sessionCode && state.host?.hostKey) {
+    state.socket.emit('host:action', {
+      sessionCode: state.host.sessionCode,
+      hostKey: state.host.hostKey,
+      action: 'ceremony_view',
+      view: state.admin.ceremonyView,
+    });
+  }
+  // Si on est sur la même machine que le display, le rafraîchir directement
+  if (state.display?.connected) renderDisplay();
 }
 window.toggleCeremonyView = toggleCeremonyView;
 

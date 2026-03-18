@@ -373,6 +373,7 @@ export function addOrReconnectPlayer({
   teamId = null,
   reconnectToken = null,
   socketId,
+  avatar = null,
 }) {
   // Reconnexion par token
   if (reconnectToken) {
@@ -382,6 +383,7 @@ export function addOrReconnectPlayer({
     if (existing) {
       existing.connected = true;
       existing.socketId = socketId;
+      if (avatar) existing.avatar = avatar;
       if (teamId) {
         existing.teamId = teamId;
         existing.teamName =
@@ -397,10 +399,31 @@ export function addOrReconnectPlayer({
   const trimmedPseudo = String(pseudo || "").trim();
   if (!trimmedPseudo) return { error: "Pseudo requis" };
 
-  const pseudoExists = session.players.some(
+  // Reconnexion par pseudo : si un joueur avec ce pseudo est déconnecté,
+  // permettre la reprise de la partie sans bloquer (ex : éjection / perte de connexion)
+  const existingByPseudo = session.players.find(
     (p) => p.pseudo.toLowerCase() === trimmedPseudo.toLowerCase(),
   );
-  if (pseudoExists) return { error: "Ce pseudo est déjà utilisé" };
+  if (existingByPseudo) {
+    if (!existingByPseudo.connected) {
+      // Le joueur est déconnecté → on le reconnecte avec un nouveau token
+      existingByPseudo.connected = true;
+      existingByPseudo.socketId = socketId;
+      existingByPseudo.reconnectToken = randomId("reco"); // nouveau token pour cette session
+      if (avatar) existingByPseudo.avatar = avatar;
+      if (teamId) {
+        existingByPseudo.teamId = teamId;
+        existingByPseudo.teamName =
+          session.teams.find((t) => t.id === teamId)?.name ||
+          existingByPseudo.teamName ||
+          null;
+      }
+      persistSessions();
+      return { player: existingByPseudo, isReconnect: true };
+    }
+    // Joueur connecté avec ce pseudo → conflit
+    return { error: "Ce pseudo est déjà utilisé" };
+  }
 
   let assignedTeam = null;
   if (teamId) {
@@ -411,6 +434,7 @@ export function addOrReconnectPlayer({
   const player = {
     id: randomId("player"),
     pseudo: trimmedPseudo,
+    avatar: avatar || null,
     teamId: assignedTeam?.id || null,
     teamName: assignedTeam?.name || null,
     reconnectToken: randomId("reco"),
@@ -439,6 +463,7 @@ export function getPublicPlayers(session) {
     id: p.id,
     playerId: p.id,
     pseudo: p.pseudo,
+    avatar: p.avatar || null,
     teamId: p.teamId,
     teamName: p.teamName,
     connected: !!p.connected,
@@ -453,13 +478,22 @@ export function buildLeaderboards(session) {
       rank: idx + 1,
       playerId: p.id,
       pseudo: p.pseudo,
+      avatar: p.avatar || null,
       teamId: p.teamId,
       teamName: p.teamName,
       scoreTotal: p.scoreTotal || 0,
       connected: !!p.connected,
     }));
 
-  const leaderboardTeams = [...session.teams]
+  // Uniquement les équipes qui ont au moins un joueur
+  const teamIdsWithPlayers = new Set(
+    session.players.map((p) => p.teamId).filter(Boolean),
+  );
+  const teamsWithPlayers = session.teams.filter((t) =>
+    teamIdsWithPlayers.has(t.id),
+  );
+
+  const leaderboardTeams = [...teamsWithPlayers]
     .sort((a, b) => (b.scoreTotal || 0) - (a.scoreTotal || 0))
     .map((t, idx) => ({
       rank: idx + 1,

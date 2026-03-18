@@ -1503,9 +1503,44 @@ export function revealVoteResults(session) {
     answerMode: "vote_revealed",
   });
 
+  // Mode révélation progressive (step-by-step comme Burger)
+  vs.revealCursor = 0; // 0 = rien révélé, avance à chaque vote_reveal_next
+
+  setPhaseMeta(session, {
+    playerScreenLocked: true,
+    allowAnswer: false,
+    timer: null,
+    answerMode: "vote_revealing", // étape par étape
+  });
+
   setStatus(session, "answer_reveal");
   touch(session);
   return { ok: true };
+}
+
+/**
+ * Révèle la prochaine option de vote (step-by-step, déclenché par l'admin)
+ */
+export function voteRevealNext(session) {
+  ensureSessionRuntime(session);
+
+  const vs = session.gameState.voteState;
+  if (!vs) return { ok: false, error: "Aucun état de vote" };
+  if (vs.phase !== "revealed") return { ok: false, error: "Révélation non initialisée" };
+
+  const cursor = (vs.revealCursor || 0) + 1;
+  vs.revealCursor = cursor;
+
+  if (cursor >= vs.options.length) {
+    // Toutes les options révélées → basculer en mode récap complet
+    setPhaseMeta(session, {
+      ...session.gameState.phaseMeta,
+      answerMode: "vote_revealed",
+    });
+  }
+
+  touch(session);
+  return { ok: true, cursor, total: vs.options.length, done: cursor >= vs.options.length };
 }
 
 export function resetEngineRuntime(session) {
