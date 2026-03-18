@@ -525,7 +525,8 @@ export function startTrainingVideo(session) {
   ensureSessionRuntime(session);
   const round = getCurrentRound(session);
   if (!round?.trainingVideoUrl) return { ok: false, error: "Pas de vidéo d'entraînement configurée" };
-  session.gameState.trainingVideoControl = { action: "pause", at: new Date().toISOString() };
+  // Démarrer la vidéo automatiquement dès l'entrée dans cette phase
+  session.gameState.trainingVideoControl = { action: "play", at: new Date().toISOString() };
   setPhaseMeta(session, {
     playerScreenLocked: true,
     allowAnswer: false,

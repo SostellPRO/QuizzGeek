@@ -2684,31 +2684,28 @@ function renderDisplay() {
 
 // ── Contrôle effectif de la vidéo TV après rendu du DOM ──────────────────────
 // Les <script> dans innerHTML ne s'exécutent pas → on applique le contrôle ici.
+function _applyVidCtrl(vid, action, at, stateKey) {
+  if (!vid) return;
+  if (!window[stateKey] || window[stateKey] !== at) {
+    window[stateKey] = at;
+    if (action === 'play') {
+      // Si autoplay bloqué par le navigateur (pas de gesture), on attend un clic
+      vid.play().catch(() => {
+        vid.muted = true;         // retry muet (autoplay muted est toujours autorisé)
+        vid.play().catch(() => {}); // si ça échoue encore, l'host peut cliquer Play
+      });
+    } else if (action === 'pause') {
+      vid.pause();
+    } else if (action === 'rewind') {
+      vid.currentTime = 0; vid.pause();
+    }
+  }
+}
 function applyDisplayVideoControl(gs) {
-  // Vidéo challenge
-  const vid = document.getElementById('display-challenge-video');
-  if (vid) {
-    const action = vid.dataset.ctrlAction || 'pause';
-    const at     = vid.dataset.ctrlAt    || '';
-    if (!window._lastVidCtrl || window._lastVidCtrl !== at) {
-      window._lastVidCtrl = at;
-      if (action === 'play')   vid.play().catch(() => {});
-      else if (action === 'pause')  vid.pause();
-      else if (action === 'rewind') { vid.currentTime = 0; vid.pause(); }
-    }
-  }
-  // Vidéo d'entraînement
+  const vid  = document.getElementById('display-challenge-video');
+  if (vid)  _applyVidCtrl(vid,  vid.dataset.ctrlAction  || 'pause', vid.dataset.ctrlAt  || '', '_lastVidCtrl');
   const tvid = document.getElementById('display-training-video');
-  if (tvid) {
-    const action = tvid.dataset.ctrlAction || 'pause';
-    const at     = tvid.dataset.ctrlAt    || '';
-    if (!window._lastTrainVidCtrl || window._lastTrainVidCtrl !== at) {
-      window._lastTrainVidCtrl = at;
-      if (action === 'play')   tvid.play().catch(() => {});
-      else if (action === 'pause')  tvid.pause();
-      else if (action === 'rewind') { tvid.currentTime = 0; tvid.pause(); }
-    }
-  }
+  if (tvid) _applyVidCtrl(tvid, tvid.dataset.ctrlAction || 'pause', tvid.dataset.ctrlAt || '', '_lastTrainVidCtrl');
 }
 
 function renderDisplayQuestion(gs) {
@@ -3762,7 +3759,7 @@ function renderQuestionRow(q, qi, roundId, roundType) {
           <input value="${(q.mediaUrl||'').replace(/"/g,'&quot;')}" placeholder="URL ou chemin de la vidéo"
             oninput="updateQuestion('${roundId}','${q.id}','mediaUrl',this.value)"
             style="flex:1;font-size:.82rem;padding:5px 8px;">
-          <button class="btn-secondary" style="padding:3px 7px;font-size:.75rem;" onclick="uploadQuestionMedia('${roundId}','${q.id}')" title="Uploader">📤</button>
+          <button class="btn-secondary" style="padding:3px 7px;font-size:.75rem;" onclick="openMediaUpload('${q.id}')" title="Uploader">📤</button>
         </div>
         ${q.mediaUrl ? `<div style="margin-bottom:10px;"><video src="${resolveMedia(q.mediaUrl)}" controls style="max-width:100%;max-height:120px;border-radius:8px;"></video></div>` : ''}
         <div style="margin-top:8px;font-size:.75rem;color:rgba(255,255,255,.4);">📋 Déroulement : 1. Host choisit joueur/équipe · 2. Écran "Tenez-vous prêt" · 3. Vidéo jouée sur le TV · 4. Réponse orale · 5. Host attribue 0–10 pts<br>💡 La vidéo d'entraînement se configure au niveau de la manche, pas de la question.</div>
@@ -3835,19 +3832,18 @@ function removeFakeAnswer(roundId, qId, idx) {
 async function uploadRoundTrainingVideo(roundId) {
   const input = document.createElement('input');
   input.type = 'file'; input.accept = 'video/*';
-  input.onchange = async () => {
-    const file = input.files[0];
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
     if (!file) return;
     const fd = new FormData(); fd.append('file', file);
     try {
-      const res = await fetch('/upload', { method: 'POST', body: fd }).then(r => r.json());
-      if (res.url) {
-        const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
-        if (round) { round.trainingVideoUrl = res.url; renderQuizEditor(); }
-      } else {
-        alert('Erreur upload : ' + (res.error || 'inconnue'));
-      }
-    } catch(e) { alert('Erreur upload : ' + e.message); }
+      const res = await fetch(`${API}/api/uploads/media`, { method: 'POST', body: fd });
+      const d = await res.json();
+      if (!d.ok) { alert$('admin-alert', d.error || 'Erreur upload', 'error'); return; }
+      const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+      if (round) { round.trainingVideoUrl = d.file.mediaUrl; renderQuizEditor(); }
+      alert$('admin-alert', '✅ Vidéo d\'entraînement uploadée !', 'success');
+    } catch(e) { alert$('admin-alert', 'Erreur réseau upload : ' + e.message, 'error'); }
   };
   input.click();
 }
