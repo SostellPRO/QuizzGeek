@@ -973,7 +973,7 @@ export function setupSocketHandlers(io) {
             break;
 
           case "video_control":
-            res = videoControl(session, payload.action);
+            res = videoControl(session, payload.ctrl || payload.action);
             break;
 
           case "video_start_eval":
@@ -990,7 +990,7 @@ export function setupSocketHandlers(io) {
             break;
 
           case "training_video_control":
-            res = trainingVideoControl(session, payload.action);
+            res = trainingVideoControl(session, payload.ctrl || payload.action);
             break;
 
           case "stop_training_video":

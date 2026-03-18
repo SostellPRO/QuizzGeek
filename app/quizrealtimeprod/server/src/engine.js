@@ -523,6 +523,17 @@ export function startRound(session) {
 
 export function startTrainingVideo(session) {
   ensureSessionRuntime(session);
+
+  // Si on est encore en lobby (aucune manche initialisée), pointer sur la manche 0
+  if (session.gameState.currentRoundIndex < 0) {
+    const rounds = getRounds(session);
+    if (rounds.length > 0) {
+      session.gameState.currentRoundIndex = 0;
+      session.gameState.currentQuestionIndex = -1;
+      setCurrentRoundAndQuestionSnapshots(session);
+    }
+  }
+
   const round = getCurrentRound(session);
   if (!round?.trainingVideoUrl) return { ok: false, error: "Pas de vidéo d'entraînement configurée" };
   // Démarrer la vidéo automatiquement dès l'entrée dans cette phase

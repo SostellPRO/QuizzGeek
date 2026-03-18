@@ -2030,9 +2030,9 @@ function renderHostPilotageTab(gs, phase) {
       out += `<div style="text-align:center;padding:8px;">
         <div style="font-size:1.1rem;font-weight:700;color:#f7971e;margin-bottom:8px;">🎬 Vidéo en cours — ${vPseudo}</div>
         <div class="host-ctrl-row" style="margin-bottom:10px;">
-          <button class="hbtn hbtn-success hbtn-sm" onclick="hostAction('video_control',{action:'play'})">▶ Play</button>
-          <button class="hbtn hbtn-warning hbtn-sm" onclick="hostAction('video_control',{action:'pause'})">⏸ Pause</button>
-          <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('video_control',{action:'rewind'})">⏮ Début</button>
+          <button class="hbtn hbtn-success hbtn-sm" onclick="hostAction('video_control',{ctrl:'play'})">▶ Play</button>
+          <button class="hbtn hbtn-warning hbtn-sm" onclick="hostAction('video_control',{ctrl:'pause'})">⏸ Pause</button>
+          <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('video_control',{ctrl:'rewind'})">⏮ Début</button>
         </div>
         <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" onclick="hostAction('video_start_eval')">⏭ Passer à l'évaluation</button>
       </div>`;
@@ -2212,6 +2212,7 @@ function renderHostPilotageTab(gs, phase) {
 function buildHostGameActions(gs, phase, isPaused, isBuzzer, isBurger) {
   const btns = [];
   if (phase === 'lobby') {
+    btns.push({ label: '🏋️ Vidéo d\'entraînement', style: 'warning', onclick: "hostAction('start_training_video')" });
     btns.push({ label: '▶️ Démarrer le quiz', style: 'success', onclick: "hostAction('start_quiz')" });
   }
   if (phase === 'round_intro') {
@@ -2223,9 +2224,9 @@ function buildHostGameActions(gs, phase, isPaused, isBuzzer, isBurger) {
     btns.push({ label: '🔁 Réafficher intro', style: 'secondary', onclick: "hostAction('start_round')" });
   }
   if (phase === 'training_video') {
-    btns.push({ label: '▶ Play', style: 'success', onclick: "hostAction('training_video_control',{action:'play'})" });
-    btns.push({ label: '⏸ Pause', style: 'warning', onclick: "hostAction('training_video_control',{action:'pause'})" });
-    btns.push({ label: '⏮ Début', style: 'secondary', onclick: "hostAction('training_video_control',{action:'rewind'})" });
+    btns.push({ label: '▶ Play', style: 'success', onclick: "hostAction('training_video_control',{ctrl:'play'})" });
+    btns.push({ label: '⏸ Pause', style: 'warning', onclick: "hostAction('training_video_control',{ctrl:'pause'})" });
+    btns.push({ label: '⏮ Début', style: 'secondary', onclick: "hostAction('training_video_control',{ctrl:'rewind'})" });
     btns.push({ label: '⏭ Première question', style: 'success', onclick: "hostAction('stop_training_video')" });
   }
   if (['question','waiting'].includes(phase)) {
