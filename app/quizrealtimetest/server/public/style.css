@@ -451,13 +451,14 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
 }
 .buzzer-btn {
   width: min(240px, 72vw); height: min(240px, 72vw);
-  border-radius: 50%; font-size: 1.4rem; font-weight: 800;
+  border-radius: 50%; font-size: 2rem; font-weight: 900; letter-spacing: 0.04em;
   background: linear-gradient(135deg, #eb3349, #f45c43); color: #fff; border: none;
   cursor: pointer;
   box-shadow: 0 0 45px rgba(235,51,73,0.55), 0 0 0 10px rgba(235,51,73,0.15);
   transition: transform 0.15s, box-shadow 0.15s;
   display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 6px; margin: 24px auto; font-family: inherit;
+  aspect-ratio: 1; flex-shrink: 0;
 }
 .buzzer-btn:hover {
   transform: scale(1.07);
@@ -1296,30 +1297,33 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
   .answer-tile-label { font-size: clamp(2rem, 8vw, 3rem); font-weight: 900; }
 
   /* ══════════════════════════════════════════════════
-     BUZZER — Grand rectangle qui remplit l'écran
-     Hauteur = écran - nav(52) - banner(50) - question(88) - marges
+     BUZZER — Cercle 30% hauteur écran, toujours rond
+     min(30vh, 72vw) garantit le carré parfait
      ══════════════════════════════════════════════════ */
   .buzzer-btn {
-    width: 92vw !important;
-    height: calc(100svh - 240px) !important;
-    height: calc(100vh - 240px) !important;
-    min-height: 280px !important;
-    border-radius: 36px !important;
-    font-size: clamp(2.2rem, 10vw, 3.5rem) !important;
-    line-height: 1.2 !important;
-    gap: 16px !important;
+    width: min(30vh, 72vw) !important;
+    height: min(30vh, 72vw) !important;
+    aspect-ratio: 1 !important;
+    border-radius: 50% !important;
+    font-size: clamp(1.6rem, 6vw, 2.4rem) !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.04em !important;
+    line-height: 1 !important;
+    gap: 0 !important;
+    flex-shrink: 0 !important;
     min-width: unset !important;
     margin: 0 auto !important;
   }
   .buzzer-wrap {
     width: 100%;
-    padding: 4px 0 8px;
+    padding: 20px 0 28px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
+    min-height: 40vh;
   }
-  #buzzer-cd-secs { font-size: 2.8rem !important; }
+  #buzzer-cd-secs { font-size: 2.4rem !important; }
 
   /* ══════════════════════════════════════════════════
      VOTE TEXTE — Textarea + bouton plein écran
@@ -1484,13 +1488,13 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
   .answer-tile-icon  { font-size: clamp(3rem, 15vw, 5rem); }
   .answer-tile-label { font-size: clamp(2rem, 9vw, 3rem); }
 
-  /* Buzzer */
+  /* Buzzer — légèrement plus grand sur très petits écrans, toujours rond */
   .buzzer-btn {
-    width: 94vw !important;
-    height: calc(100svh - 230px) !important;
-    height: calc(100vh - 230px) !important;
-    font-size: clamp(2.2rem, 10vw, 3.2rem) !important;
-    border-radius: 30px !important;
+    width: min(34vh, 80vw) !important;
+    height: min(34vh, 80vw) !important;
+    aspect-ratio: 1 !important;
+    border-radius: 50% !important;
+    font-size: clamp(1.7rem, 7vw, 2.5rem) !important;
   }
 
   /* Vote choix */

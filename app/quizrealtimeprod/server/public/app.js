@@ -811,7 +811,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
       </div>
       <div class="buzzer-wrap">
         <button class="buzzer-btn buzzer-disabled" disabled>
-          🔔<br>BUZZER
+          BUZZER
         </button>
         <p class="muted" style="margin-top:10px;font-size:.88rem;">En attente du signal du maître de jeu…</p>
       </div>`;
@@ -865,7 +865,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
       answerUI = `
         <div class="buzzer-wrap">
           <button class="buzzer-btn" id="buzzer-btn" onclick="sendBuzzer('${gs.sessionCode || ''}')">
-            🔔<br>BUZZER
+            BUZZER
           </button>
           ${allBuzzed ? '<p class="muted" style="margin-top:12px;">Tour suivant !</p>' : ''}
         </div>`;

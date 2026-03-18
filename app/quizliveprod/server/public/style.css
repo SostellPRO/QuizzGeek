@@ -451,13 +451,14 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
 }
 .buzzer-btn {
   width: min(240px, 72vw); height: min(240px, 72vw);
-  border-radius: 50%; font-size: 1.4rem; font-weight: 800;
+  border-radius: 50%; font-size: 2rem; font-weight: 900; letter-spacing: 0.04em;
   background: linear-gradient(135deg, #eb3349, #f45c43); color: #fff; border: none;
   cursor: pointer;
   box-shadow: 0 0 45px rgba(235,51,73,0.55), 0 0 0 10px rgba(235,51,73,0.15);
   transition: transform 0.15s, box-shadow 0.15s;
   display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 6px; margin: 24px auto; font-family: inherit;
+  aspect-ratio: 1; flex-shrink: 0;
 }
 .buzzer-btn:hover {
   transform: scale(1.07);
@@ -1157,12 +1158,13 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
   /* ── Base ── */
   html { font-size: 18px; }
   .page { padding: 0; }
-  .player-game-wrap { padding: 10px 10px; }
+  /* Réduire les marges du wrapper pour maximiser l'espace jeu */
+  .player-game-wrap { padding: 6px 8px 8px; }
 
   .card {
-    padding: 18px 14px;
-    border-radius: 18px;
-    margin-bottom: 14px;
+    padding: 14px 12px;
+    border-radius: 16px;
+    margin-bottom: 10px;
   }
 
   /* ── Typographie globale ── */
@@ -1176,14 +1178,14 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
   nav { padding: 8px 10px; }
   nav button { padding: 8px 14px; font-size: 0.88rem; }
 
-  /* ── Session banner ── */
+  /* ── Session banner — compact ── */
   .session-banner {
-    padding: 12px 14px;
-    font-size: 1rem;
-    gap: 10px;
+    padding: 10px 12px;
+    font-size: 0.95rem;
+    gap: 8px;
     flex-wrap: wrap;
   }
-  .session-code { font-size: 1.5rem; letter-spacing: 5px; }
+  .session-code { font-size: 1.4rem; letter-spacing: 4px; }
 
   /* ── Inputs & boutons ── */
   input, select, textarea {
@@ -1199,135 +1201,216 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
   }
   .btn-sm { padding: 10px 16px !important; font-size: 0.9rem !important; min-height: 40px !important; }
   .btn-outline-danger { padding: 13px 20px; font-size: 1rem; }
-  .text-answer-send { padding: 18px !important; font-size: 1.15rem !important; border-radius: 14px !important; min-height: 58px !important; }
 
-  /* ── Grilles → colonne ── */
+  /* ── Grilles ── */
   .grid2 { grid-template-columns: 1fr; gap: 12px; }
   .grid3, .grid4 { grid-template-columns: 1fr 1fr; gap: 10px; }
   .row { gap: 10px; }
 
-  /* ── Question bubble ── */
+  /* ── Question bubble — compacte pour laisser l'espace aux tuiles ── */
   .player-question-bubble {
-    padding: 20px 16px;
-    margin-bottom: 14px;
-    border-radius: 20px;
+    padding: 14px 14px;
+    margin-bottom: 8px;
+    border-radius: 18px;
   }
   .player-question-text {
-    font-size: clamp(1.4rem, 5.5vw, 1.85rem);
+    font-size: clamp(1.3rem, 5vw, 1.7rem);
     font-weight: 800;
-    line-height: 1.4;
+    line-height: 1.35;
   }
 
   /* ══════════════════════════════════════════════════
-     QCM — Bloc tuiles : 80% largeur × 60% hauteur écran
+     QCM — Plein écran vertical
+     Hauteur = écran - nav(52) - banner(50) - question(88) - marges(~30)
      ══════════════════════════════════════════════════ */
   .answer-tiles {
-    gap: 10px;
-    width: 80vw;
+    gap: 8px;
+    width: 96vw;
     margin: 0 auto;
   }
   .answer-tiles-mcq-grid {
     grid-template-columns: 1fr;
-    width: 80vw;
-    height: 60vh;
+    width: 96vw;
+    height: calc(100svh - 240px);
+    height: calc(100vh - 240px);     /* fallback */
+    min-height: 280px;
     margin: 0 auto;
-    grid-auto-rows: 1fr;  /* chaque tuile prend la même hauteur */
+    grid-auto-rows: 1fr;
   }
   .answer-tiles-2 {
     grid-template-columns: 1fr;
-    width: 80vw;
+    width: 96vw;
+    height: calc(100svh - 240px);
+    height: calc(100vh - 240px);
+    min-height: 200px;
     margin: 0 auto;
+    grid-auto-rows: 1fr;
   }
   .answer-tile-mcq {
     min-height: unset;
     height: 100%;
-    gap: 12px;
+    gap: 14px;
     flex-direction: row;
     justify-content: flex-start;
-    padding: 16px 20px;
-    font-size: 1.1rem;
-    border-radius: 16px;
+    padding: 18px 22px;
+    border-radius: 18px;
   }
-  .answer-tile-letter { font-size: 1.4rem; min-width: 38px; text-align: center; }
-  .answer-tile-text { font-size: clamp(1.05rem, 4vw, 1.3rem); font-weight: 700; text-align: left; }
+  .answer-tile-letter {
+    font-size: 1.6rem;
+    min-width: 44px;
+    text-align: center;
+    font-weight: 900;
+    flex-shrink: 0;
+  }
+  .answer-tile-text {
+    font-size: clamp(1.1rem, 4.5vw, 1.4rem);
+    font-weight: 700;
+    text-align: left;
+    line-height: 1.3;
+  }
 
   /* ══════════════════════════════════════════════════
-     VRAI / FAUX — Boutons : 50% hauteur × 90% largeur
+     VRAI / FAUX — 1 tuile par ligne (vertical), plein écran
      ══════════════════════════════════════════════════ */
   .answer-tiles-tf {
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-    width: 90vw;
+    grid-template-columns: 1fr;      /* une tuile par ligne */
+    gap: 10px;
+    width: 96vw;
+    height: calc(100svh - 240px);
+    height: calc(100vh - 240px);
+    min-height: 260px;
     margin: 0 auto;
+    grid-auto-rows: 1fr;
   }
   .answer-tile-true,
   .answer-tile-false {
-    min-height: 48vh;
-    height: 48vh;
-    flex-direction: column;
-    padding: 20px 12px;
-    border-radius: 20px;
+    min-height: unset;
+    height: 100%;
+    flex-direction: row;             /* icône + texte côte à côte */
+    gap: 24px;
+    padding: 20px 32px;
+    border-radius: 22px;
     justify-content: center;
+    align-items: center;
   }
-  .answer-tile-icon { font-size: clamp(3rem, 13vw, 4.5rem); }
-  .answer-tile-label { font-size: clamp(1.5rem, 6vw, 2rem); font-weight: 900; }
+  .answer-tile-icon  { font-size: clamp(3rem, 14vw, 5rem); flex-shrink: 0; }
+  .answer-tile-label { font-size: clamp(2rem, 8vw, 3rem); font-weight: 900; }
 
   /* ══════════════════════════════════════════════════
-     BUZZER — Bouton : 30% de la hauteur totale de l'écran
+     BUZZER — Cercle 30% hauteur écran, toujours rond
+     min(30vh, 72vw) garantit le carré parfait
      ══════════════════════════════════════════════════ */
   .buzzer-btn {
-    width: 30vh !important;
-    height: 30vh !important;
-    font-size: clamp(1.6rem, 6vw, 2.2rem) !important;
-    gap: 8px !important;
+    width: min(30vh, 72vw) !important;
+    height: min(30vh, 72vw) !important;
+    aspect-ratio: 1 !important;
+    border-radius: 50% !important;
+    font-size: clamp(1.6rem, 6vw, 2.4rem) !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.04em !important;
+    line-height: 1 !important;
+    gap: 0 !important;
+    flex-shrink: 0 !important;
     min-width: unset !important;
-    min-height: unset !important;
+    margin: 0 auto !important;
   }
   .buzzer-wrap {
-    min-height: 45vh;
-    padding: 16px 0 28px;
+    width: 100%;
+    padding: 20px 0 28px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    min-height: 40vh;
   }
-  #buzzer-cd-secs { font-size: 2rem !important; }
+  #buzzer-cd-secs { font-size: 2.4rem !important; }
 
   /* ══════════════════════════════════════════════════
-     VOTE — Boîtes de dialogue : 30% hauteur × 90% largeur
+     VOTE TEXTE — Textarea + bouton plein écran
+     Textarea = écran - nav - banner - question - bouton submit - marges
+     ══════════════════════════════════════════════════ */
+  .text-answer-block {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 96vw;
+    margin: 0 auto;
+  }
+  .text-answer-area {
+    font-size: 1.3rem;
+    height: calc(100svh - 330px);
+    height: calc(100vh - 330px);
+    min-height: 180px;
+    padding: 20px;
+    border-radius: 18px;
+    line-height: 1.6;
+    width: 100%;
+    box-sizing: border-box;
+    resize: none;
+  }
+  .text-answer-send {
+    padding: 24px !important;
+    font-size: 1.25rem !important;
+    border-radius: 18px !important;
+    min-height: 72px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* ══════════════════════════════════════════════════
+     VOTE CHOIX — Tuiles larges, pleine largeur
      ══════════════════════════════════════════════════ */
   .answer-tile-vote {
-    min-height: 28vh;
-    height: 28vh;
-    width: 90vw;
-    padding: 20px 22px;
-    border-radius: 18px;
+    width: 96vw;
+    min-height: 18vh;
+    height: auto;
+    padding: 22px 26px;
+    border-radius: 20px;
     margin: 0 auto;
-    gap: 16px;
+    gap: 18px;
     display: flex;
     align-items: center;
   }
   .vote-tile-idx {
-    width: 46px;
-    height: 46px;
-    min-width: 46px;
-    font-size: 1.3rem;
-    border-radius: 12px;
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+    font-size: 1.5rem;
+    border-radius: 14px;
+    flex-shrink: 0;
   }
   .answer-tile-vote .answer-tile-text {
-    font-size: clamp(1.15rem, 4.5vw, 1.4rem);
+    font-size: clamp(1.2rem, 5vw, 1.55rem);
     font-weight: 700;
     line-height: 1.4;
   }
 
-  /* ── Réponse texte ── */
-  .text-answer-block { gap: 14px; margin-top: 8px; }
-  .text-answer-area {
-    font-size: 1.2rem;
-    min-height: 150px;
-    padding: 18px;
-    border-radius: 16px;
-    line-height: 1.5;
+  /* ══════════════════════════════════════════════════
+     BURGER — Bulle principale plein écran, texte agrandi
+     Ciblé via data-round-type="burger" pour ne pas affecter les autres modes
+     ══════════════════════════════════════════════════ */
+  .player-game-wrap[data-round-type="burger"] .player-question-bubble {
+    padding: 32px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100svh - 200px);
+    min-height: calc(100vh - 200px);
+    border-radius: 22px;
+    margin-bottom: 0;
+  }
+  .player-game-wrap[data-round-type="burger"] .player-question-bubble h3 {
+    font-size: clamp(2rem, 8vw, 2.8rem);
+    font-weight: 800;
+    text-align: center;
+    line-height: 1.3;
+  }
+  .player-game-wrap[data-round-type="burger"] .player-question-bubble p {
+    font-size: clamp(1.2rem, 5vw, 1.55rem);
+    margin-top: 16px;
+    text-align: center;
+    line-height: 1.45;
   }
 
   /* ── Attente / waiting ── */
@@ -1340,15 +1423,9 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
   /* ── Round intro (joueur) ── */
   .player-round-intro { padding: 44px 20px 36px; min-height: 70vh; }
   .round-intro-icon { font-size: clamp(5rem, 22vw, 8rem); margin-bottom: 20px; }
-  .round-intro-type-badge {
-    font-size: 1rem; padding: 8px 24px; margin-bottom: 16px; border-radius: 50px;
-  }
+  .round-intro-type-badge { font-size: 1rem; padding: 8px 24px; margin-bottom: 16px; border-radius: 50px; }
   .round-intro-title { font-size: clamp(2rem, 8vw, 3rem); margin-bottom: 14px; }
-  .round-intro-rules {
-    font-size: clamp(1.05rem, 4vw, 1.3rem);
-    padding: 14px 20px;
-    border-radius: 16px;
-  }
+  .round-intro-rules { font-size: clamp(1.05rem, 4vw, 1.3rem); padding: 14px 20px; border-radius: 16px; }
 
   /* ── Round end (joueur) ── */
   .player-round-end { padding: 52px 20px 40px; min-height: 65vh; }
@@ -1389,36 +1466,53 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
   .recap-player-row { font-size: 1rem; padding: 10px 14px; }
 }
 
+/* ════════════════════════════════════════════════════════════
+   MOBILE S (≤ 420px) — ajustements fins
+   ════════════════════════════════════════════════════════════ */
 @media (max-width: 420px) {
   html { font-size: 19px; }
 
-  .player-question-text { font-size: clamp(1.5rem, 5.8vw, 2rem); }
+  .player-question-text { font-size: clamp(1.3rem, 5.5vw, 1.65rem); }
 
-  /* QCM : légèrement plus larges */
-  .answer-tiles-mcq-grid {
-    width: 92vw;
-    height: 62vh;
-  }
-  .answer-tiles-2 { width: 92vw; }
-  .answer-tile-text { font-size: clamp(1.1rem, 4.5vw, 1.3rem); }
+  /* QCM — légèrement plus larges et hautes */
+  .answer-tiles { width: 98vw; }
+  .answer-tiles-mcq-grid { width: 98vw; height: calc(100svh - 230px); height: calc(100vh - 230px); }
+  .answer-tiles-2 { width: 98vw; height: calc(100svh - 230px); height: calc(100vh - 230px); }
+  .answer-tile-mcq { padding: 16px 18px; gap: 12px; border-radius: 16px; }
+  .answer-tile-letter { font-size: 1.5rem; min-width: 40px; }
+  .answer-tile-text { font-size: clamp(1.05rem, 4.5vw, 1.35rem); }
 
-  /* Vrai/Faux : boutons encore plus hauts */
-  .answer-tiles-tf { width: 96vw; gap: 10px; }
-  .answer-tile-true,
-  .answer-tile-false { min-height: 46vh; height: 46vh; }
-  .answer-tile-icon  { font-size: clamp(3.2rem, 14vw, 5rem); }
-  .answer-tile-label { font-size: clamp(1.6rem, 7vw, 2.2rem); }
+  /* Vrai/Faux */
+  .answer-tiles-tf { width: 98vw; gap: 8px; height: calc(100svh - 230px); height: calc(100vh - 230px); }
+  .answer-tile-true, .answer-tile-false { padding: 18px 24px; gap: 18px; border-radius: 20px; }
+  .answer-tile-icon  { font-size: clamp(3rem, 15vw, 5rem); }
+  .answer-tile-label { font-size: clamp(2rem, 9vw, 3rem); }
 
-  /* Buzzer : encore plus grand */
+  /* Buzzer — légèrement plus grand sur très petits écrans, toujours rond */
   .buzzer-btn {
-    width: 34vh !important;
-    height: 34vh !important;
-    font-size: clamp(1.8rem, 7vw, 2.4rem) !important;
+    width: min(34vh, 80vw) !important;
+    height: min(34vh, 80vw) !important;
+    aspect-ratio: 1 !important;
+    border-radius: 50% !important;
+    font-size: clamp(1.7rem, 7vw, 2.5rem) !important;
   }
 
-  /* Vote : légèrement plus larges */
-  .answer-tile-vote { width: 96vw; min-height: 26vh; height: 26vh; }
-  .answer-tile-vote .answer-tile-text { font-size: clamp(1.2rem, 4.8vw, 1.5rem); }
+  /* Vote choix */
+  .answer-tile-vote { width: 98vw; padding: 20px 22px; }
+  .answer-tile-vote .answer-tile-text { font-size: clamp(1.15rem, 5vw, 1.5rem); }
+
+  /* Vote texte */
+  .text-answer-block { width: 98vw; }
+  .text-answer-area { height: calc(100svh - 320px); height: calc(100vh - 320px); font-size: 1.3rem; }
+
+  /* Burger */
+  .player-game-wrap[data-round-type="burger"] .player-question-bubble {
+    min-height: calc(100svh - 190px);
+    min-height: calc(100vh - 190px);
+  }
+  .player-game-wrap[data-round-type="burger"] .player-question-bubble h3 {
+    font-size: clamp(2rem, 8.5vw, 3rem);
+  }
 
   .waiting-host-text { font-size: clamp(4.5rem, 18vw, 7rem); }
   .waiting-host-label { font-size: clamp(1.7rem, 7.5vw, 2.5rem); }
@@ -1436,3 +1530,29 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
   border: 2px solid rgba(255,255,255,.25); border-top-color: #fff;
   border-radius: 50%; animation: spin 0.6s linear infinite;
 }
+
+/* ════════════════════════════════════════════════════════════
+   VOTE REVEAL – ANIMATION SCORE FLOTTANT (+1 / -1)
+   ════════════════════════════════════════════════════════════ */
+@keyframes float-score-up {
+  0%   { opacity: 0; transform: translateY(0) scale(0.6); }
+  15%  { opacity: 1; transform: translateY(-10px) scale(1.2); }
+  70%  { opacity: 1; transform: translateY(-60px) scale(1); }
+  100% { opacity: 0; transform: translateY(-90px) scale(0.85); }
+}
+
+.float-score {
+  display: inline-block;
+  font-size: 1.6rem;
+  font-weight: 900;
+  animation: float-score-up 1.4s ease-out forwards;
+  position: absolute;
+  top: -8px;
+  right: -12px;
+  pointer-events: none;
+  white-space: nowrap;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+.float-score-pos { color: #38ef7d; }
+.float-score-neg { color: #eb3349; }
