@@ -88,11 +88,21 @@ function buildFinalCeremonyData(session) {
     nickname: getNickname(p.rank, total),
     revealed: false,
   }));
+  const teamsRevealOrder = [...leaderboardTeams].reverse().map((t, idx) => ({
+    revealIndex: idx,
+    rank: t.rank || idx + 1,
+    name: t.name,
+    teamId: t.teamId || t.id || null,
+    scoreTotal: t.scoreTotal || 0,
+    revealed: false,
+  }));
   return {
     initializedAt: new Date().toISOString(),
     stage: "players",
     revealCursor: 0,
     revealOrder,
+    teamsRevealCursor: 0,
+    teamsRevealOrder,
     winnerTeam: leaderboardTeams[0] || null,
     confettiSeed: Math.floor(Math.random() * 100000),
   };
@@ -153,6 +163,17 @@ function handleFinalCeremonyAction(session, action) {
       fc.revealCursor++;
     }
     if (fc.revealCursor >= fc.revealOrder.length) fc.stage = "team_winner";
+    gs.updatedAt = new Date().toISOString();
+    return { ok: true };
+  }
+  if (action === "final_ceremony_reveal_next_team") {
+    const fc = pm.finalCeremony;
+    if (!fc) return { ok: false, error: "Cérémonie non initialisée" };
+    if (!fc.teamsRevealOrder) return { ok: false, error: "Pas d'équipes" };
+    if (fc.teamsRevealCursor < fc.teamsRevealOrder.length) {
+      fc.teamsRevealOrder[fc.teamsRevealCursor].revealed = true;
+      fc.teamsRevealCursor++;
+    }
     gs.updatedAt = new Date().toISOString();
     return { ok: true };
   }
@@ -536,6 +557,7 @@ export function setupSocketHandlers(io) {
 
           case "final_ceremony_init":
           case "final_ceremony_reveal_next":
+          case "final_ceremony_reveal_next_team":
           case "final_ceremony_show_team_winner":
           case "final_ceremony_reset":
             res = handleFinalCeremonyAction(session, action);

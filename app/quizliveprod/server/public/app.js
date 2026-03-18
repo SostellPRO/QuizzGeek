@@ -1842,6 +1842,7 @@ function renderHostPilotageTab(gs, phase) {
       </div>`;
     } else {
       const remaining = fc.revealOrder.length - fc.revealCursor;
+      const teamsRemaining = (fc.teamsRevealOrder?.length || 0) - (fc.teamsRevealCursor || 0);
       const cvPlayers = state.admin.ceremonyView !== 'teams';
       const hasTeams = state.leaderboardTeams && state.leaderboardTeams.length > 0;
       out += `<div class="host-section">
@@ -1852,9 +1853,11 @@ function renderHostPilotageTab(gs, phase) {
         </div>` : ''}
         <div class="host-ctrl-row">
           ${cvPlayers && remaining > 0 ? `<button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('final_ceremony_reveal_next')">▶ Révéler (${remaining} restant${remaining>1?'s':''})</button>` : ''}
+          ${!cvPlayers && teamsRemaining > 0 ? `<button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('final_ceremony_reveal_next_team')">▶ Révéler équipe (${teamsRemaining} restant${teamsRemaining>1?'es':''})</button>` : ''}
           <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('final_ceremony_reset')">↩</button>
         </div>
         ${cvPlayers ? `<p class="muted" style="font-size:.75rem;margin-top:8px;">${fc.revealCursor}/${fc.revealOrder.length} révélé(s)</p>` : ''}
+        ${!cvPlayers && fc.teamsRevealOrder ? `<p class="muted" style="font-size:.75rem;margin-top:8px;">${fc.teamsRevealCursor||0}/${fc.teamsRevealOrder.length} équipe(s) révélée(s)</p>` : ''}
         <div class="host-ctrl-row" style="margin-top:10px;">
           <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reset_game')">🔁 Nouvelle partie</button>
           <button class="hbtn hbtn-warning hbtn-sm" onclick="if(confirm('Éjecter tous les joueurs et changer de quiz ?')){hostAction('eject_players');}">🚪 Éjecter & changer quiz</button>
@@ -2259,7 +2262,7 @@ function renderDisplay() {
       content += renderScoreboard(state.leaderboardTeams, '⚽ Équipes', true);
     }
   } else if (phase === 'end') {
-    content += renderFinalCeremony(gs, state.leaderboardPlayers);
+    content += renderFinalCeremony(gs, state.leaderboardPlayers, state.leaderboardTeams);
   } else if (phase === 'manual_scoring') {
     const isBurgerManual = gs?.currentRound?.type === 'burger' || gs?.currentQuestion?.type === 'burger';
     if (isBurgerManual) {
@@ -3441,14 +3444,23 @@ function renderFinalCeremony(gs, leaderboard, leaderboardTeams) {
       </div>`;
   }
 
-  // Mode équipes : afficher le classement par équipes
+  // Mode équipes : révélation progressive ou statique
   const showTeams = state.admin?.ceremonyView === 'teams';
-  if (showTeams && leaderboardTeams && leaderboardTeams.length > 0) {
-    const teamRows = leaderboardTeams.map((t, i) => {
-      const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
+  if (showTeams) {
+    // Révélation progressive si les données existent dans fc
+    const hasTeamsReveal = fc.teamsRevealOrder && fc.teamsRevealOrder.length > 0;
+    const teamsToShow = hasTeamsReveal
+      ? fc.teamsRevealOrder.filter(t => t.revealed).sort((a, b) => b.rank - a.rank)
+      : (leaderboardTeams || []);
+
+    const teamRows = teamsToShow.map((t, i) => {
+      const rank = t.rank ?? (teamsToShow.length - i);
+      const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+      const isNew = hasTeamsReveal && i === teamsToShow.length - 1;
       return `<div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:12px;
-        background:${i<3 ? 'rgba(255,255,255,.07)' : 'rgba(255,255,255,.03)'};
-        border:1px solid rgba(255,255,255,${i<3 ? '.12' : '.06'});margin-bottom:8px;">
+        background:${rank<=3 ? 'rgba(255,255,255,.07)' : 'rgba(255,255,255,.03)'};
+        border:1px solid rgba(255,255,255,${rank<=3 ? '.12' : '.06'});margin-bottom:8px;
+        ${isNew ? 'animation:podium-entry .45s ease forwards;' : ''}">
         <span style="font-size:1.6rem;min-width:36px;">${rankEmoji}</span>
         <div style="flex:1;">
           <div style="font-weight:700;font-size:1rem;">${t.name || '—'}</div>
@@ -3456,12 +3468,17 @@ function renderFinalCeremony(gs, leaderboard, leaderboardTeams) {
         <div style="font-size:1.1rem;font-weight:700;color:#f7971e;">${t.scoreTotal ?? 0} <span style="font-size:.7rem;opacity:.6;">pts</span></div>
       </div>`;
     }).join('');
+
+    const waitingMsg = hasTeamsReveal && teamsToShow.length === 0
+      ? `<p class="muted" style="text-align:center;margin-top:24px;font-size:.9rem;">Le maître de jeu va révéler les équipes…</p>` : '';
+
     return `
       <div class="ceremony-container">
         <div style="text-align:center;padding:16px 8px 8px;">
           <div style="font-size:2.5rem;margin-bottom:8px;">⚽</div>
           <h2>Classement par équipes</h2>
         </div>
+        ${waitingMsg}
         <div style="margin-top:16px;">${teamRows}</div>
       </div>`;
   }

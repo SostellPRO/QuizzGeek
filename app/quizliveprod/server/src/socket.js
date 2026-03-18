@@ -9,6 +9,7 @@ import {
   getOrCreateDemoSession,
   getPublicPlayers,
   getPublicTeams,
+  getQuiz,
   getSession,
   persistSessions,
   saveQuiz,
@@ -19,23 +20,36 @@ import {
 import {
   awardManualPoints,
   burgerNextItem,
+  buzzerNextPlayer,
   cancelPendingAutoReveal,
   finishQuiz,
   lockPlayers,
   nextQuestion,
   pauseGame,
   prevQuestion,
+  prevRound,
   recordBuzzer,
   recordPlayerAnswer,
+  refreshQuestion,
   resumeGame,
   revealAnswer,
   scheduleAutoRevealAfterAllAnswered,
+  setBurgerPlayer,
+  setBurgerScore,
+  setBurgerTeam,
+  burgerPass,
   showResults,
   shouldAutoRevealNow,
   startQuiz,
   startRound,
   startTimer,
+  stopTimer,
   unlockPlayers,
+  startVotePhase,
+  recordVoteCast,
+  revealVoteResults,
+  returnToQuestion,
+  resetBuzzerRapidite,
 } from "./engine.js";
 
 function sessionRoom(code) {
@@ -74,11 +88,21 @@ function buildFinalCeremonyData(session) {
     nickname: getNickname(p.rank, total),
     revealed: false,
   }));
+  const teamsRevealOrder = [...leaderboardTeams].reverse().map((t, idx) => ({
+    revealIndex: idx,
+    rank: t.rank || idx + 1,
+    name: t.name,
+    teamId: t.teamId || t.id || null,
+    scoreTotal: t.scoreTotal || 0,
+    revealed: false,
+  }));
   return {
     initializedAt: new Date().toISOString(),
     stage: "players",
     revealCursor: 0,
     revealOrder,
+    teamsRevealCursor: 0,
+    teamsRevealOrder,
     winnerTeam: leaderboardTeams[0] || null,
     confettiSeed: Math.floor(Math.random() * 100000),
   };
@@ -139,6 +163,17 @@ function handleFinalCeremonyAction(session, action) {
       fc.revealCursor++;
     }
     if (fc.revealCursor >= fc.revealOrder.length) fc.stage = "team_winner";
+    gs.updatedAt = new Date().toISOString();
+    return { ok: true };
+  }
+  if (action === "final_ceremony_reveal_next_team") {
+    const fc = pm.finalCeremony;
+    if (!fc) return { ok: false, error: "Cérémonie non initialisée" };
+    if (!fc.teamsRevealOrder) return { ok: false, error: "Pas d'équipes" };
+    if (fc.teamsRevealCursor < fc.teamsRevealOrder.length) {
+      fc.teamsRevealOrder[fc.teamsRevealCursor].revealed = true;
+      fc.teamsRevealCursor++;
+    }
     gs.updatedAt = new Date().toISOString();
     return { ok: true };
   }
@@ -333,7 +368,7 @@ export function setupSocketHandlers(io) {
         persistAndEmit(io, session);
 
         if (res.autoReveal) {
-          revealAnswer(session);
+          // Pas d'auto-révélation — le MJ révèle manuellement
           persistAndEmit(io, session);
           return;
         }
@@ -343,7 +378,7 @@ export function setupSocketHandlers(io) {
           scheduleAutoRevealAfterAllAnswered(session, {
             emitNow: (s) => persistAndEmit(io, s),
             onAutoReveal: (s) => {
-              revealAnswer(s);
+              // Pas d'auto-révélation — les joueurs restent en attente, le MJ agit
               persistAndEmit(io, s);
             },
           });
@@ -405,20 +440,7 @@ export function setupSocketHandlers(io) {
             break;
           case "next_question": {
             res = nextQuestion(session);
-            if (res.ok) {
-              const nextQ = session.gameState.currentQuestion;
-              const nextQType = nextQ?.type || "";
-              // Auto-start 45s timer for MCQ and True/False — host reveals manually (no auto-reveal)
-              if (
-                (nextQType === "qcm" || nextQType === "true_false") &&
-                session.gameState.status === "question"
-              ) {
-                startTimer(session, 45, {
-                  emitNow: (s) => emitSessionState(io, s),
-                  onAutoReveal: () => {}, // noop: pas de reveal auto, le host décide
-                });
-              }
-            }
+            // Pas de timer automatique — le maître de jeu le lance manuellement
             break;
           }
 
@@ -457,6 +479,7 @@ export function setupSocketHandlers(io) {
               session.gameState.buzzerState = null;
               session.gameState.buzzerQueue = [];
               session.gameState.burgerState = null;
+              session.gameState.voteState = null;
               session.gameState.status = "round_intro";
               session.gameState.updatedAt = new Date().toISOString();
               res = { ok: true };
@@ -466,11 +489,14 @@ export function setupSocketHandlers(io) {
           case "start_timer":
             res = startTimer(session, payload.seconds, {
               emitNow: (s) => emitSessionState(io, s),
-              onAutoReveal: (s) => {
-                revealAnswer(s);
-                persistAndEmit(io, s);
-              },
+              // Quand le timer expire : verrouiller les joueurs (écran d'attente)
+              // Le host choisit ensuite de révéler ou passer à la question suivante
+              onAutoReveal: () => {},
             });
+            break;
+
+          case "stop_timer":
+            res = stopTimer(session);
             break;
           case "lock_players":
             res = lockPlayers(session);
@@ -487,6 +513,23 @@ export function setupSocketHandlers(io) {
           case "finish_quiz":
             res = finishQuiz(session);
             break;
+          case "set_session_quiz": {
+            // Changer le quiz associé à la session (uniquement en lobby)
+            if (session.gameState?.status !== "lobby") {
+              res = { ok: false, error: "Impossible de changer de quiz pendant une partie" };
+              break;
+            }
+            const newQuizId = payload?.quizId;
+            if (!newQuizId) { res = { ok: false, error: "quizId requis" }; break; }
+            const newQuiz = getQuiz(newQuizId);
+            if (!newQuiz) { res = { ok: false, error: "Quiz introuvable" }; break; }
+            session.quiz = newQuiz;
+            session.gameState.quizId = newQuiz.id;
+            session.gameState.quizTitle = newQuiz.title || "Quiz Live";
+            session.gameState.updatedAt = new Date().toISOString();
+            res = { ok: true, quizTitle: newQuiz.title };
+            break;
+          }
           case "award_points_manual":
           case "award_manual_points":
             res = awardManualPoints(session, {
@@ -514,6 +557,7 @@ export function setupSocketHandlers(io) {
 
           case "final_ceremony_init":
           case "final_ceremony_reveal_next":
+          case "final_ceremony_reveal_next_team":
           case "final_ceremony_show_team_winner":
           case "final_ceremony_reset":
             res = handleFinalCeremonyAction(session, action);
@@ -578,9 +622,272 @@ export function setupSocketHandlers(io) {
             break;
           }
 
+          case "prev_round":
+            res = prevRound(session);
+            break;
+
+          case "refresh_question":
+            res = refreshQuestion(session);
+            break;
+
           case "burger_next_item":
             res = burgerNextItem(session);
             break;
+
+          case "activate_buzzer":
+            // Activer les buzzers (passer de gris à rouge)
+            res = unlockPlayers(session);
+            break;
+
+          case "buzzer_mark_correct": {
+            // Marquer le buzzer courant comme correct (avec son sur le display)
+            const buzzerCorrectId = session.gameState.buzzerState?.firstPlayerId;
+            if (!buzzerCorrectId) {
+              res = { ok: false, error: "Aucun joueur n'a buzzé" };
+              break;
+            }
+            awardManualPoints(session, { playerId: buzzerCorrectId, points: 1, reason: "buzzer_correct" });
+            session.gameState.buzzerLastResult = {
+              result: "correct",
+              playerId: buzzerCorrectId,
+              pseudo: session.gameState.buzzerState.firstPseudo,
+              at: new Date().toISOString(),
+            };
+            res = { ok: true };
+            break;
+          }
+
+          case "buzzer_mark_wrong": {
+            const buzzerWrongId = session.gameState.buzzerState?.firstPlayerId;
+            const wrongRound = session.gameState.currentRound;
+            const isRapiditWrong =
+              wrongRound?.type === "rapidite" || wrongRound?.type === "speed";
+
+            if (isRapiditWrong) {
+              // Rapidité : cooldown 5s pour le joueur fautif, buzzers rouverts pour tous
+              res = resetBuzzerRapidite(session, buzzerWrongId, 5000);
+              if (res.ok && buzzerWrongId) {
+                // Retirer le cooldown automatiquement après 5s et broadcaster
+                const _sessionCode = session.sessionCode;
+                const _playerId = buzzerWrongId;
+                setTimeout(() => {
+                  const s = getSession(_sessionCode);
+                  if (s && s.gameState.buzzerCooldowns) {
+                    delete s.gameState.buzzerCooldowns[_playerId];
+                    s.gameState.updatedAt = new Date().toISOString();
+                    emitSessionState(io, s);
+                  }
+                }, 5000);
+              }
+            } else {
+              // Autre buzzer : comportement classique (file d'attente)
+              session.gameState.buzzerLastResult = {
+                result: "wrong",
+                playerId: buzzerWrongId || null,
+                pseudo: session.gameState.buzzerState?.firstPseudo || null,
+                at: new Date().toISOString(),
+              };
+              res = buzzerNextPlayer(session);
+            }
+            break;
+          }
+
+          case "burger_set_score": {
+            res = setBurgerScore(session, payload?.score);
+            break;
+          }
+
+          case "stop_session": {
+            // Stopper la partie en cours → retour au lobby
+            if (session.gameState) {
+              cancelPendingAutoReveal(session);
+              session.gameState.status = "lobby";
+              session.gameState.currentRoundIndex = -1;
+              session.gameState.currentQuestionIndex = -1;
+              session.gameState.currentRound = null;
+              session.gameState.currentQuestion = null;
+              session.gameState.phaseMeta = {
+                playerScreenLocked: false,
+                allowAnswer: false,
+                answerMode: "none",
+                timer: null,
+                finalCeremony: null,
+              };
+              session.gameState.trueFalseVotes = { yes: [], no: [] };
+              session.gameState.buzzerState = null;
+              session.gameState.buzzerQueue = [];
+              session.gameState.buzzerLastResult = null;
+              session.gameState.buzzerCooldowns = {};
+              session.gameState.burgerState = null;
+              session.gameState.burgerFinalScore = null;
+              session.gameState.voteState = null;
+              session.gameState.updatedAt = new Date().toISOString();
+            }
+            res = { ok: true };
+            break;
+          }
+
+          case "eject_players": {
+            // Éjecter tous les joueurs vers l'écran de connexion
+            // Les joueurs sont conservés mais éjectés de la partie active
+            io.to(sessionRoom(session.sessionCode)).emit("game:players_ejected", {
+              sessionCode: session.sessionCode,
+            });
+            // Remettre le statut à lobby pour l'admin
+            cancelPendingAutoReveal(session);
+            session.gameState.status = "lobby";
+            session.gameState.currentRoundIndex = -1;
+            session.gameState.currentQuestionIndex = -1;
+            session.gameState.currentRound = null;
+            session.gameState.currentQuestion = null;
+            session.gameState.answers = {};
+            session.gameState.phaseMeta = {
+              playerScreenLocked: false,
+              allowAnswer: false,
+              answerMode: "none",
+              timer: null,
+              finalCeremony: null,
+            };
+            session.gameState.trueFalseVotes = { yes: [], no: [] };
+            session.gameState.buzzerState = null;
+            session.gameState.buzzerQueue = [];
+            session.gameState.buzzerLastResult = null;
+            session.gameState.buzzerCooldowns = {};
+            session.gameState.burgerState = null;
+            session.gameState.burgerFinalScore = null;
+            session.gameState.voteState = null;
+            session.gameState.revealedAnswer = null;
+            session.gameState.updatedAt = new Date().toISOString();
+            // Réinitialiser les scores joueurs
+            for (const p of session.players || []) p.scoreTotal = 0;
+            for (const t of session.teams || []) t.scoreTotal = 0;
+            res = { ok: true };
+            break;
+          }
+
+          case "reset_all": {
+            // Reset complet : joueurs, scores, progression (garde les quiz)
+            cancelPendingAutoReveal(session);
+            session.players = [];
+            session.gameState.status = "lobby";
+            session.gameState.currentRoundIndex = -1;
+            session.gameState.currentQuestionIndex = -1;
+            session.gameState.currentRound = null;
+            session.gameState.currentQuestion = null;
+            session.gameState.answers = {};
+            session.gameState.phaseMeta = {
+              playerScreenLocked: false,
+              allowAnswer: false,
+              answerMode: "none",
+              timer: null,
+              finalCeremony: null,
+            };
+            session.gameState.trueFalseVotes = { yes: [], no: [] };
+            session.gameState.buzzerState = null;
+            session.gameState.buzzerQueue = [];
+            session.gameState.buzzerLastResult = null;
+            session.gameState.buzzerCooldowns = {};
+            session.gameState.burgerState = null;
+            session.gameState.burgerFinalScore = null;
+            session.gameState.voteState = null;
+            session.gameState.revealedAnswer = null;
+            session.gameState.updatedAt = new Date().toISOString();
+            for (const t of session.teams || []) t.scoreTotal = 0;
+            res = { ok: true };
+            break;
+          }
+
+          case "burger_select_player":
+            res = setBurgerPlayer(session, payload.playerId || null);
+            break;
+
+          case "burger_select_team":
+            res = setBurgerTeam(session, payload.teamId || null);
+            break;
+
+          case "burger_pass":
+            res = burgerPass(session);
+            break;
+
+          case "buzzer_next":
+            res = buzzerNextPlayer(session);
+            break;
+
+          case "award_team": {
+            // Attribuer N points à toute une équipe
+            const teamId = payload.teamId;
+            const pts = Number(payload.points || 1);
+            if (!teamId) { res = { ok: false, error: "teamId requis" }; break; }
+            let awarded = 0;
+            for (const p of (session.players || [])) {
+              if (p.teamId === teamId) {
+                const r = awardManualPoints(session, { playerId: p.id, points: pts, reason: "award_team" });
+                if (r.ok) awarded++;
+              }
+            }
+            res = { ok: true, awarded };
+            break;
+          }
+
+          case "award_all": {
+            // Attribuer N points à tous les joueurs connectés
+            const pts2 = Number(payload.points || 1);
+            let awarded2 = 0;
+            for (const p of (session.players || [])) {
+              if (p.connected) {
+                const r = awardManualPoints(session, { playerId: p.id, points: pts2, reason: "award_all" });
+                if (r.ok) awarded2++;
+              }
+            }
+            res = { ok: true, awarded: awarded2 };
+            break;
+          }
+
+          case "broadcast_message": {
+            const bm = {
+              text: payload.text || '',
+              imageUrl: payload.imageUrl || '',
+              target: payload.target || 'all',
+              sentAt: new Date().toISOString(),
+            };
+            if (!session.gameState.phaseMeta) session.gameState.phaseMeta = {};
+
+            if (bm.target === 'all') {
+              // Diffusion globale via gameState (display + tous joueurs)
+              session.gameState.phaseMeta.broadcastMessage = bm;
+            } else {
+              // Diffusion ciblée : émettre directement aux sockets concernées
+              // sans modifier le gameState global
+              const targetSockets = [];
+              if (bm.target.startsWith('team:')) {
+                const teamId = bm.target.replace('team:', '');
+                for (const p of (session.players || [])) {
+                  if (p.teamId === teamId && p.socketId) targetSockets.push(p.socketId);
+                }
+              } else {
+                // playerId direct
+                const targetPlayer = (session.players || []).find(p => p.id === bm.target);
+                if (targetPlayer?.socketId) targetSockets.push(targetPlayer.socketId);
+              }
+              for (const sid of targetSockets) {
+                io.to(sid).emit('player:message', bm);
+              }
+              // Réponse ok sans modifier le state global
+              safeAck(ack, { ok: true });
+              return; // early return pour ne pas appeler persistAndEmit inutilement
+            }
+            res = { ok: true };
+            break;
+          }
+
+          case "broadcast_clear": {
+            // Efface le message de diffusion en cours
+            if (session.gameState?.phaseMeta) {
+              session.gameState.phaseMeta.broadcastMessage = null;
+            }
+            res = { ok: true };
+            break;
+          }
 
           case "assign_team": {
             const player = (session.players || []).find(
@@ -598,6 +905,18 @@ export function setupSocketHandlers(io) {
             res = { ok: true };
             break;
           }
+
+          case "return_to_question":
+            res = returnToQuestion(session);
+            break;
+
+          case "vote_start_voting":
+            res = startVotePhase(session);
+            break;
+
+          case "vote_reveal":
+            res = revealVoteResults(session);
+            break;
 
           case "reset_game": {
             // Resets game to lobby while keeping players
@@ -618,6 +937,7 @@ export function setupSocketHandlers(io) {
               session.gameState.buzzerState = null;
               session.gameState.buzzerQueue = [];
               session.gameState.burgerState = null;
+              session.gameState.voteState = null;
               session.gameState.updatedAt = new Date().toISOString();
             }
             res = { ok: true };
@@ -625,6 +945,23 @@ export function setupSocketHandlers(io) {
           }
         }
 
+        safeAck(ack, res);
+        if (res.ok) persistAndEmit(io, session);
+      } catch (e) {
+        safeAck(ack, { ok: false, error: e.message });
+      }
+    });
+
+    // --- PLAYER VOTE ---
+    socket.on("player:vote", (payload = {}, ack) => {
+      try {
+        const { sessionCode, playerId, voteIndex } = payload;
+        const session = getSession(sessionCode || socket.data?.sessionCode);
+        if (!session) { safeAck(ack, { ok: false, error: "Session introuvable" }); return; }
+        const effectivePlayerId = socket.data?.playerId || playerId;
+        const player = session.players?.find((p) => p.id === effectivePlayerId);
+        if (!player) { safeAck(ack, { ok: false, error: "Joueur introuvable" }); return; }
+        const res = recordVoteCast(session, { player, voteIndex });
         safeAck(ack, res);
         if (res.ok) persistAndEmit(io, session);
       } catch (e) {
