@@ -81,7 +81,22 @@ function getAudioCtx() {
   }
   return _audioCtx;
 }
+// ── Vibration haptique (mobile) — couplée à playSound ──────────
+function vibrate(pattern) {
+  try {
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  } catch { /* noop si non supporté */ }
+}
+
 function playSound(type) {
+  // Vibration haptique adaptée au type de son (silencieuse si mobile mute)
+  if (type === 'answer')       vibrate(25);
+  else if (type === 'buzzer')  vibrate(40);
+  else if (type === 'correct') vibrate([30, 40, 60]);
+  else if (type === 'wrong')   vibrate([50, 30, 50]);
+  else if (type === 'cashRegister') vibrate([20, 30, 40]);
+  else if (type === 'nav')     vibrate(15);
+
   try {
     const ctx = getAudioCtx();
     if (!ctx) return;

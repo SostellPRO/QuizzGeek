@@ -1468,44 +1468,73 @@ export function revealVoteResults(session) {
     }
   }
 
-  // Attribuer les points :
-  // - Chaque joueur dont la réponse a reçu des votes gagne autant de points qu'il a reçu de votes
-  // - Chaque joueur qui a voté pour un leurre (isDecoy) perd 1 point
-  for (const [playerId, voteIdx] of Object.entries(vs.votes)) {
-    const chosenOption = vs.options[voteIdx];
-    if (chosenOption?.isDecoy) {
-      // Voter pour un leurre : -1 point
-      awardPointsToPlayer(session, playerId, -1);
-    }
-    // Points pour avoir reçu des votes : attribués ci-dessous
-  }
-
-  // Attribuer les points aux auteurs des réponses
-  for (let idx = 0; idx < vs.options.length; idx++) {
-    const option = vs.options[idx];
-    if (!option.isDecoy && option.playerId && voteCounts[idx] > 0) {
-      awardPointsToPlayer(session, option.playerId, voteCounts[idx]);
-    }
-  }
-
-  // Marquer les options avec les données de vote (pour l'affichage)
+  // Marquer les options avec les données de vote (pour l'affichage progressif)
   vs.options = vs.options.map((o, idx) => ({
     ...o,
     voteCount: voteCounts[idx],
   }));
   vs.phase = "revealed";
   vs.revealed = true;
+  // FIX : les points seront attribués dans voteRevealNext quand tout est dévoilé,
+  // pas ici pour éviter que les scores apparaissent avant la révélation visuelle
+  vs.pointsAwarded = false;
+
+  // Mode révélation progressive (step-by-step)
+  vs.revealCursor = 0; // 0 = rien révélé, avance à chaque vote_reveal_next
 
   setPhaseMeta(session, {
     playerScreenLocked: true,
     allowAnswer: false,
     timer: null,
-    answerMode: "vote_revealed",
+    answerMode: "vote_revealing", // étape par étape
   });
 
   setStatus(session, "answer_reveal");
   touch(session);
   return { ok: true };
+}
+
+/**
+ * Révèle la prochaine option de vote (step-by-step, déclenché par l'admin)
+ */
+export function voteRevealNext(session) {
+  ensureSessionRuntime(session);
+
+  const vs = session.gameState.voteState;
+  if (!vs) return { ok: false, error: "Aucun état de vote" };
+  if (vs.phase !== "revealed") return { ok: false, error: "Révélation non initialisée" };
+
+  const cursor = (vs.revealCursor || 0) + 1;
+  vs.revealCursor = cursor;
+
+  if (cursor >= vs.options.length) {
+    // Toutes les options révélées → attribuer les points maintenant (synchronisé avec la révélation)
+    if (!vs.pointsAwarded) {
+      vs.pointsAwarded = true;
+      // Pénalité pour avoir voté pour un leurre
+      for (const [playerId, voteIdx] of Object.entries(vs.votes)) {
+        const chosenOption = vs.options[voteIdx];
+        if (chosenOption?.isDecoy) {
+          awardPointsToPlayer(session, playerId, -1);
+        }
+      }
+      // Points aux auteurs des réponses selon les votes reçus
+      for (let idx = 0; idx < vs.options.length; idx++) {
+        const option = vs.options[idx];
+        if (!option.isDecoy && option.playerId && (option.voteCount || 0) > 0) {
+          awardPointsToPlayer(session, option.playerId, option.voteCount);
+        }
+      }
+    }
+    // Basculer en mode récap complet
+    setPhaseMeta(session, {
+      ...session.gameState.phaseMeta,
+      answerMode: "vote_revealed",
+    });
+  }
+
+  touch(session);
+  return { ok: true, cursor, total: vs.options.length, done: cursor >= vs.options.length };
 }
 
 export function resetEngineRuntime(session) {
