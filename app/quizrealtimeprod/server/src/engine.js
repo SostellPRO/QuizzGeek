@@ -1667,12 +1667,13 @@ export function initVideoChallenge(session) {
   const q = getCurrentQuestion(session);
   session.gameState.videoState = {
     questionId: q?.id || null,
-    phase: "select",              // select | ready | playing | eval | scored
+    phase: "select",              // select | training_ready | training_playing | ready | playing | eval | scored
     selectedPlayerId: null,
     selectedTeamId: null,
     selectedPseudo: null,
     score: null,
     videoControl: null,           // { action: 'play'|'pause'|'rewind', at }
+    trainingVideoControl: null,   // { action: 'play'|'pause'|'rewind', at } pour la vidéo d'entraînement
   };
   setPhaseMeta(session, {
     playerScreenLocked: true,
@@ -1716,7 +1717,45 @@ export function videoMarkReady(session) {
   const vs = session.gameState.videoState;
   if (!vs) return { ok: false, error: "Pas de challenge vidéo actif" };
   vs.phase = "ready";
+  vs.trainingVideoControl = null; // Arrêter la vidéo d'entraînement si elle était en cours
   setPhaseMeta(session, { ...session.gameState.phaseMeta, answerMode: "video_ready" });
+  touch(session);
+  return { ok: true };
+}
+
+// Affiche l'écran "Attention entraînement !" avant la vidéo d'entraînement
+export function videoStartTrainingReady(session) {
+  ensureSessionRuntime(session);
+  const vs = session.gameState.videoState;
+  if (!vs) return { ok: false, error: "Pas de challenge vidéo actif" };
+  const q = getCurrentQuestion(session);
+  if (!q?.trainingVideoUrl) return { ok: false, error: "Pas de vidéo d'entraînement sur cette question" };
+  vs.phase = "training_ready";
+  setPhaseMeta(session, { ...session.gameState.phaseMeta, answerMode: "video_training_ready" });
+  touch(session);
+  return { ok: true };
+}
+
+// Lance la lecture de la vidéo d'entraînement
+export function videoStartTrainingPlaying(session) {
+  ensureSessionRuntime(session);
+  const vs = session.gameState.videoState;
+  if (!vs) return { ok: false, error: "Pas de challenge vidéo actif" };
+  const q = getCurrentQuestion(session);
+  if (!q?.trainingVideoUrl) return { ok: false, error: "Pas de vidéo d'entraînement sur cette question" };
+  vs.phase = "training_playing";
+  vs.trainingVideoControl = { action: "play", at: new Date().toISOString() };
+  setPhaseMeta(session, { ...session.gameState.phaseMeta, answerMode: "video_training_playing" });
+  touch(session);
+  return { ok: true };
+}
+
+// Contrôle play/pause/rewind de la vidéo d'entraînement
+export function videoTrainingControl(session, action) {
+  ensureSessionRuntime(session);
+  const vs = session.gameState.videoState;
+  if (!vs) return { ok: false, error: "Pas de challenge vidéo actif" };
+  vs.trainingVideoControl = { action, at: new Date().toISOString() };
   touch(session);
   return { ok: true };
 }

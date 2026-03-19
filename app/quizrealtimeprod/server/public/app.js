@@ -852,6 +852,32 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
         <p class="muted" style="font-size:.9rem;">Le maître de jeu choisit un participant…</p>
       </div>`;
   }
+  if (answerMode === 'video_training_ready') {
+    const vs = gs?.videoState;
+    const isMe = vs?.selectedPlayerId === playerId;
+    const myPlayer = state.players.find(p => p.id === playerId);
+    const myTeamId = myPlayer?.teamId;
+    const isMyTeam = myTeamId && vs?.selectedTeamId === myTeamId;
+    const isSelected = isMe || isMyTeam;
+    return `
+      ${timer}
+      <div class="player-waiting-screen" style="background:${isSelected ? 'rgba(255,215,0,.07)' : 'transparent'};">
+        <div class="waiting-host-text">🏋️</div>
+        <div class="waiting-host-label">${isSelected ? 'ATTENTION' : 'REGARDEZ L\'ÉCRAN'}</div>
+        ${isSelected ? `<p style="margin-top:14px;font-size:1rem;color:#ffd700;">La vidéo d'entraînement va démarrer !</p>` : '<p class="muted" style="margin-top:14px;font-size:.9rem;">Entraînement en cours…</p>'}
+        <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
+      </div>`;
+  }
+  if (answerMode === 'video_training_playing') {
+    return `
+      ${timer}
+      <div class="player-waiting-screen">
+        <div class="waiting-host-text">🏋️</div>
+        <div class="waiting-host-label">ENTRAÎNEMENT</div>
+        <p class="muted" style="margin-top:14px;font-size:.9rem;">Regardez l'écran TV</p>
+        <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
+      </div>`;
+  }
   if (answerMode === 'video_ready') {
     const vs = gs?.videoState;
     const isMe = vs?.selectedPlayerId === playerId;
@@ -2008,6 +2034,8 @@ function renderHostPilotageTab(gs, phase) {
     out += `<div class="host-section host-section-buzzer">
       <div class="host-section-label">🎬 CHALLENGE VIDÉO</div>`;
 
+    const qTrainUrl = gs?.currentQuestion?.trainingVideoUrl;
+
     if (vPhase === 'select') {
       out += `<p class="muted" style="font-size:.8rem;margin-bottom:10px;">Choisissez qui réalise l'épreuve :</p>`;
       if (availTeams.length) {
@@ -2016,10 +2044,32 @@ function renderHostPilotageTab(gs, phase) {
       }
       out += `<div class="burger-player-grid">${playerBtns || '<p class="muted">Aucun joueur connecté</p>'}</div>`;
       if (vs?.selectedPlayerId || vs?.selectedTeamId) {
-        out += `<div class="host-ctrl-row" style="margin-top:10px;">
-          <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('video_mark_ready')">▶ Écran "Tenez-vous prêt" →</button>
-        </div>`;
+        out += `<div class="host-ctrl-row" style="margin-top:10px;">`;
+        if (qTrainUrl) {
+          // Si une vidéo d'entraînement est configurée sur la question : passer par l'étape entraînement
+          out += `<button class="hbtn hbtn-warning hbtn-wide hbtn-pulse" onclick="hostAction('video_start_training_ready')">🏋️ Attention entraînement →</button>`;
+        } else {
+          // Sinon : aller directement à l'écran "Tenez-vous prêt"
+          out += `<button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('video_mark_ready')">▶ Écran "Tenez-vous prêt" →</button>`;
+        }
+        out += `</div>`;
       }
+    } else if (vPhase === 'training_ready') {
+      out += `<div style="text-align:center;padding:8px;">
+        <div style="font-size:1.1rem;font-weight:700;color:#ffd700;margin-bottom:12px;">🏋️ Entraînement — ${vPseudo}</div>
+        <p class="muted" style="font-size:.85rem;margin-bottom:14px;">L'écran affiche "Attention entraînement !"</p>
+        <button class="hbtn hbtn-warning hbtn-wide hbtn-pulse" onclick="hostAction('video_start_training_playing')">▶ Lancer la vidéo d'entraînement</button>
+      </div>`;
+    } else if (vPhase === 'training_playing') {
+      out += `<div style="text-align:center;padding:8px;">
+        <div style="font-size:1.1rem;font-weight:700;color:#ffd700;margin-bottom:8px;">🏋️ Entraînement en cours — ${vPseudo}</div>
+        <div class="host-ctrl-row" style="margin-bottom:10px;">
+          <button class="hbtn hbtn-success hbtn-sm" onclick="hostAction('video_training_control',{ctrl:'play'})">▶ Play</button>
+          <button class="hbtn hbtn-warning hbtn-sm" onclick="hostAction('video_training_control',{ctrl:'pause'})">⏸ Pause</button>
+          <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('video_training_control',{ctrl:'rewind'})">⏮ Début</button>
+        </div>
+        <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('video_mark_ready')">▶ Écran "Tenez-vous prêt" →</button>
+      </div>`;
     } else if (vPhase === 'ready') {
       out += `<div style="text-align:center;padding:8px;">
         <div style="font-size:1.1rem;font-weight:700;color:#f7971e;margin-bottom:12px;">🎬 ${vPseudo}</div>
@@ -2042,15 +2092,6 @@ function renderHostPilotageTab(gs, phase) {
       out += `<div style="text-align:center;padding:12px;">
         <div style="font-size:2.5rem;font-weight:900;color:#f7971e;">${vs.score}<span style="font-size:1rem;color:rgba(255,255,255,.4);">/10</span></div>
         <div style="font-size:.9rem;margin-top:4px;">Score attribué à <strong style="color:#f7971e;">${vPseudo}</strong></div>
-      </div>`;
-    }
-
-    // Vidéo d'entraînement de la manche (accessible à l'host en phase select ou ready)
-    const roundTrainUrl = gs?.currentRound?.trainingVideoUrl;
-    if ((vPhase === 'select' || vPhase === 'ready') && roundTrainUrl) {
-      out += `<div class="card" style="margin-top:12px;border-color:rgba(255,215,0,.3);background:rgba(255,215,0,.05);">
-        <div style="font-size:.8rem;color:rgba(255,215,0,.7);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">🏋️ Vidéo d'entraînement</div>
-        <video src="${resolveMedia(roundTrainUrl)}" controls style="width:100%;max-height:200px;border-radius:10px;"></video>
       </div>`;
     }
 
@@ -2679,7 +2720,32 @@ function renderDisplay() {
   }
 
   content += '</div>';
+
+  // ── Sauvegarder la position des vidéos avant de remplacer le DOM ─────────────
+  // Évite que pause/rewind ne remettent la vidéo au début (le html() recrée l'élément
+  // à currentTime=0 ; on restaure ensuite la position avant d'appliquer le contrôle).
+  const _savedVidTimes = {};
+  ['display-challenge-video', 'display-challenge-training-video', 'display-training-video'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.readyState >= 1 && el.src) {
+      _savedVidTimes[id] = { currentTime: el.currentTime, src: el.src };
+    }
+  });
+
   html('display-content', content);
+
+  // Restaurer les positions AVANT d'appliquer le contrôle (pause/rewind au bon endroit)
+  Object.entries(_savedVidTimes).forEach(([id, saved]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const sameFile = el.src && (el.src === saved.src ||
+      decodeURIComponent(el.src).split('/').pop() === decodeURIComponent(saved.src).split('/').pop());
+    if (!sameFile) return;
+    const restore = () => { el.currentTime = saved.currentTime; };
+    if (el.readyState >= 1) restore();
+    else el.addEventListener('loadedmetadata', restore, { once: true });
+  });
+
   applyDisplayVideoControl(gs);
 }
 
@@ -2706,10 +2772,11 @@ function _applyVidCtrl(vid, action, at) {
   }
 }
 function applyDisplayVideoControl(gs) {
-  const vid  = document.getElementById('display-challenge-video');
-  if (vid)  _applyVidCtrl(vid,  vid.dataset.ctrlAction  || 'pause', vid.dataset.ctrlAt  || '');
-  const tvid = document.getElementById('display-training-video');
-  if (tvid) _applyVidCtrl(tvid, tvid.dataset.ctrlAction || 'pause', tvid.dataset.ctrlAt || '');
+  // Tous les éléments vidéo controlés portent leurs data-attrs : on les applique uniformément
+  ['display-challenge-video', 'display-challenge-training-video', 'display-training-video'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) _applyVidCtrl(el, el.dataset.ctrlAction || 'pause', el.dataset.ctrlAt || '');
+  });
 }
 
 function renderDisplayQuestion(gs) {
@@ -2909,21 +2976,20 @@ function renderDisplayQuestion(gs) {
     voteDisplay = renderDisplayVoteVoting(gs);
   }
 
-  // Challenge Vidéo : affichage selon la phase
+  // Challenge Vidéo : affichage selon la phase (y compris les nouvelles phases training)
+  const _videoModes = ['video_select','video_training_ready','video_training_playing','video_ready','video_playing','video_eval','video_scored'];
   let videoDisplay = '';
-  if (pm.answerMode === 'video_select' || pm.answerMode === 'video_ready' ||
-      pm.answerMode === 'video_playing' || pm.answerMode === 'video_eval' || pm.answerMode === 'video_scored') {
+  if (_videoModes.includes(pm.answerMode)) {
     videoDisplay = renderDisplayVideoChallenge(gs);
   }
 
   // Compteur de réponses (pas pour burger/buzzer/vote/vidéo)
   const answered = gs.answers?.[q.id] ? Object.keys(gs.answers[q.id]).length : 0;
   const connected = state.players.filter(p => p.connected).length;
-  const noCounterModes = ['buzzer','vote_input','vote_voting','vote_proposal_reveal','video_select','video_ready','video_playing','video_eval','video_scored'];
+  const noCounterModes = ['buzzer','vote_input','vote_voting','vote_proposal_reveal',..._videoModes];
   const showCounter = !noCounterModes.includes(pm.answerMode) && q.type !== 'burger' && q.type !== 'rapidite' && q.type !== 'video_challenge';
 
-  if (pm.answerMode === 'video_select' || pm.answerMode === 'video_ready' ||
-      pm.answerMode === 'video_playing' || pm.answerMode === 'video_eval' || pm.answerMode === 'video_scored') {
+  if (_videoModes.includes(pm.answerMode)) {
     return videoDisplay;
   }
 
@@ -2948,6 +3014,7 @@ function renderDisplayVideoChallenge(gs) {
   const pseudo = vs?.selectedPseudo || '?';
   const q = gs?.currentQuestion;
   const videoUrl = q?.mediaUrl ? resolveMedia(q.mediaUrl) : null;
+  const trainingVideoUrl = q?.trainingVideoUrl ? resolveMedia(q.trainingVideoUrl) : null;
 
   if (phase === 'select') {
     return `
@@ -2956,6 +3023,32 @@ function renderDisplayVideoChallenge(gs) {
         <h2 style="color:#ffd700;font-size:2rem;">Challenge Vidéo</h2>
         <p class="muted" style="margin-top:16px;font-size:1.1rem;">Le maître de jeu choisit un participant…</p>
         <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
+      </div>`;
+  }
+
+  if (phase === 'training_ready') {
+    return `
+      <div class="card" style="text-align:center;padding:60px 20px;background:rgba(255,215,0,.07);border-color:rgba(255,215,0,.3);">
+        <div style="font-size:5rem;margin-bottom:20px;animation:pulse-pause 1.5s ease-in-out infinite;">🏋️</div>
+        <h2 style="color:#ffd700;font-size:clamp(1.8rem,6vw,3rem);">${pseudo}</h2>
+        <div style="font-size:clamp(1.8rem,6vw,3.2rem);font-weight:900;color:#ffd700;margin:20px 0;letter-spacing:.02em;">ATTENTION</div>
+        <div style="font-size:clamp(1.2rem,4vw,2rem);font-weight:700;color:#fff;letter-spacing:.05em;">ENTRAÎNEMENT</div>
+        <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
+      </div>`;
+  }
+
+  if (phase === 'training_playing') {
+    const tCtrl = vs?.trainingVideoControl;
+    return `
+      <div class="card" style="padding:20px;background:#000;border-color:rgba(255,215,0,.3);">
+        <div style="font-size:.85rem;color:rgba(255,215,0,.7);text-align:center;margin-bottom:12px;">🏋️ Entraînement — ${pseudo} — ${q?.content || ''}</div>
+        ${trainingVideoUrl ? `
+          <video id="display-challenge-training-video"
+            src="${trainingVideoUrl}"
+            data-ctrl-action="${tCtrl?.action || 'pause'}"
+            data-ctrl-at="${tCtrl?.at || ''}"
+            style="width:100%;max-height:60vh;border-radius:12px;background:#000;"
+            playsinline></video>` : '<p class="muted" style="text-align:center;padding:40px;">Aucune vidéo d\'entraînement configurée</p>'}
       </div>`;
   }
 
@@ -3573,27 +3666,7 @@ function renderRoundBlock(round, ri) {
         </div>
       </div>
 
-      ${round.type === 'video_challenge' ? (() => {
-        const tvUrl = round.trainingVideoUrl || '';
-        const tvPreview = tvUrl
-          ? `<div style="margin-top:8px;"><video controls src="${resolveMedia(tvUrl)}" style="width:100%;max-height:180px;border-radius:10px;"></video></div>`
-          : '';
-        return `
-      <!-- Vidéo d'entraînement (video_challenge uniquement) -->
-      <div style="background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.2);border-radius:10px;padding:12px;margin-bottom:14px;">
-        <div style="font-size:.78rem;color:rgba(255,215,0,.7);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🏋️ Vidéo d'entraînement (optionnelle)</div>
-        <p class="muted" style="font-size:.78rem;margin-bottom:8px;">Diffusée sur l'écran TV après l'intro de la manche. L'admin choisit de la jouer ou de passer.</p>
-        <div class="row" style="gap:6px;align-items:center;flex-wrap:wrap;">
-          <input type="text" value="${tvUrl}" placeholder="URL de la vidéo…"
-            style="flex:1;min-width:0;font-size:.8rem;"
-            onchange="updateRound('${round.id}','trainingVideoUrl',this.value)">
-          <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;white-space:nowrap;"
-            onclick="uploadRoundTrainingVideo('${round.id}')">📤 Uploader</button>
-          ${tvUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="updateRound('${round.id}','trainingVideoUrl','');renderQuizEditor()">✕</button>` : ''}
-        </div>
-        ${tvPreview}
-      </div>`;
-      })() : ''}
+      ${''/* Vidéo d'entraînement déplacée au niveau de la question video_challenge */}
 
       <!-- Questions -->
       <div>
@@ -3752,12 +3825,26 @@ function renderQuestionRow(q, qi, roundId, roundType) {
 
   // ── CHALLENGE VIDÉO ──────────────────────────────────────
   if (effectiveType === 'video_challenge') {
+    const tvUrl = q.trainingVideoUrl || '';
     body = `
       <div style="margin:8px 0 4px 28px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:10px;">
         <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">🎬 Challenge Vidéo</div>
-        <p style="font-size:.78rem;color:rgba(255,255,255,.5);margin-bottom:12px;">
-          Le host choisit un joueur ou une équipe. La vidéo est jouée sur l'écran TV. Le host attribue de 0 à 10 points.
-        </p>
+
+        <!-- Vidéo d'entraînement (optionnelle) -->
+        <div style="background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.2);border-radius:8px;padding:10px;margin-bottom:12px;">
+          <div style="font-size:.72rem;color:rgba(255,215,0,.7);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">🏋️ Vidéo d'entraînement (optionnelle)</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <button class="btn-secondary" style="padding:4px 10px;font-size:.78rem;white-space:nowrap;" onclick="uploadQuestionTrainingVideo('${roundId}','${q.id}')">📤 Uploader</button>
+            ${tvUrl
+              ? `<span style="font-size:.75rem;color:rgba(255,255,255,.4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;" title="${tvUrl}">${tvUrl.split('/').pop()}</span>
+                 <button class="btn-secondary" style="padding:2px 6px;font-size:.72rem;color:#eb3349;" onclick="updateQuestion('${roundId}','${q.id}','trainingVideoUrl','');renderQuizEditor()" title="Supprimer">✕</button>`
+              : `<span style="font-size:.75rem;color:rgba(255,255,255,.3);font-style:italic;">Aucune vidéo</span>`
+            }
+          </div>
+          ${tvUrl ? `<div style="margin-top:6px;"><video src="${resolveMedia(tvUrl)}" controls style="max-width:100%;max-height:100px;border-radius:6px;"></video></div>` : ''}
+        </div>
+
+        <!-- Vidéo du challenge (principale) -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
           <label style="font-size:.78rem;color:rgba(255,255,255,.5);white-space:nowrap;">🎥 Vidéo du challenge :</label>
           <button class="btn-secondary" style="padding:5px 12px;font-size:.82rem;" onclick="openMediaUpload('${q.id}')">📤 Uploader une vidéo</button>
@@ -3768,7 +3855,7 @@ function renderQuestionRow(q, qi, roundId, roundType) {
           }
         </div>
         ${q.mediaUrl ? `<div style="margin-bottom:10px;"><video src="${resolveMedia(q.mediaUrl)}" controls style="max-width:100%;max-height:120px;border-radius:8px;"></video></div>` : ''}
-        <div style="margin-top:8px;font-size:.75rem;color:rgba(255,255,255,.4);">📋 Déroulement : 1. Host choisit joueur/équipe · 2. Écran "Tenez-vous prêt" · 3. Vidéo jouée sur le TV · 4. Réponse orale · 5. Host attribue 0–10 pts<br>💡 La vidéo d'entraînement se configure au niveau de la manche, pas de la question.</div>
+        <div style="margin-top:8px;font-size:.75rem;color:rgba(255,255,255,.4);">📋 Déroulement : 1. Host choisit joueur/équipe · 2. (Entraînement si vidéo configurée) · 3. "Tenez-vous prêt" · 4. Vidéo du challenge · 5. Host attribue 0–10 pts</div>
       </div>`;
   }
 
@@ -3834,7 +3921,29 @@ function removeFakeAnswer(roundId, qId, idx) {
   renderQuizEditor();
 }
 
-// ── Upload vidéo d'entraînement au niveau de la manche ───────────────────────
+// ── Upload vidéo d'entraînement au niveau de la question (video_challenge) ───
+async function uploadQuestionTrainingVideo(roundId, qId) {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'video/*';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData(); fd.append('file', file);
+    try {
+      const res = await fetch(`${API}/api/uploads/media`, { method: 'POST', body: fd });
+      const d = await res.json();
+      if (!d.ok) { alert$('admin-alert', d.error || 'Erreur upload', 'error'); return; }
+      const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+      const q = round?.questions?.find(q => q.id === qId);
+      if (q) { q.trainingVideoUrl = d.file.mediaUrl; renderQuizEditor(); }
+      alert$('admin-alert', '✅ Vidéo d\'entraînement uploadée !', 'success');
+    } catch(e) { alert$('admin-alert', 'Erreur réseau upload : ' + e.message, 'error'); }
+  };
+  input.click();
+}
+window.uploadQuestionTrainingVideo = uploadQuestionTrainingVideo;
+
+// ── Upload vidéo d'entraînement au niveau de la manche (conservé pour compatibilité) ───────────────────────
 async function uploadRoundTrainingVideo(roundId) {
   const input = document.createElement('input');
   input.type = 'file'; input.accept = 'video/*';

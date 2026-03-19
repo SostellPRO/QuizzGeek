@@ -57,6 +57,9 @@ import {
   videoSelectPlayer,
   videoSelectTeam,
   videoMarkReady,
+  videoStartTrainingReady,
+  videoStartTrainingPlaying,
+  videoTrainingControl,
   videoStartPlaying,
   videoControl,
   videoStartEval,
@@ -966,6 +969,18 @@ export function setupSocketHandlers(io) {
 
           case "video_mark_ready":
             res = videoMarkReady(session);
+            break;
+
+          case "video_start_training_ready":
+            res = videoStartTrainingReady(session);
+            break;
+
+          case "video_start_training_playing":
+            res = videoStartTrainingPlaying(session);
+            break;
+
+          case "video_training_control":
+            res = videoTrainingControl(session, payload.ctrl);
             break;
 
           case "video_start_playing":
