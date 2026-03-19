@@ -1569,15 +1569,16 @@ function renderHostGestionTab(gs, phase, sc) {
 function renderHostPilotageTab(gs, phase) {
   let out = '';
 
-  const currentRoundIdx = gs?.currentRoundIndex ?? -1;
-  const currentQIdx     = gs?.currentQuestionIndex ?? -1;
-  const currentRound    = gs?.currentRound;
-  const currentQ        = gs?.currentQuestion;
-  const isPaused        = gs?.phaseMeta?.paused === true;
-  const isBurger        = (currentRound?.type === 'burger' || currentQ?.type === 'burger');
-  const isBuzzer        = gs?.phaseMeta?.answerMode === 'buzzer';
-  const isLocked        = gs?.phaseMeta?.playerScreenLocked === true;
-  const timerInfo       = gs?.phaseMeta?.timer;
+  const currentRoundIdx    = gs?.currentRoundIndex ?? -1;
+  const currentQIdx        = gs?.currentQuestionIndex ?? -1;
+  const currentRound       = gs?.currentRound;
+  const currentQ           = gs?.currentQuestion;
+  const isPaused           = gs?.phaseMeta?.paused === true;
+  const isBurger           = (currentRound?.type === 'burger' || currentQ?.type === 'burger');
+  const isBuzzer           = gs?.phaseMeta?.answerMode === 'buzzer';
+  const isLocked           = gs?.phaseMeta?.playerScreenLocked === true;
+  const timerInfo          = gs?.phaseMeta?.timer;
+  const isVideoChallenge   = currentRound?.type === 'video_challenge' || currentQ?.type === 'video_challenge';
 
   // ── Barre supérieure : phase + TV ──────────────────────────────
   const phaseLabelMap = {
@@ -1638,7 +1639,7 @@ function renderHostPilotageTab(gs, phase) {
 
     if (['question','waiting','manual_scoring'].includes(phase)) {
       // On retire le bouton "fin de timer" et on garde seulement "Montrer la solution"
-      if (!isBurger && !isBuzzer) {
+      if (!isBurger && !isBuzzer && !isVideoChallenge) {
         const isVote = gs?.phaseMeta?.answerMode === 'vote_input' || gs?.phaseMeta?.answerMode === 'vote_voting';
         if (!isVote) {
           out += `<button class="hbtn hbtn-secondary hbtn-pulse" onclick="hostAction('reveal_answer')">📋 Montrer la solution</button>`;
@@ -1702,7 +1703,7 @@ function renderHostPilotageTab(gs, phase) {
     <div class="host-ctrl-row">
       ${['question','waiting','manual_scoring','round_end','answer_reveal'].includes(phase) ? `
         <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Scores</button>` : ''}
-      ${!isBurger && !isBuzzer && !isVotePhase && ['question','waiting','manual_scoring'].includes(phase) ? `
+      ${!isBurger && !isBuzzer && !isVotePhase && !isVideoChallenge && ['question','waiting','manual_scoring'].includes(phase) ? `
         <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reveal_answer')">📋 Solution</button>` : ''}
       ${_voteAM === 'vote_input' ? `
         <button class="hbtn hbtn-primary hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer le vote</button>` : ''}
@@ -2061,11 +2062,13 @@ function renderHostPilotageTab(gs, phase) {
         <button class="hbtn hbtn-warning hbtn-wide hbtn-pulse" onclick="hostAction('video_start_training_playing')">▶ Lancer la vidéo d'entraînement</button>
       </div>`;
     } else if (vPhase === 'training_playing') {
+      const isTrainPlaying = vs?.trainingVideoControl?.action === 'play';
       out += `<div style="text-align:center;padding:8px;">
         <div style="font-size:1.1rem;font-weight:700;color:#ffd700;margin-bottom:8px;">🏋️ Entraînement en cours — ${vPseudo}</div>
         <div class="host-ctrl-row" style="margin-bottom:10px;">
-          <button class="hbtn hbtn-success hbtn-sm" onclick="hostAction('video_training_control',{ctrl:'play'})">▶ Play</button>
-          <button class="hbtn hbtn-warning hbtn-sm" onclick="hostAction('video_training_control',{ctrl:'pause'})">⏸ Pause</button>
+          ${isTrainPlaying
+            ? `<button class="hbtn hbtn-warning hbtn-sm" onclick="hostAction('video_training_control',{ctrl:'pause'})">⏸ Pause</button>`
+            : `<button class="hbtn hbtn-success hbtn-sm" onclick="hostAction('video_training_control',{ctrl:'play'})">▶ Play</button>`}
           <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('video_training_control',{ctrl:'rewind'})">⏮ Début</button>
         </div>
         <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('video_mark_ready')">▶ Écran "Tenez-vous prêt" →</button>
@@ -2077,11 +2080,13 @@ function renderHostPilotageTab(gs, phase) {
         <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('video_start_playing')">▶ Lancer la vidéo</button>
       </div>`;
     } else if (vPhase === 'playing') {
+      const isVidPlaying = vs?.videoControl?.action === 'play';
       out += `<div style="text-align:center;padding:8px;">
         <div style="font-size:1.1rem;font-weight:700;color:#f7971e;margin-bottom:8px;">🎬 Vidéo en cours — ${vPseudo}</div>
         <div class="host-ctrl-row" style="margin-bottom:10px;">
-          <button class="hbtn hbtn-success hbtn-sm" onclick="hostAction('video_control',{ctrl:'play'})">▶ Play</button>
-          <button class="hbtn hbtn-warning hbtn-sm" onclick="hostAction('video_control',{ctrl:'pause'})">⏸ Pause</button>
+          ${isVidPlaying
+            ? `<button class="hbtn hbtn-warning hbtn-sm" onclick="hostAction('video_control',{ctrl:'pause'})">⏸ Pause</button>`
+            : `<button class="hbtn hbtn-success hbtn-sm" onclick="hostAction('video_control',{ctrl:'play'})">▶ Play</button>`}
           <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('video_control',{ctrl:'rewind'})">⏮ Début</button>
         </div>
         <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" onclick="hostAction('video_start_eval')">⏭ Passer à l'évaluation</button>
@@ -2734,10 +2739,13 @@ function renderDisplay() {
 
   html('display-content', content);
 
-  // Restaurer les positions AVANT d'appliquer le contrôle (pause/rewind au bon endroit)
+  // Restaurer les positions AVANT d'appliquer le contrôle (pause au bon endroit)
+  // Exception : si l'action est 'rewind', ne pas restaurer (sinon la restauration écrase le retour à 0)
   Object.entries(_savedVidTimes).forEach(([id, saved]) => {
     const el = document.getElementById(id);
     if (!el) return;
+    // Si la nouvelle commande est un rewind, skip : on laisse _applyVidCtrl mettre currentTime=0
+    if (el.dataset.ctrlAction === 'rewind') return;
     const sameFile = el.src && (el.src === saved.src ||
       decodeURIComponent(el.src).split('/').pop() === decodeURIComponent(saved.src).split('/').pop());
     if (!sameFile) return;
@@ -4743,6 +4751,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   initSocket();
+
+  // ── Feedback visuel global sur les boutons .hbtn ──────────────
+  // Ajoute brièvement la classe .hbtn-clicked sur tout bouton cliqué
+  // pour confirmer visuellement que l'action a bien été prise en compte.
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.hbtn, .btn-primary, .btn-secondary, .btn-success, .btn-danger, .btn-warning, .btn-outline-danger, .btn-sm');
+    if (!btn || btn.disabled) return;
+    btn.classList.remove('hbtn-clicked'); // reset si déjà en cours
+    void btn.offsetWidth; // force reflow pour relancer l'animation
+    btn.classList.add('hbtn-clicked');
+    btn.addEventListener('animationend', () => btn.classList.remove('hbtn-clicked'), { once: true });
+  }, { capture: true });
 
   // Navigation hash
   const hash = window.location.hash.replace('#', '') || 'home';

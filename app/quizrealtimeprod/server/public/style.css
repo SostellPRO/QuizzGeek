@@ -885,6 +885,15 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
 .hbtn-sm    { padding: 6px 10px !important; font-size: 0.78rem !important; }
 .hbtn-wide  { width: 100%; }
 
+/* ── Feedback visuel au clic ─────────────────────────────── */
+@keyframes hbtn-flash {
+  0%   { filter: brightness(1.8); transform: scale(0.94); }
+  100% { filter: brightness(1);   transform: scale(1); }
+}
+.hbtn-clicked {
+  animation: hbtn-flash 0.35s ease-out forwards !important;
+}
+
 @keyframes hbtn-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(240,147,251,0.4); }
   50%       { box-shadow: 0 0 0 8px rgba(240,147,251,0); }
