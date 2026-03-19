@@ -2001,7 +2001,6 @@ function renderHostPilotageTab(gs, phase) {
   // ═══════════════════════════════════════════════════════════
   // SECTION 6b : CHALLENGE VIDÉO
   // ═══════════════════════════════════════════════════════════
-  const isVideoChallenge = gs?.currentRound?.type === 'video_challenge' || gs?.currentQuestion?.type === 'video_challenge';
   if (isVideoChallenge && ['question','waiting','manual_scoring'].includes(phase)) {
     const vs = gs?.videoState;
     const vPhase = vs?.phase || 'select';
