@@ -103,7 +103,7 @@ function buildFinalCeremonyData(session) {
     teamId: p.teamId || null,
     teamName: p.teamName || null,
     scoreTotal: p.scoreTotal || 0,
-    nickname: getNickname(p.rank, total),
+    nickname: session?.quiz?.closingCeremony?.rankComments?.[String(p.rank)] || getNickname(p.rank, total),
     revealed: false,
   }));
   const teamsRevealOrder = [...leaderboardTeams].reverse().map((t, idx) => ({
