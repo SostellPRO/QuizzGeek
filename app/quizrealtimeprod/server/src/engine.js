@@ -1152,6 +1152,38 @@ export function burgerNextItem(session) {
   return { ok: true, finished: true, currentItemIndex: bs.currentItemIndex, totalItems };
 }
 
+export function burgerPrevItem(session) {
+  ensureSessionRuntime(session);
+
+  const q = getCurrentQuestion(session);
+  if (!q) return { ok: false, error: "Aucune question active" };
+
+  const qType = getQuestionType(q);
+  if (qType !== "burger") {
+    return { ok: false, error: "Question de type burger uniquement" };
+  }
+
+  const bs = session.gameState.burgerState;
+  if (!bs || bs.currentItemIndex <= 0) {
+    return { ok: false, error: "Déjà au premier élément" };
+  }
+
+  const totalItems = Array.isArray(q.items) ? q.items.length : 0;
+  bs.currentItemIndex--;
+
+  // Si on était en manual_scoring et qu'on revient en arrière, repasser en question
+  if (session.gameState.status === "manual_scoring") {
+    setPhaseMeta(session, {
+      playerScreenLocked: false,
+      allowAnswer: false,
+    });
+    setStatus(session, "question");
+  }
+
+  touch(session);
+  return { ok: true, currentItemIndex: bs.currentItemIndex, totalItems };
+}
+
 export function shouldAutoRevealNow(session) {
   ensureSessionRuntime(session);
 

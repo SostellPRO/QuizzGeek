@@ -20,6 +20,7 @@ import {
 import {
   awardManualPoints,
   burgerNextItem,
+  burgerPrevItem,
   buzzerNextPlayer,
   cancelPendingAutoReveal,
   finishQuiz,
@@ -677,6 +678,10 @@ export function setupSocketHandlers(io) {
 
           case "burger_next_item":
             res = burgerNextItem(session);
+            break;
+
+          case "burger_prev_item":
+            res = burgerPrevItem(session);
             break;
 
           case "activate_buzzer":

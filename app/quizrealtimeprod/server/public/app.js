@@ -1747,10 +1747,37 @@ function renderHostPilotageTab(gs, phase) {
         <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Scores</button>` : ''}
       ${!isBurger && !isBuzzer && !isVotePhase && !isVideoChallenge && ['question','waiting','manual_scoring'].includes(phase) ? `
         <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reveal_answer')">📋 Solution</button>` : ''}
-      ${_voteAM === 'vote_input' ? `
-        <button class="hbtn hbtn-primary hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer le vote</button>` : ''}
-      ${_voteAM === 'vote_voting' ? `
-        <button class="hbtn hbtn-success hbtn-pulse" onclick="hostAction('vote_reveal')">📋 Révéler les votes</button>` : ''}
+      ${_voteAM === 'vote_input' ? (() => {
+        const _vConnected = state.players.filter(p => p.connected);
+        const _vConnCount = _vConnected.length;
+        const _vAnswers = gs?.answers?.[gs?.currentQuestion?.id] || {};
+        const _vPropCount = Object.values(_vAnswers).filter(a => a?.answer?.trim()).length;
+        const _vAllProposed = _vPropCount >= _vConnCount && _vConnCount > 0;
+        return _vAllProposed
+          ? `<button class="hbtn hbtn-primary hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer le vote</button>`
+          : `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,.05);border-radius:8px;">
+              <span style="font-size:.82rem;color:rgba(255,255,255,.55);">⏳ Propositions reçues :</span>
+              <strong style="color:#f7971e;font-size:.9rem;">${_vPropCount}/${_vConnCount}</strong>
+              <div style="flex:1;height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;">
+                <div style="height:100%;width:${_vConnCount>0?Math.round(_vPropCount/_vConnCount*100):0}%;background:linear-gradient(90deg,#f7971e,#ffd700);border-radius:3px;transition:width .4s;"></div>
+              </div>
+            </div>`;
+      })() : ''}
+      ${_voteAM === 'vote_voting' ? (() => {
+        const _vvConnected = state.players.filter(p => p.connected);
+        const _vvConnCount = _vvConnected.length;
+        const _vvVoteCount = Object.keys(gs?.voteState?.votes || {}).length;
+        const _vvAllVoted = _vvVoteCount >= _vvConnCount && _vvConnCount > 0;
+        return _vvAllVoted
+          ? `<button class="hbtn hbtn-success hbtn-pulse" onclick="hostAction('vote_reveal')">📋 Révéler les votes</button>`
+          : `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,.05);border-radius:8px;">
+              <span style="font-size:.82rem;color:rgba(255,255,255,.55);">⏳ Votes reçus :</span>
+              <strong style="color:#38ef7d;font-size:.9rem;">${_vvVoteCount}/${_vvConnCount}</strong>
+              <div style="flex:1;height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;">
+                <div style="height:100%;width:${_vvConnCount>0?Math.round(_vvVoteCount/_vvConnCount*100):0}%;background:linear-gradient(90deg,#38ef7d,#4ade80);border-radius:3px;transition:width .4s;"></div>
+              </div>
+            </div>`;
+      })() : ''}
       ${isVoteRevealing ? `
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <button class="hbtn hbtn-success hbtn-pulse" onclick="hostAction('vote_reveal_next')" ${voteRevCursor >= voteRevTotal ? 'disabled' : ''}>
@@ -2007,7 +2034,10 @@ function renderHostPilotageTab(gs, phase) {
       <div class="host-section">
         <div class="host-section-label">🍔 BURGER — PILOTAGE</div>
         ${!isSelected ? `
-          <p class="muted" style="font-size:.82rem;margin-bottom:8px;">Sélectionnez le joueur ou l'équipe qui passe l'épreuve :</p>
+          <div style="background:rgba(255,180,0,.15);border:2px solid rgba(255,180,0,.7);border-radius:10px;padding:10px 14px;margin-bottom:10px;text-align:center;">
+            <span style="font-size:1.4rem;">⚠️</span>
+            <span style="font-weight:700;color:#fbbf24;font-size:.92rem;margin-left:6px;">Sélectionnez un participant pour commencer !</span>
+          </div>
           ${availableTeams.length ? `
             <p class="muted" style="font-size:.73rem;margin-bottom:4px;">⚽ Équipes :</p>
             <div class="burger-player-grid">${teamBtns}</div>
@@ -2031,9 +2061,13 @@ function renderHostPilotageTab(gs, phase) {
             </details>` : `
             <div class="burger-player-grid" style="margin-bottom:6px;">${playerBtns}</div>`}
           ${!allItemsShown ? `
-            <div class="host-ctrl-row" style="margin-top:6px;">
+            <div class="host-ctrl-row" style="margin-top:6px;gap:6px;">
+              ${burgerState && burgerState.currentItemIndex > 0 ? `
+                <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('burger_prev_item')" title="Revenir à l'élément précédent">
+                  ← Précédent
+                </button>` : ''}
               <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('burger_next_item')">
-                🍔 Élément suivant ${burgerState && burgerState.currentItemIndex >= 0 ? `(${burgerState.currentItemIndex+1}/${totalItems})` : '(démarrer)'}
+                🍔 ${burgerState && burgerState.currentItemIndex >= 0 ? `Élément suivant (${burgerState.currentItemIndex+1}/${totalItems})` : 'Démarrer'}
               </button>
             </div>` : scoreForm}
         `}
@@ -2079,6 +2113,13 @@ function renderHostPilotageTab(gs, phase) {
     const qTrainUrl = gs?.currentQuestion?.trainingVideoUrl;
 
     if (vPhase === 'select') {
+      const _vNoSel = !vs?.selectedPlayerId && !vs?.selectedTeamId;
+      if (_vNoSel) {
+        out += `<div style="background:rgba(255,180,0,.15);border:2px solid rgba(255,180,0,.7);border-radius:10px;padding:10px 14px;margin-bottom:10px;text-align:center;">
+          <span style="font-size:1.4rem;">⚠️</span>
+          <span style="font-weight:700;color:#fbbf24;font-size:.92rem;margin-left:6px;">Sélectionnez un participant pour commencer !</span>
+        </div>`;
+      }
       out += `<p class="muted" style="font-size:.8rem;margin-bottom:10px;">Choisissez qui réalise l'épreuve :</p>`;
       if (availTeams.length) {
         out += `<p class="muted" style="font-size:.73rem;margin-bottom:4px;">⚽ Équipes</p><div class="burger-player-grid">${teamBtns}</div>`;
