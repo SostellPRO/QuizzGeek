@@ -138,6 +138,14 @@ function emitSessionState(io, session) {
   if (session?.gameState?.phaseMeta?.finalCeremony === undefined) {
     session.gameState.phaseMeta.finalCeremony = null;
   }
+  // Toujours synchroniser les champs welcome depuis session.quiz
+  // (au cas où la session a été créée avant l'ajout de ces champs,
+  // ou si le quiz a été édité après la création de la session)
+  if (session?.quiz && session?.gameState) {
+    session.gameState.quizWelcomeImageUrl = session.quiz.welcomeImageUrl || '';
+    session.gameState.quizWelcomeMusicUrl = session.quiz.welcomeMusicUrl || '';
+    session.gameState.quizTitle = session.quiz.title || session.gameState.quizTitle || 'Quiz Live';
+  }
   const { leaderboardPlayers, leaderboardTeams } = buildLeaderboards(session);
   io.to(sessionRoom(session.sessionCode)).emit("game:state", {
     gameState: session.gameState,
@@ -654,6 +662,17 @@ export function setupSocketHandlers(io) {
 
           case "refresh_question":
             res = refreshQuestion(session);
+            break;
+
+          case "sync_quiz":
+            // Synchronise les métadonnées du quiz dans le game state et re-broadcast
+            // Utile après une sauvegarde quiz (welcomeImageUrl, welcomeMusicUrl, title…)
+            if (session.quiz && session.gameState) {
+              session.gameState.quizTitle = session.quiz.title || session.gameState.quizTitle;
+              session.gameState.quizWelcomeImageUrl = session.quiz.welcomeImageUrl || '';
+              session.gameState.quizWelcomeMusicUrl = session.quiz.welcomeMusicUrl || '';
+            }
+            res = { ok: true };
             break;
 
           case "burger_next_item":

@@ -313,6 +313,21 @@ export function saveQuiz(quiz) {
   }
 
   store.quizzes.set(next.id, next);
+
+  // Mettre à jour session.quiz pour toutes les sessions qui utilisent ce quiz
+  // (évite que les champs nouveaux, ex. welcomeImageUrl, restent stale dans les sessions actives)
+  for (const session of store.sessions.values()) {
+    if (session.quiz?.id === next.id) {
+      session.quiz = next;
+      // Synchro immédiate des métadonnées dans le gameState si présent
+      if (session.gameState) {
+        session.gameState.quizTitle = next.title || session.gameState.quizTitle;
+        session.gameState.quizWelcomeImageUrl = next.welcomeImageUrl || '';
+        session.gameState.quizWelcomeMusicUrl = next.welcomeMusicUrl || '';
+      }
+    }
+  }
+
   persistQuizzes();
   return next;
 }

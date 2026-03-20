@@ -4378,6 +4378,11 @@ async function saveQuiz() {
     alert$('admin-alert', '✅ Quiz enregistré !', 'success');
     state.admin.editingQuiz = d.quiz;
     state.admin.quizzes = await apiFetch('/api/quizzes').then(r => r.quizzes || []);
+    // Re-synchroniser le game state de la session active (si elle utilise ce quiz)
+    // pour que l'écran TV reçoive immédiatement les nouveaux champs (image/musique d'accueil, titre…)
+    if (state.host.connected) {
+      hostAction('sync_quiz');
+    }
   } catch { alert$('admin-alert', 'Erreur réseau', 'error'); }
 }
 
