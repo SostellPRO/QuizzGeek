@@ -550,6 +550,8 @@ export function setupSocketHandlers(io) {
             session.quiz = newQuiz;
             session.gameState.quizId = newQuiz.id;
             session.gameState.quizTitle = newQuiz.title || "Quiz Live";
+            session.gameState.quizWelcomeImageUrl = newQuiz.welcomeImageUrl || '';
+            session.gameState.quizWelcomeMusicUrl = newQuiz.welcomeMusicUrl || '';
             session.gameState.updatedAt = new Date().toISOString();
             res = { ok: true, quizTitle: newQuiz.title };
             break;

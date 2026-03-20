@@ -169,14 +169,23 @@ function playSound(type) {
 }
 
 // ── Musique de fond (gestion persistante – ne redémarre pas au re-render) ──
+let _musicMuted = false;
+
 function updateRoundMusic(url) {
   let el = document.getElementById('bg-round-music');
   if (!url) {
     if (el) { el.pause(); el.src = ''; }
     _currentMusicUrl = null;
+    _ensureMuteButton();
     return;
   }
-  if (url === _currentMusicUrl) return; // déjà en cours → ne pas repartir de zéro
+  if (url === _currentMusicUrl) {
+    // Même URL : vérifier si la musique est en pause (ex: après mute + unmute)
+    if (el && !_musicMuted && el.paused && el.src) {
+      el.play().catch(() => {});
+    }
+    return;
+  }
   _currentMusicUrl = url;
   if (!el) {
     el = document.createElement('audio');
@@ -185,9 +194,40 @@ function updateRoundMusic(url) {
     el.style.display = 'none';
     document.body.appendChild(el);
   }
-  el.src = url;
-  el.play().catch(() => {/* autoplay bloqué – l'utilisateur doit interagir d'abord */});
+  el.src = resolveMedia(url);
+  if (!_musicMuted) {
+    el.play().catch(() => {/* autoplay bloqué – l'utilisateur doit interagir d'abord */});
+  }
+  _ensureMuteButton();
 }
+
+function _ensureMuteButton() {
+  if (state.currentPage !== 'display') return;
+  let btn = document.getElementById('music-mute-btn');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'music-mute-btn';
+    btn.className = 'music-mute-btn' + (_musicMuted ? ' muted' : '');
+    btn.title = 'Couper/activer la musique';
+    btn.innerHTML = _musicMuted ? '🔇' : '🔊';
+    btn.onclick = toggleMusicMute;
+    document.body.appendChild(btn);
+  } else {
+    btn.className = 'music-mute-btn' + (_musicMuted ? ' muted' : '');
+    btn.innerHTML = _musicMuted ? '🔇' : '🔊';
+  }
+}
+
+function toggleMusicMute() {
+  _musicMuted = !_musicMuted;
+  const el = document.getElementById('bg-round-music');
+  if (el) {
+    if (_musicMuted) { el.pause(); }
+    else { el.play().catch(() => {}); }
+  }
+  _ensureMuteButton();
+}
+window.toggleMusicMute = toggleMusicMute;
 
 function closeModal(id) { const m = document.getElementById(id); if (m) m.remove(); }
 
@@ -1536,15 +1576,17 @@ function renderHostGestionTab(gs, phase, sc) {
   if (phase === 'lobby') {
     out += `
       <div class="card" style="text-align:center;padding:28px;border:2px solid rgba(56,239,125,.2);background:rgba(56,239,125,.04);margin-bottom:14px;">
-        <h2 style="margin-bottom:8px;">🚀 Prêt à lancer ?</h2>
-        <p class="muted" style="margin-bottom:18px;">${state.players.length} joueur(s) connecté(s) · Quiz : <strong>${quizTitle}</strong></p>
-        <button class="btn-success hbtn-pulse" style="font-size:1.1rem;padding:14px 36px;" onclick="hostAction('start_quiz')">
+        <h2 style="margin-bottom:8px;">🎉 Écran d'accueil</h2>
+        <p class="muted" style="margin-bottom:4px;">${state.players.filter(p=>p.connected).length} joueur(s) connecté(s) · Quiz : <strong>${quizTitle}</strong></p>
+        <p class="muted" style="font-size:.8rem;margin-bottom:18px;">L'écran TV affiche la page de bienvenue avec les joueurs connectés.</p>
+        <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" style="font-size:1.1rem;padding:14px 36px;margin-bottom:12px;" onclick="hostAction('start_quiz')">
           ▶️ Lancer la partie
         </button>
-        <div class="row" style="justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap;">
-          <button class="btn-secondary btn-sm" onclick="showChangeQuizModal()">🔄 Changer de quiz</button>
-          <button class="btn-secondary btn-sm" onclick="hostAction('reset_game')">🔁 Reset partie</button>
-          <button class="btn-outline-danger btn-sm" onclick="if(confirm('Réinitialiser TOUT ? (joueurs, scores, progression)'))hostAction('reset_all')">💥 Reset général</button>
+        <div class="row" style="justify-content:center;gap:8px;flex-wrap:wrap;">
+          <button class="hbtn hbtn-warning" onclick="hostAction('start_training_video')">🏋️ Vidéo d'entraînement</button>
+          <button class="hbtn hbtn-secondary" onclick="showChangeQuizModal()">🔄 Changer de quiz</button>
+          <button class="hbtn hbtn-secondary" onclick="hostAction('reset_game')">🔁 Reset</button>
+          <button class="hbtn hbtn-danger" onclick="if(confirm('Réinitialiser TOUT ?'))hostAction('reset_all')">💥 Reset général</button>
         </div>
       </div>`;
   } else {
@@ -1600,7 +1642,7 @@ function renderHostPilotageTab(gs, phase) {
         ${isLocked ? '<span class="badge red" style="font-size:.72rem;">🔒 Verrouillé</span>' : '<span class="badge green" style="font-size:.72rem;">🔓 Ouvert</span>'}
       </div>
       <div class="row" style="gap:6px;">
-        <button class="btn-secondary btn-sm" onclick="showBroadcastModal()">📡 Diffuser</button>
+        <button class="btn-secondary btn-sm" onclick="showBroadcastModal()">💬 Message</button>
         <button class="btn-primary btn-sm" onclick="openDisplayPopup()">📺 TV ↗</button>
       </div>
     </div>`;
@@ -2567,12 +2609,22 @@ function renderDisplay() {
   const phase = gs?.status || 'lobby';
   const sc    = state.display.sessionCode;
 
-  // Fond d'écran et musique de la manche courante
+  // Fond d'écran de la manche courante (utilisé pour les phases non-lobby)
   const roundBg = gs?.currentRound?.backgroundUrl ? resolveMedia(gs.currentRound.backgroundUrl) : '';
-  const roundMusic = gs?.currentRound?.musicUrl ? resolveMedia(gs.currentRound.musicUrl) : '';
+
+  // Musique sélectionnée selon la phase
+  const _phaseMusic = (() => {
+    const r = gs?.currentRound;
+    if (phase === 'lobby') return gs?.quizWelcomeMusicUrl ? resolveMedia(gs.quizWelcomeMusicUrl) : '';
+    if (phase === 'round_intro') return (r?.introMusicUrl || r?.musicUrl) ? resolveMedia(r.introMusicUrl || r.musicUrl) : '';
+    if (['question','waiting','manual_scoring','answer_reveal'].includes(phase))
+      return (r?.gameMusicUrl || r?.musicUrl) ? resolveMedia(r.gameMusicUrl || r.musicUrl) : '';
+    if (['round_end','results'].includes(phase)) return r?.endMusicUrl ? resolveMedia(r.endMusicUrl) : '';
+    return '';
+  })();
 
   // Musique gérée en dehors du re-render pour éviter le redémarrage à chaque mise à jour
-  updateRoundMusic(roundMusic);
+  updateRoundMusic(_phaseMusic);
 
   const bgStyle = roundBg
     ? `background-image:url('${roundBg}');background-size:cover;background-position:center;background-repeat:no-repeat;`
@@ -2600,25 +2652,48 @@ function renderDisplay() {
         <div class="waiting-dots"><span></span><span></span><span></span></div>
       </div>`;
   } else if (phase === 'lobby') {
+    const welcomeImg = gs?.quizWelcomeImageUrl ? resolveMedia(gs.quizWelcomeImageUrl) : '';
+    const connPlayers = state.players.filter(p => p.connected);
+    const playerAvatars = connPlayers.map(p => `
+      <div class="lobby-player-chip">
+        <span class="lobby-player-avatar">${p.avatar || '🎮'}</span>
+        <span class="lobby-player-name">${p.pseudo || '?'}</span>
+      </div>`).join('');
     content += `
-      <div class="card" style="text-align:center;padding:60px 20px;">
-        <div style="font-size:4rem;margin-bottom:16px;">🎮</div>
-        <h1>${gs?.quizTitle || 'Quiz Live'}</h1>
-        <p class="muted" style="font-size:1.2rem;margin-top:12px;">Code : <strong class="session-code">${sc}</strong></p>
-        <p class="muted" style="margin-top:10px;">${state.players.length} joueur(s) connecté(s)</p>
+      <div class="lobby-welcome-screen" ${welcomeImg ? `style="background-image:url('${welcomeImg}');background-size:cover;background-position:center;"` : ''}>
+        <div class="lobby-welcome-overlay"></div>
+        <div class="lobby-welcome-content">
+          <div class="lobby-welcome-icon">🎮</div>
+          <h1 class="lobby-welcome-title">${gs?.quizTitle || 'Quiz Live'}</h1>
+          <div class="lobby-welcome-code">
+            <span class="lobby-code-label">Code de session</span>
+            <span class="session-code lobby-code-value">${sc}</span>
+          </div>
+        </div>
+        <div class="lobby-players-zone">
+          <div class="lobby-players-label">${connPlayers.length} joueur(s) connecté(s)</div>
+          <div class="lobby-players-list">${playerAvatars || '<span class="lobby-waiting-text">En attente de joueurs…</span>'}</div>
+        </div>
       </div>`;
   } else if (phase === 'round_intro') {
     const round = gs?.currentRound;
-    const _rtIcons  = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', burger:'🍔', vote:'🗳️' };
-    const _rtLabels = { qcm:'QCM', rapidite:'Rapidité', speed:'Rapidité', true_false:'Vrai / Faux', burger:'Burger', vote:'Vote' };
+    const _rtIcons  = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', burger:'🍔', vote:'🗳️', video_challenge:'🎬' };
+    const _rtLabels = { qcm:'QCM', rapidite:'Rapidité', speed:'Rapidité', true_false:'Vrai / Faux', burger:'Burger', vote:'Vote', video_challenge:'Challenge Vidéo' };
     const _rtIcon  = _rtIcons[round?.type]  || '🎯';
     const _rtLabel = _rtLabels[round?.type] || (round?.type || '');
+    const hasBg = !!(round?.backgroundUrl);
+    const bgStyle = hasBg ? `background-image:url('${resolveMedia(round.backgroundUrl)}');` : '';
+    // Quand il y a un fond d'image, on entoure le texte d'un cartouche lisible
+    const innerContent = `
+      ${round?.type ? `<div class="display-round-type-badge display-badge-${round.type}">${_rtIcon} ${_rtLabel}</div>` : ''}
+      <div class="display-round-intro-icon">${_rtIcon}</div>
+      <h1 class="display-round-intro-title">${round?.title || 'Nouvelle manche'}</h1>
+      ${round?.shortRules ? `<div class="display-round-intro-rules">${round.shortRules}</div>` : ''}`;
     content += `
-      <div class="display-round-intro-screen">
-        ${round?.type ? `<div class="display-round-type-badge display-badge-${round.type}">${_rtIcon} ${_rtLabel}</div>` : ''}
-        <div class="display-round-intro-icon">${_rtIcon}</div>
-        <h1 class="display-round-intro-title">${round?.title || 'Nouvelle manche'}</h1>
-        ${round?.shortRules ? `<div class="display-round-intro-rules">${round.shortRules}</div>` : ''}
+      <div class="display-round-intro-screen${hasBg ? ' has-bg' : ''}" style="${bgStyle}">
+        ${hasBg
+          ? `<div class="ri-cartouche">${innerContent}</div>`
+          : innerContent}
       </div>`;
   } else if (phase === 'training_video') {
     const tvUrl = gs?.currentRound?.trainingVideoUrl ? resolveMedia(gs.currentRound.trainingVideoUrl) : null;
@@ -2780,10 +2855,25 @@ function _applyVidCtrl(vid, action, at) {
 }
 function applyDisplayVideoControl(gs) {
   // Tous les éléments vidéo controlés portent leurs data-attrs : on les applique uniformément
+  let anyVideoPlaying = false;
   ['display-challenge-video', 'display-challenge-training-video', 'display-training-video'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) _applyVidCtrl(el, el.dataset.ctrlAction || 'pause', el.dataset.ctrlAt || '');
+    if (el) {
+      _applyVidCtrl(el, el.dataset.ctrlAction || 'pause', el.dataset.ctrlAt || '');
+      if (el.dataset.ctrlAction === 'play') anyVideoPlaying = true;
+    }
   });
+  // Couper la musique de fond quand une vidéo est en lecture, la reprendre sinon
+  const bgMusic = document.getElementById('bg-round-music');
+  if (bgMusic) {
+    if (anyVideoPlaying && !bgMusic.paused) {
+      bgMusic._pausedByVideo = true;
+      bgMusic.pause();
+    } else if (!anyVideoPlaying && bgMusic._pausedByVideo && !_musicMuted) {
+      bgMusic._pausedByVideo = false;
+      bgMusic.play().catch(() => {});
+    }
+  }
 }
 
 function renderDisplayQuestion(gs) {
@@ -3440,7 +3530,7 @@ async function doLaunchGame(quizId, isTestMode) {
 }
 
 function emptyQuiz() {
-  return { id: '', title: 'Nouveau quiz', rounds: [] };
+  return { id: '', title: 'Nouveau quiz', welcomeImageUrl: '', welcomeMusicUrl: '', rounds: [] };
 }
 
 function emptyRound(idx = 0) {
@@ -3452,7 +3542,10 @@ function emptyRound(idx = 0) {
     scoringTarget: 'individual', // 'individual' | 'team'
     shortRules: '',
     backgroundUrl: '',
-    musicUrl: '',
+    musicUrl: '',        // kept for backward compat (fallback)
+    introMusicUrl: '',   // musique écran de présentation
+    gameMusicUrl: '',    // musique pendant la phase de jeu
+    endMusicUrl: '',     // musique écran de fin de manche
     questions: [],
   };
 }
@@ -3557,6 +3650,30 @@ function renderQuizEditor() {
           </div>
         </div>
 
+        <!-- Page de bienvenue -->
+        <div class="card" style="border-color:rgba(240,147,251,.2);background:rgba(240,147,251,.03);">
+          <h3>🎉 Page de bienvenue</h3>
+          <p class="muted" style="font-size:.8rem;margin:6px 0 14px;">Affiché sur l'écran TV pendant l'attente des joueurs (lobby).</p>
+          <div class="grid2" style="gap:12px;">
+            <div>
+              <label style="font-size:.8rem;">Image / fond d'accueil</label>
+              <div class="row" style="gap:6px;margin-top:4px;">
+                <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="uploadQuizMedia('welcomeImageUrl','image/*')">🖼️ Choisir image</button>
+                ${q.welcomeImageUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearQuizMedia('welcomeImageUrl')">✕</button>` : ''}
+              </div>
+              ${q.welcomeImageUrl ? `<img src="${resolveMedia(q.welcomeImageUrl)}" style="max-height:80px;border-radius:8px;opacity:.75;margin-top:6px;">` : ''}
+            </div>
+            <div>
+              <label style="font-size:.8rem;">Musique d'accueil</label>
+              <div class="row" style="gap:6px;margin-top:4px;">
+                <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="uploadQuizMedia('welcomeMusicUrl','audio/*')">🎵 Choisir musique</button>
+                ${q.welcomeMusicUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearQuizMedia('welcomeMusicUrl')">✕</button>` : ''}
+              </div>
+              ${q.welcomeMusicUrl ? `<audio controls src="${resolveMedia(q.welcomeMusicUrl)}" style="height:32px;width:100%;margin-top:6px;"></audio>` : ''}
+            </div>
+          </div>
+        </div>
+
         <div id="rounds-container">
           ${activeRound
             ? renderRoundBlock(activeRound, ari)
@@ -3655,7 +3772,7 @@ function renderRoundBlock(round, ri) {
         <div style="font-size:.78rem;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🎨 Personnalisation</div>
         <div class="grid2" style="gap:10px;">
           <div>
-            <label style="font-size:.8rem;">Fond d'écran</label>
+            <label style="font-size:.8rem;">Fond d'écran (intro manche)</label>
             <div class="row" style="gap:6px;margin-top:4px;">
               <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="uploadRoundMedia('${round.id}','backgroundUrl','image/*')">🖼️ Choisir image</button>
               ${round.backgroundUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearRoundMedia('${round.id}','backgroundUrl')">✕</button>` : ''}
@@ -3663,14 +3780,31 @@ function renderRoundBlock(round, ri) {
             ${bgPreview}
           </div>
           <div>
-            <label style="font-size:.8rem;">Musique de fond</label>
+            <label style="font-size:.8rem;">🎵 Musique intro (écran présentation)</label>
             <div class="row" style="gap:6px;margin-top:4px;">
-              <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="uploadRoundMedia('${round.id}','musicUrl','audio/*')">🎵 Choisir musique</button>
-              ${round.musicUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearRoundMedia('${round.id}','musicUrl')">✕</button>` : ''}
+              <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="uploadRoundMedia('${round.id}','introMusicUrl','audio/*')">🎵 Choisir</button>
+              ${round.introMusicUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearRoundMedia('${round.id}','introMusicUrl')">✕</button>` : ''}
             </div>
-            ${musicPreview}
+            ${round.introMusicUrl ? `<audio controls src="${resolveMedia(round.introMusicUrl)}" style="height:28px;width:100%;margin-top:4px;"></audio>` : ''}
+          </div>
+          <div>
+            <label style="font-size:.8rem;">🎮 Musique de jeu (questions)</label>
+            <div class="row" style="gap:6px;margin-top:4px;">
+              <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="uploadRoundMedia('${round.id}','gameMusicUrl','audio/*')">🎵 Choisir</button>
+              ${round.gameMusicUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearRoundMedia('${round.id}','gameMusicUrl')">✕</button>` : ''}
+            </div>
+            ${round.gameMusicUrl ? `<audio controls src="${resolveMedia(round.gameMusicUrl)}" style="height:28px;width:100%;margin-top:4px;"></audio>` : ''}
+          </div>
+          <div>
+            <label style="font-size:.8rem;">🏁 Musique fin de manche</label>
+            <div class="row" style="gap:6px;margin-top:4px;">
+              <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="uploadRoundMedia('${round.id}','endMusicUrl','audio/*')">🎵 Choisir</button>
+              ${round.endMusicUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearRoundMedia('${round.id}','endMusicUrl')">✕</button>` : ''}
+            </div>
+            ${round.endMusicUrl ? `<audio controls src="${resolveMedia(round.endMusicUrl)}" style="height:28px;width:100%;margin-top:4px;"></audio>` : ''}
           </div>
         </div>
+        <p class="muted" style="font-size:.72rem;margin-top:8px;">💡 La musique s'adapte automatiquement à la phase de jeu. Un bouton mute est disponible sur l'écran TV.</p>
       </div>
 
       ${''/* Vidéo d'entraînement déplacée au niveau de la question video_challenge */}
@@ -3727,25 +3861,32 @@ function renderQuestionRow(q, qi, roundId, roundType) {
       : [{ id:uid('opt'),text:'Réponse A',mediaUrl:'' },{ id:uid('opt'),text:'Réponse B',mediaUrl:'' },
          { id:uid('opt'),text:'Réponse C',mediaUrl:'' },{ id:uid('opt'),text:'Réponse D',mediaUrl:'' }];
     const correctIdx = typeof q.correctOptionIndex === 'number' ? q.correctOptionIndex : 0;
+    // Labels étendus pour supporter plus de 4 options
+    const extLabels = ['A','B','C','D','E','F','G','H'];
+    const extColors = ['#4ade80','#60a5fa','#f59e0b','#f87171','#c084fc','#34d399','#fb923c','#38bdf8'];
 
     body = `
       <div style="margin:8px 0 4px 28px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:10px;">
         <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">Options de réponse</div>
         <div style="display:grid;gap:6px;">
-          ${opts.slice(0, 4).map((opt, i) => `
+          ${opts.map((opt, i) => `
             <div style="display:flex;align-items:center;gap:6px;">
               <input type="radio" name="correct-${q.id}" ${correctIdx===i?'checked':''} title="Bonne réponse"
                 onchange="updateQcmCorrect('${roundId}','${q.id}',${i})"
                 style="accent-color:#4ade80;width:16px;height:16px;flex-shrink:0;">
-              <span style="font-size:.78rem;font-weight:700;color:${labelColors[i]};min-width:18px;">${labels[i]}</span>
-              <input value="${(opt.text||'').replace(/"/g,'&quot;')}" placeholder="Option ${labels[i]}"
+              <span style="font-size:.78rem;font-weight:700;color:${extColors[i]||'#fff'};min-width:18px;">${extLabels[i]||String.fromCharCode(65+i)}</span>
+              <input value="${(opt.text||'').replace(/"/g,'&quot;')}" placeholder="Option ${extLabels[i]||i+1}"
                 oninput="updateQcmOptionText('${roundId}','${q.id}',${i},this.value)"
                 style="flex:1;font-size:.82rem;padding:5px 8px;">
               <button class="btn-secondary" style="padding:3px 7px;font-size:.75rem;" onclick="uploadOptionMedia('${roundId}','${q.id}',${i})" title="Image/Son pour cette option">🖼️</button>
+              ${i >= 4 ? `<button class="btn-danger" style="padding:3px 7px;font-size:.75rem;" onclick="removeQcmOption('${roundId}','${q.id}',${i})" title="Supprimer">✕</button>` : ''}
               ${opt.mediaUrl ? mediaPreview(opt.mediaUrl) : ''}
             </div>`).join('')}
         </div>
-        <div style="margin-top:8px;font-size:.75rem;color:rgba(255,255,255,.4);">🔘 Cocher le bouton radio = bonne réponse</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:6px;">
+          <span style="font-size:.75rem;color:rgba(255,255,255,.4);">🔘 Cocher le bouton radio = bonne réponse</span>
+          ${opts.length < 8 ? `<button class="btn-secondary" style="padding:4px 10px;font-size:.78rem;" onclick="addQcmOption('${roundId}','${q.id}')">+ Option</button>` : ''}
+        </div>
       </div>`;
   }
 
@@ -3895,6 +4036,32 @@ function updateQcmCorrect(roundId, qId, optIndex) {
   q.correctAnswer = typeof opt === 'object' ? (opt.text || '') : String(opt || '');
 }
 
+function addQcmOption(roundId, qId) {
+  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+  const q = round?.questions?.find(q => q.id === qId);
+  if (!q) return;
+  if (!Array.isArray(q.options)) q.options = [];
+  if (q.options.length >= 8) return;
+  q.options.push({ id: uid('opt'), text: '', mediaUrl: '' });
+  renderQuizEditor();
+}
+window.addQcmOption = addQcmOption;
+
+function removeQcmOption(roundId, qId, optIndex) {
+  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+  const q = round?.questions?.find(q => q.id === qId);
+  if (!q || !Array.isArray(q.options) || q.options.length <= 4) return;
+  q.options.splice(optIndex, 1);
+  // Recaler correctOptionIndex si besoin
+  if (typeof q.correctOptionIndex === 'number' && q.correctOptionIndex >= q.options.length) {
+    q.correctOptionIndex = q.options.length - 1;
+  }
+  const idx = q.correctOptionIndex ?? 0;
+  q.correctAnswer = (q.options[idx]?.text || '').toString();
+  renderQuizEditor();
+}
+window.removeQcmOption = removeQcmOption;
+
 function updateBurgerItem(roundId, qId, itemIndex, value) {
   const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
   const q = round?.questions?.find(q => q.id === qId);
@@ -3972,6 +4139,11 @@ async function uploadRoundTrainingVideo(roundId) {
 window.uploadRoundTrainingVideo = uploadRoundTrainingVideo;
 
 function addRound() {
+  // Sauvegarder le titre du quiz avant de re-rendre (comme dans switchRound)
+  const titleInput = document.getElementById('quiz-title');
+  if (titleInput && state.admin.editingQuiz) {
+    state.admin.editingQuiz.title = titleInput.value.trim() || state.admin.editingQuiz.title;
+  }
   const q = state.admin.editingQuiz;
   q.rounds = q.rounds || [];
   const newRound = emptyRound(q.rounds.length);
@@ -3988,6 +4160,10 @@ function addRound() {
 }
 
 function removeRound(roundId) {
+  const titleInput = document.getElementById('quiz-title');
+  if (titleInput && state.admin.editingQuiz) {
+    state.admin.editingQuiz.title = titleInput.value.trim() || state.admin.editingQuiz.title;
+  }
   const q = state.admin.editingQuiz;
   q.rounds = (q.rounds || []).filter(r => r.id !== roundId);
   renderQuizEditor();
@@ -4087,6 +4263,33 @@ function clearRoundMedia(roundId, field) {
   const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
   if (round) { round[field] = ''; renderQuizEditor(); }
 }
+
+async function uploadQuizMedia(field, accept) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = accept;
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch(`${API}/api/uploads/media`, { method: 'POST', body: fd });
+      const d   = await res.json();
+      if (!d.ok) { alert$('admin-alert', d.error || 'Erreur upload', 'error'); return; }
+      if (state.admin.editingQuiz) { state.admin.editingQuiz[field] = d.file.mediaUrl; }
+      alert$('admin-alert', '✅ Fichier uploadé !', 'success');
+      renderQuizEditor();
+    } catch { alert$('admin-alert', 'Erreur réseau upload', 'error'); }
+  };
+  input.click();
+}
+window.uploadQuizMedia = uploadQuizMedia;
+
+function clearQuizMedia(field) {
+  if (state.admin.editingQuiz) { state.admin.editingQuiz[field] = ''; renderQuizEditor(); }
+}
+window.clearQuizMedia = clearQuizMedia;
 
 async function uploadOptionMedia(roundId, qId, optIndex) {
   const input = document.createElement('input');

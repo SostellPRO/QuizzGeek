@@ -1565,3 +1565,199 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
 
 .float-score-pos { color: #38ef7d; }
 .float-score-neg { color: #eb3349; }
+
+/* ═══════════════════════════════════════════════════════════
+   LOBBY WELCOME SCREEN (écran d'accueil animé)
+   ═══════════════════════════════════════════════════════════ */
+@keyframes lobby-title-in {
+  0%   { opacity: 0; transform: scale(0.7) translateY(-30px); }
+  70%  { transform: scale(1.04) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes lobby-icon-float {
+  0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 32px rgba(240,147,251,0.6)); }
+  50%       { transform: translateY(-14px) scale(1.07); filter: drop-shadow(0 0 56px rgba(240,147,251,1)); }
+}
+@keyframes lobby-code-pulse {
+  0%, 100% { letter-spacing: 0.18em; opacity: 1; }
+  50%       { letter-spacing: 0.28em; opacity: 0.85; }
+}
+@keyframes lobby-chip-in {
+  0%   { opacity: 0; transform: scale(0.5) translateY(20px); }
+  80%  { transform: scale(1.08) translateY(-4px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes lobby-particles {
+  0%   { opacity: 0.8; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-120px) scale(0.4); }
+}
+
+.lobby-welcome-screen {
+  position: relative; display: flex; flex-direction: column;
+  align-items: center; justify-content: space-between;
+  min-height: 90vh; padding: 48px 32px 36px;
+  overflow: hidden;
+  background: linear-gradient(145deg, #0d0b2e 0%, #1a0533 50%, #030712 100%);
+}
+.lobby-welcome-overlay {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 90% 70% at 50% 20%, rgba(240,147,251,0.18) 0%, transparent 65%),
+              rgba(8,6,24,0.45);
+  pointer-events: none;
+}
+/* Étoiles décoratives en CSS */
+.lobby-welcome-screen::before, .lobby-welcome-screen::after {
+  content: '✦ ✧ ✦ ✧ ✦ ✧ ✦ ✧ ✦';
+  position: absolute; top: 12px; left: 0; right: 0;
+  text-align: center; font-size: 1.2rem; color: rgba(255,255,255,0.12);
+  letter-spacing: 1.5rem; pointer-events: none;
+  animation: lobby-particles 8s ease-in-out infinite;
+}
+.lobby-welcome-screen::after {
+  top: auto; bottom: 80px; font-size: 0.9rem;
+  animation-delay: 4s; animation-duration: 9s;
+}
+
+.lobby-welcome-content {
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; position: relative; z-index: 2; flex: 1; justify-content: center;
+}
+.lobby-welcome-icon {
+  font-size: clamp(5rem, 12vw, 9rem); line-height: 1; margin-bottom: 16px;
+  animation: lobby-icon-float 3.5s ease-in-out infinite;
+}
+.lobby-welcome-title {
+  font-family: var(--font-display, 'Poppins', sans-serif);
+  font-size: clamp(2.8rem, 8vw, 7rem);
+  font-weight: 900; letter-spacing: -0.03em; line-height: 1.05;
+  margin-bottom: 28px;
+  background: linear-gradient(135deg, #fff 20%, #f0bbff 55%, #ffd6ff 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  animation: lobby-title-in 0.9s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+.lobby-welcome-code {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 16px 36px; border-radius: 20px;
+  background: rgba(255,255,255,0.07); border: 2px solid rgba(240,147,251,0.35);
+}
+.lobby-code-label {
+  font-size: clamp(0.75rem, 1.5vw, 0.95rem); color: rgba(255,255,255,0.55);
+  text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600;
+}
+.lobby-code-value {
+  font-size: clamp(2.5rem, 7vw, 5rem) !important;
+  font-weight: 900 !important; letter-spacing: 0.2em;
+  color: #f0bbff !important;
+  animation: lobby-code-pulse 2.5s ease-in-out infinite;
+}
+
+/* Zone joueurs en bas */
+.lobby-players-zone {
+  position: relative; z-index: 2; width: 100%; text-align: center; margin-top: 32px;
+}
+.lobby-players-label {
+  font-size: clamp(0.85rem, 2vw, 1.1rem); color: rgba(255,255,255,0.55);
+  margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;
+}
+.lobby-players-list {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;
+}
+.lobby-waiting-text { color: rgba(255,255,255,0.3); font-size: 1.1rem; font-style: italic; }
+
+.lobby-player-chip {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 10px 16px; border-radius: 16px;
+  background: rgba(255,255,255,0.08); border: 1.5px solid rgba(255,255,255,0.15);
+  animation: lobby-chip-in 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  min-width: 80px;
+}
+.lobby-player-avatar {
+  font-size: clamp(1.8rem, 4vw, 2.8rem); line-height: 1;
+}
+.lobby-player-name {
+  font-size: clamp(0.72rem, 1.8vw, 1rem); font-weight: 700;
+  color: rgba(255,255,255,0.9); white-space: nowrap;
+  max-width: 100px; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ROUND INTRO : cartouche lisible sur fond d'image + animations
+   ═══════════════════════════════════════════════════════════ */
+@keyframes ri-zoom-bounce {
+  0%   { opacity: 0; transform: scale(0.3); }
+  65%  { transform: scale(1.12); }
+  80%  { transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes ri-badge-pop {
+  0%   { opacity: 0; transform: scale(0) rotate(-12deg); }
+  70%  { transform: scale(1.15) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+@keyframes ri-rules-slide {
+  0%   { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes ri-bg-ken-burns {
+  0%   { transform: scale(1); }
+  100% { transform: scale(1.06); }
+}
+
+/* Fond d'image pour le round intro — effet Ken Burns */
+.display-round-intro-screen.has-bg {
+  background-size: cover; background-position: center;
+  background-repeat: no-repeat;
+}
+.display-round-intro-screen.has-bg::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: inherit;
+  animation: ri-bg-ken-burns 12s ease-out both;
+  pointer-events: none; z-index: 0;
+}
+.display-round-intro-screen.has-bg::before {
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(240,147,251,0.1) 0%, transparent 70%),
+              rgba(8,6,24,0.55);
+}
+
+/* Cartouche pour le texte quand il y a un fond */
+.ri-cartouche {
+  position: relative; z-index: 2;
+  background: rgba(8, 6, 24, 0.78);
+  border-radius: 24px; padding: 32px 48px;
+  border: 3px solid rgba(255,255,255,0.15);
+  backdrop-filter: blur(12px);
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  box-shadow: 0 8px 48px rgba(0,0,0,0.6);
+  animation: ri-zoom-bounce 0.7s cubic-bezier(0.34, 1.4, 0.64, 1) 0.1s both;
+}
+
+/* Animations améliorées pour les éléments de l'intro */
+.display-round-intro-icon {
+  animation: ri-zoom-bounce 0.65s cubic-bezier(0.34, 1.4, 0.64, 1) both,
+             di-icon-pulse 2.5s ease-in-out 0.65s infinite !important;
+}
+.display-round-type-badge {
+  animation: ri-badge-pop 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) 0.2s both !important;
+}
+.display-round-intro-title {
+  animation: ri-zoom-bounce 0.7s cubic-bezier(0.34, 1.4, 0.64, 1) 0.05s both !important;
+}
+.display-round-intro-rules {
+  animation: ri-rules-slide 0.6s ease-out 0.35s both !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MUSIQUE : bouton mute flottant
+   ═══════════════════════════════════════════════════════════ */
+.music-mute-btn {
+  position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+  width: 48px; height: 48px; border-radius: 50%;
+  background: rgba(30, 24, 60, 0.85); border: 2px solid rgba(255,255,255,0.2);
+  color: #fff; font-size: 1.3rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(8px); transition: transform 0.15s, background 0.2s;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.music-mute-btn:hover { transform: scale(1.12); background: rgba(50, 40, 90, 0.9); }
+.music-mute-btn.muted { background: rgba(235,51,73,0.7); border-color: rgba(235,51,73,0.5); }

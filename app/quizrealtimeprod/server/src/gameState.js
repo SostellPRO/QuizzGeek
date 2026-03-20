@@ -31,6 +31,8 @@ export function createInitialGameState({ quiz = null, sessionCode } = {}) {
     sessionCode: safeSessionCode,
     quizId: safeQuiz?.id || null,
     quizTitle: safeQuiz?.title || "Quiz Live",
+    quizWelcomeImageUrl: safeQuiz?.welcomeImageUrl || '',
+    quizWelcomeMusicUrl: safeQuiz?.welcomeMusicUrl || '',
 
     // lobby | intro_quiz | round_intro | question | waiting | answer_reveal | manual_scoring | results | end
     status: "lobby",
