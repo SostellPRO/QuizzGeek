@@ -76,6 +76,10 @@ let _displayQuestionId    = null;  // pour éviter le clignotement de la questio
 let _displayAnswerCount   = -1;   // pour détecter une nouvelle réponse et animer le compteur TV
 let _showAllTeams         = false; // afficher toutes les équipes dans le formulaire de connexion
 let _getReadyTimer        = null;  // timer du compte à rebours "tenez-vous prêts"
+let _countdownAudio       = null;  // élément audio pour le son countdown pendant le timer
+let _lastTimerActive      = false; // état précédent du timer (actif ou non)
+let _lastPhase            = null;  // phase précédente pour détecter les transitions
+let _lastPlayerCount      = 0;     // nombre de joueurs précédent pour détecter les nouveaux
 
 // ── P6 : Sons d'interaction (fichiers MP3) ────────────────────
 // ── Vibration haptique (mobile) — couplée à playSound ──────────
@@ -88,7 +92,7 @@ function vibrate(pattern) {
 // Table des fichiers MP3 et leurs volumes (0–1)
 const _SND = {
   answer:       { src: '/sounds/answer.mp3',       vol: 0.65 },
-  buzzer:       { src: '/sounds/buzzer.mp3',        vol: 0.80 },
+  buzzer:       { src: '/sounds/spacebar.mp3',      vol: 0.85 },
   correct:      { src: '/sounds/correct.mp3',       vol: 0.70 },
   wrong:        { src: '/sounds/wrong.mp3',         vol: 0.70 },
   deduct:       { src: '/sounds/deduct.mp3',        vol: 0.65 },
@@ -112,6 +116,14 @@ function playSound(type) {
     a.volume = s.vol;
     a.play().catch(() => {});
   } catch { /* noop */ }
+}
+
+// ── Arrêt du son countdown ─────────────────────────────────────────────────────
+function _stopCountdownAudio() {
+  if (_countdownAudio) {
+    try { _countdownAudio.pause(); _countdownAudio.src = ''; } catch { }
+    _countdownAudio = null;
+  }
 }
 
 // ── Son joyeux buzzer correct (fanfare MP3) ───────────────────────────────────
@@ -271,6 +283,62 @@ function initSocket() {
     } else if (answerModeNow !== 'vote_revealing' && answerModeNow !== 'vote_revealed') {
       _lastVoteRevealCursor = null; // réinitialiser entre les questions
     }
+
+    // ── Détection transitions de phase (sons + countdown) ──────────────────────
+    const _nowPhase = state.gameState?.status;
+    const _nowTimer = state.gameState?.phaseMeta?.timer;
+    const _timerActive = !!(_nowTimer?.remainingSec > 0);
+    const _nowPlayerCount = state.players.filter(p => p.connected).length;
+
+    // Son quand une nouvelle phase démarre
+    if (_nowPhase !== _lastPhase) {
+      if (_nowPhase === 'round_intro') {
+        // Annonce d'une nouvelle manche → cloche
+        playBellSound();
+      } else if (_nowPhase === 'get_ready') {
+        // Écran d'attente → petit son de préparation
+        playSound('answer');
+      } else if (_nowPhase === 'answer_reveal') {
+        // Révélation de la réponse → son correct ou wrong selon le contexte
+        // (le son spécifique correct/wrong est déjà géré par buzzerLastResult)
+      } else if (_nowPhase === 'round_end') {
+        // Fin de manche → fanfare
+        playBuzzerCorrectSound();
+      } else if (_nowPhase === 'results' || _nowPhase === 'end') {
+        // Résultats finaux → grande fanfare
+        playBuzzerCorrectSound();
+      }
+      _lastPhase = _nowPhase;
+    }
+
+    // Nouveau joueur dans le lobby → son de notification
+    if (_nowPhase === 'lobby' && _nowPlayerCount > _lastPlayerCount && _lastPlayerCount > 0) {
+      playSound('answer');
+    }
+    _lastPlayerCount = _nowPlayerCount;
+
+    // Gestion du son countdown pendant le timer
+    if (_timerActive && !_lastTimerActive) {
+      // Timer démarre → lancer countdown.mp3
+      _stopCountdownAudio();
+      _countdownAudio = new Audio('/sounds/countdown.mp3');
+      _countdownAudio.volume = 0.55;
+      // Positionner dans la piste selon le temps restant (la piste dure ~63s)
+      const _seekSec = Math.max(0, 63 - (_nowTimer.remainingSec + 1));
+      _countdownAudio.currentTime = _seekSec;
+      // Mettre en pause la musique de fond temporairement
+      const _bgMusic = document.getElementById('bg-round-music');
+      if (_bgMusic && !_bgMusic.paused) { _bgMusic.volume = 0.15; }
+      _countdownAudio.play().catch(() => {});
+    } else if (!_timerActive && _lastTimerActive) {
+      // Timer s'arrête → arrêter countdown, restaurer musique
+      _stopCountdownAudio();
+      const _bgMusic = document.getElementById('bg-round-music');
+      if (_bgMusic && !_musicMuted) { _bgMusic.volume = 1.0; _bgMusic.play().catch(() => {}); }
+      // Son de fin de timer
+      playSound('wrong');
+    }
+    _lastTimerActive = _timerActive;
 
     // Mettre à jour la page courante si elle est active
     if (state.currentPage === 'player') {
@@ -634,12 +702,21 @@ function renderPlayerGame() {
         <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
       </div>`;
   } else if (phase === 'lobby') {
+    const _lobbyConnected = state.players.filter(p => p.connected);
+    const _lobbyChips = _lobbyConnected.map(p => `
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);min-width:64px;">
+        <span style="font-size:1.6rem;line-height:1;">${p.avatar || '🎮'}</span>
+        <span style="font-size:0.7rem;font-weight:700;color:rgba(255,255,255,0.85);white-space:nowrap;max-width:72px;overflow:hidden;text-overflow:ellipsis;">${p.pseudo || '?'}</span>
+      </div>`).join('');
     content += `
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:3rem;">⏳</div>
-        <h2>Salle d'attente</h2>
-        <p class="muted">En attente du maître de jeu…</p>
-        <p class="muted" style="margin-top:10px;">${state.players.length} joueur(s) connecté(s)</p>
+      <div class="card" style="text-align:center;padding:28px 20px;">
+        <div style="font-size:2.8rem;margin-bottom:12px;">⏳</div>
+        <h2 style="margin-bottom:6px;">Salle d'attente</h2>
+        <p class="muted" style="margin-bottom:18px;">En attente du maître de jeu…</p>
+        <div style="font-size:.78rem;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-bottom:12px;">${_lobbyConnected.length} joueur(s) connecté(s)</div>
+        <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;">
+          ${_lobbyChips || '<span style="color:rgba(255,255,255,.3);font-style:italic;">En attente…</span>'}
+        </div>
       </div>`;
   } else if (phase === 'training_video') {
     content += `
@@ -1487,6 +1564,7 @@ function renderHostGestionTab(gs, phase, sc) {
   const playerRows = state.players.map(p => `
     <tr>
       <td style="width:14px;"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${p.connected?'#38ef7d':'#555'};"></span></td>
+      <td style="font-size:1.2rem;text-align:center;padding:4px 6px;">${p.avatar || '🎮'}</td>
       <td><strong>${p.pseudo}</strong></td>
       <td>
         <select onchange="hostAction('assign_team',{playerId:'${p.id||p.playerId}',teamId:this.value||null})"
@@ -1510,7 +1588,7 @@ function renderHostGestionTab(gs, phase, sc) {
       </div>
       <div style="overflow-x:auto;">
         <table style="width:100%;min-width:280px;">
-          <thead><tr><th></th><th>Joueur</th><th>Équipe</th><th>Score</th><th></th></tr></thead>
+          <thead><tr><th></th><th></th><th>Joueur</th><th>Équipe</th><th>Score</th><th></th></tr></thead>
           <tbody>${playerRows}</tbody>
         </table>
       </div>
@@ -2746,6 +2824,38 @@ function renderDisplay() {
 
   // Musique gérée en dehors du re-render pour éviter le redémarrage à chaque mise à jour
   updateRoundMusic(_phaseMusic);
+
+  // ── OPTIMISATION LOBBY : mise à jour incrémentale des joueurs ─────────────────
+  // Si on est déjà en lobby et que l'écran lobby est déjà affiché, on ne
+  // re-rend PAS toute la page (ce qui ferait clignoter les chips joueurs).
+  // On patche uniquement la zone joueurs.
+  if (phase === 'lobby' && document.querySelector('.lobby-welcome-screen')) {
+    const connPlayers = state.players.filter(p => p.connected);
+    const labelEl = document.querySelector('.lobby-players-label');
+    const listEl  = document.querySelector('.lobby-players-list');
+    if (labelEl) labelEl.textContent = `${connPlayers.length} joueur(s) connecté(s)`;
+    if (listEl) {
+      // Ajouter uniquement les nouveaux joueurs (ceux pas encore dans le DOM)
+      const existingIds = new Set([...listEl.querySelectorAll('.lobby-player-chip')].map(el => el.dataset.pid));
+      const newPlayers  = connPlayers.filter(p => !existingIds.has(p.id || p.playerId));
+      // Supprimer les chips des joueurs déconnectés
+      listEl.querySelectorAll('.lobby-player-chip').forEach(el => {
+        if (!connPlayers.find(p => (p.id || p.playerId) === el.dataset.pid)) el.remove();
+      });
+      // Ajouter les nouveaux
+      newPlayers.forEach(p => {
+        const chip = document.createElement('div');
+        chip.className = 'lobby-player-chip';
+        chip.dataset.pid = p.id || p.playerId;
+        chip.innerHTML = `<span class="lobby-player-avatar">${p.avatar || '🎮'}</span><span class="lobby-player-name">${p.pseudo || '?'}</span>`;
+        listEl.appendChild(chip);
+      });
+      if (connPlayers.length === 0) {
+        listEl.innerHTML = '<span class="lobby-waiting-text">En attente de joueurs…</span>';
+      }
+    }
+    return; // Ne pas re-rendre le reste
+  }
 
   // Background : cérémonie en priorité si phase 'end'
   const activeBg = (phase === 'end' && ceremonyBg) ? ceremonyBg : roundBg;
@@ -5109,7 +5219,7 @@ function setTheme(themeKey) {
   try { localStorage.setItem('quiz_theme', themeKey); } catch(e) {}
 
   // Jouer un son de confirmation de thème
-  playThemeSound(themeKey);
+  playSound('nav');
 
   // Mettre à jour le picker si visible
   renderThemePicker();
@@ -5177,100 +5287,7 @@ function closeThemePicker() {
   if (el) el.remove();
 }
 
-// ── Sons thématiques via Web Audio API ────────────────────
-function playThemeSound(themeKey) {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-
-    if (themeKey === 'corporate') {
-      // Son corporate : 2 bips propres et précis
-      playNote(ctx, 660, 0,    0.06, 'sine',   0.15);
-      playNote(ctx, 880, 0.12, 0.06, 'sine',   0.15);
-    } else if (themeKey === 'party') {
-      // Son party : fanfare montante arpégée
-      [523, 659, 784, 1047].forEach((f, i) => {
-        playNote(ctx, f, i * 0.08, 0.12, 'triangle', 0.22);
-      });
-    } else if (themeKey === 'tvshow') {
-      // Son TV show : accord dramatique descendant + roulement
-      playNote(ctx, 880, 0,    0.1,  'sawtooth', 0.12);
-      playNote(ctx, 698, 0.1,  0.1,  'sawtooth', 0.12);
-      playNote(ctx, 523, 0.2,  0.25, 'sawtooth', 0.14);
-    } else {
-      // Default : bip simple
-      playNote(ctx, 440, 0, 0.08, 'sine', 0.12);
-    }
-    setTimeout(() => { try { ctx.close(); } catch(e) {} }, 1500);
-  } catch(e) {}
-}
-
-function playNote(ctx, freq, startDelay, duration, type, gain) {
-  try {
-    const osc = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-    osc.type = type;
-    osc.frequency.value = freq;
-    gainNode.gain.setValueAtTime(gain, ctx.currentTime + startDelay);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startDelay + duration);
-    osc.connect(gainNode);
-    gainNode.connect(ctx.destination);
-    osc.start(ctx.currentTime + startDelay);
-    osc.stop(ctx.currentTime + startDelay + duration + 0.01);
-  } catch(e) {}
-}
-
-// ── Sons de jeu thématiques ────────────────────────────────
-// Appelés depuis les actions clés (buzz, bonne/mauvaise réponse, timer, etc.)
-function playGameSound(type) {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const theme = _currentTheme;
-
-    if (type === 'buzz') {
-      if (theme === 'corporate') {
-        playNote(ctx, 880, 0, 0.08, 'sine', 0.2);
-      } else if (theme === 'party') {
-        [440, 550, 660].forEach((f, i) => playNote(ctx, f, i*0.05, 0.1, 'triangle', 0.25));
-      } else if (theme === 'tvshow') {
-        playNote(ctx, 440, 0,    0.06, 'sawtooth', 0.2);
-        playNote(ctx, 880, 0.07, 0.08, 'square',   0.15);
-      } else {
-        playNote(ctx, 660, 0, 0.1, 'sine', 0.2);
-      }
-    } else if (type === 'correct') {
-      if (theme === 'corporate') {
-        [523, 659].forEach((f, i) => playNote(ctx, f, i*0.1, 0.12, 'sine', 0.15));
-      } else if (theme === 'party') {
-        [523, 659, 784, 1047].forEach((f, i) => playNote(ctx, f, i*0.06, 0.12, 'triangle', 0.2));
-      } else if (theme === 'tvshow') {
-        [440, 554, 659, 880].forEach((f, i) => playNote(ctx, f, i*0.09, 0.15, 'sawtooth', 0.15));
-      } else {
-        [440, 660].forEach((f, i) => playNote(ctx, f, i*0.12, 0.12, 'sine', 0.18));
-      }
-    } else if (type === 'wrong') {
-      if (theme === 'corporate') {
-        playNote(ctx, 220, 0, 0.2, 'sine', 0.15);
-      } else if (theme === 'party') {
-        [400, 300, 200].forEach((f, i) => playNote(ctx, f, i*0.08, 0.1, 'triangle', 0.2));
-      } else if (theme === 'tvshow') {
-        [300, 220, 165].forEach((f, i) => playNote(ctx, f, i*0.1, 0.14, 'sawtooth', 0.15));
-      } else {
-        playNote(ctx, 220, 0, 0.2, 'sine', 0.18);
-      }
-    } else if (type === 'timer_end') {
-      if (theme === 'party') {
-        [880, 660, 440, 330].forEach((f, i) => playNote(ctx, f, i*0.07, 0.1, 'triangle', 0.18));
-      } else if (theme === 'tvshow') {
-        playNote(ctx, 440, 0, 0.05, 'square', 0.2);
-        playNote(ctx, 440, 0.08, 0.05, 'square', 0.2);
-        playNote(ctx, 330, 0.16, 0.3, 'sawtooth', 0.15);
-      } else {
-        playNote(ctx, 330, 0, 0.25, 'sine', 0.15);
-      }
-    }
-    setTimeout(() => { try { ctx.close(); } catch(e) {} }, 1500);
-  } catch(e) {}
-}
+// (anciens sons thématiques Web Audio API supprimés — remplacés par MP3)
 
 document.addEventListener('DOMContentLoaded', () => {
   // Charger le thème sauvegardé
