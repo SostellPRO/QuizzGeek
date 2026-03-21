@@ -2578,10 +2578,6 @@ function hostAction(action, extra = {}) {
       alert$('host-alert', `<span style="color:#38ef7d;font-weight:700;">✅ Bonne réponse — +1 pt → ${correctPseudo}</span>`, 'success');
       setTimeout(() => alert$('host-alert', ''), 2000);
       playSound('correct');
-      // 2. Après 2s, débloquer pour la prochaine question
-      setTimeout(() => {
-        state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'unlock_players' }, () => {});
-      }, 2000);
     });
     return;
   }
