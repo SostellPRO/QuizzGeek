@@ -75,6 +75,7 @@ let _lastVoteRevealCursor = null;  // pour détecter un nouveau reveal de vote
 let _displayQuestionId    = null;  // pour éviter le clignotement de la question card au tick timer
 let _displayAnswerCount   = -1;   // pour détecter une nouvelle réponse et animer le compteur TV
 let _showAllTeams         = false; // afficher toutes les équipes dans le formulaire de connexion
+let _getReadyTimer        = null;  // timer du compte à rebours "tenez-vous prêts"
 
 // ── P6 : Sons d'interaction (Web Audio API) ───────────────────
 let _audioCtx = null;
@@ -103,70 +104,82 @@ function playSound(type) {
   try {
     const ctx = getAudioCtx();
     if (!ctx) return;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
     const now = ctx.currentTime;
+
+    const mk = (type, freq, gainVal, dur, dest) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.connect(g); g.connect(dest || ctx.destination);
+      o.type = type; o.frequency.setValueAtTime(freq, now);
+      g.gain.setValueAtTime(gainVal, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      o.start(now); o.stop(now + dur);
+      return { osc: o, gain: g };
+    };
+
     if (type === 'answer') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(660, now);
-      gain.gain.setValueAtTime(0.28, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-      osc.start(now); osc.stop(now + 0.22);
+      // Ping doux : marimba (do4 = 261Hz), chaleureux
+      const { osc, gain } = mk('triangle', 261, 0.22, 0.3);
+      osc.frequency.exponentialRampToValueAtTime(248, now + 0.3);
+      mk('sine', 523, 0.07, 0.2);
     } else if (type === 'buzzer') {
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(880, now);
-      gain.gain.setValueAtTime(0.22, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
-      osc.start(now); osc.stop(now + 0.28);
+      // Buzzer : "bong" grave percussif, pas criard
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(220, now);
+      o.frequency.exponentialRampToValueAtTime(110, now + 0.35);
+      g.gain.setValueAtTime(0.35, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      o.start(now); o.stop(now + 0.4);
+      // Click percussif initial
+      const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
+      o2.connect(g2); g2.connect(ctx.destination);
+      o2.type = 'square'; o2.frequency.setValueAtTime(180, now);
+      g2.gain.setValueAtTime(0.18, now); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      o2.start(now); o2.stop(now + 0.06);
     } else if (type === 'nav') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(400, now);
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
-      osc.start(now); osc.stop(now + 0.09);
+      mk('sine', 330, 0.1, 0.1);
     } else if (type === 'correct') {
-      // Son victoire: arpège montant
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc.connect(gain); osc2.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'sine'; osc2.type = 'sine';
-      osc.frequency.setValueAtTime(523, now);
-      osc.frequency.setValueAtTime(659, now + 0.12);
-      osc.frequency.setValueAtTime(784, now + 0.24);
-      gain.gain.setValueAtTime(0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-      osc.start(now); osc.stop(now + 0.5);
+      // Victoire : arpège Do-Mi-Sol (octave 4, chaleureux)
+      [[261, 0], [329, 0.1], [392, 0.2], [523, 0.32]].forEach(([f, t]) => {
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(f, now + t);
+        g.gain.setValueAtTime(0.22, now + t);
+        g.gain.exponentialRampToValueAtTime(0.001, now + t + 0.45);
+        o.start(now + t); o.stop(now + t + 0.45);
+      });
     } else if (type === 'wrong') {
-      // Son erreur: descente
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(400, now);
-      osc.frequency.exponentialRampToValueAtTime(150, now + 0.35);
-      gain.gain.setValueAtTime(0.25, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-      osc.start(now); osc.stop(now + 0.4);
+      // Descente grave : "boum-boum"
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(220, now);
+      o.frequency.exponentialRampToValueAtTime(110, now + 0.4);
+      g.gain.setValueAtTime(0.28, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      o.start(now); o.stop(now + 0.45);
     } else if (type === 'cashRegister') {
-      // Caisse enregistreuse : "ka-ching" — deux tones courts + cliquetis
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.connect(gain2); gain2.connect(ctx.destination);
-      // Premier ping (métal aigu)
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(1200, now);
-      osc.frequency.exponentialRampToValueAtTime(800, now + 0.06);
-      gain.gain.setValueAtTime(0.35, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-      osc.start(now); osc.stop(now + 0.12);
-      // Second ping (cloche de caisse)
-      osc2.type = 'triangle';
-      osc2.frequency.setValueAtTime(1800, now + 0.08);
-      osc2.frequency.exponentialRampToValueAtTime(1200, now + 0.18);
-      gain2.gain.setValueAtTime(0.0, now);
-      gain2.gain.setValueAtTime(0.28, now + 0.08);
-      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-      osc2.start(now + 0.08); osc2.stop(now + 0.35);
+      // Ka-ching chaleureux : deux notes métal graves
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(659, now);
+      o.frequency.exponentialRampToValueAtTime(523, now + 0.08);
+      g.gain.setValueAtTime(0.3, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      o.start(now); o.stop(now + 0.2);
+      // Deuxième note
+      const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
+      o2.connect(g2); g2.connect(ctx.destination);
+      o2.type = 'triangle';
+      o2.frequency.setValueAtTime(880, now + 0.1);
+      o2.frequency.exponentialRampToValueAtTime(784, now + 0.22);
+      g2.gain.setValueAtTime(0.0, now);
+      g2.gain.setValueAtTime(0.26, now + 0.1);
+      g2.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      o2.start(now + 0.1); o2.stop(now + 0.4);
     }
   } catch { /* noop si Web Audio non supporté */ }
 }
@@ -178,18 +191,19 @@ function playBuzzerCorrectSound() {
     const ctx = getAudioCtx();
     if (!ctx) return;
     const now = ctx.currentTime;
-    // Fanfare : accord majeur + notes montantes
-    const notes = [523, 659, 784, 1047]; // Do Mi Sol Do (octave)
+    // Fanfare chaleureuse : Do-Mi-Sol-Do une octave plus bas (261-329-392-523)
+    const notes = [261, 329, 392, 523];
     notes.forEach((freq, i) => {
       const osc = ctx.createOscillator();
       const g   = ctx.createGain();
       osc.connect(g); g.connect(ctx.destination);
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, now + i * 0.1);
-      g.gain.setValueAtTime(0.28, now + i * 0.1);
-      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.45);
-      osc.start(now + i * 0.1);
-      osc.stop(now + i * 0.1 + 0.45);
+      osc.frequency.setValueAtTime(freq, now + i * 0.12);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.98, now + i * 0.12 + 0.5);
+      g.gain.setValueAtTime(0.24, now + i * 0.12);
+      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.55);
+      osc.start(now + i * 0.12);
+      osc.stop(now + i * 0.12 + 0.55);
     });
   } catch { /* noop */ }
 }
@@ -730,6 +744,16 @@ function renderPlayerGame() {
         <h2 class="round-intro-title">${round?.title || 'Nouvelle manche'}</h2>
         <p class="muted round-intro-rules">${round?.shortRules || 'Préparez-vous !'}</p>
         <div class="waiting-dots" style="margin-top:24px;"><span></span><span></span><span></span></div>
+      </div>`;
+  } else if (phase === 'get_ready') {
+    const _rtIconsP = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', vote:'🗳️' };
+    const _rtP = gs?.currentRound?.type || 'qcm';
+    content += `
+      <div class="player-get-ready">
+        <div class="player-gr-icon">${_rtIconsP[_rtP] || '🎯'}</div>
+        <h2 class="player-gr-title">Tenez-vous prêts !</h2>
+        <p class="muted" style="margin-top:12px;font-size:.88rem;">Le maître de jeu va lancer la question…</p>
+        <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
       </div>`;
   } else if (phase === 'question' || phase === 'waiting') {
     // Burger : seul le joueur/équipe sélectionné joue, les autres attendent
@@ -1664,6 +1688,7 @@ function renderHostPilotageTab(gs, phase) {
     lobby:          '<span class="badge blue">🎪 Lobby</span>',
     round_intro:    '<span class="badge orange">📢 Présentation manche</span>',
     training_video: '<span class="badge orange">🏋️ Vidéo entraînement</span>',
+    get_ready:      '<span class="badge" style="background:rgba(56,239,125,.15);color:#38ef7d;border-color:rgba(56,239,125,.4);">🎯 Tenez-vous prêts</span>',
     question:       isPaused ? '<span class="badge red">⏸️ Pause</span>' : '<span class="badge orange">❓ Question</span>',
     waiting:        '<span class="badge orange">⏳ En attente</span>',
     answer_reveal:  '<span class="badge green">📋 Révélation</span>',
@@ -1705,6 +1730,31 @@ function renderHostPilotageTab(gs, phase) {
   // ═══════════════════════════════════════════════════════════
   // SECTION 1 : GESTION DE LA PARTIE EN COURS
   // ═══════════════════════════════════════════════════════════
+
+  // "Tenez-vous prêts" : l'admin contrôle manuellement le démarrage de la question
+  if (phase === 'get_ready') {
+    const _grQ    = gs?.currentQuestion;
+    const _grQNum = (gs?.currentQuestionIndex ?? 0) + 1;
+    const _grTotal = (gs?.currentRound?.questions || []).length;
+    out += `
+      <div class="host-section" style="border-left:3px solid #38ef7d;background:rgba(56,239,125,0.07);text-align:center;padding:18px 16px;">
+        <div class="host-section-label">🎯 TENEZ-VOUS PRÊTS</div>
+        <p style="font-size:.85rem;color:rgba(255,255,255,.7);margin-bottom:6px;">
+          Question <strong style="color:#fff;">${_grQNum}</strong>${_grTotal ? ` / ${_grTotal}` : ''}
+          ${_grQ?.content ? ` — <em style="color:rgba(255,255,255,.5);font-size:.8rem;">${_grQ.content.substring(0,60)}${_grQ.content.length>60?'…':''}</em>` : ''}
+        </p>
+        <p class="muted" style="font-size:.78rem;margin-bottom:14px;">
+          Les joueurs voient l'écran d'attente. Lancez la question quand tout le monde est prêt.
+        </p>
+        <div class="host-ctrl-row" style="justify-content:center;gap:10px;">
+          <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" style="font-size:1rem;padding:12px 28px;" onclick="hostAction('start_question')">
+            ▶ Lancer la question
+          </button>
+        </div>
+      </div>`;
+    return out;
+  }
+
   // Lobby : bouton principal de lancement
   if (phase === 'lobby') {
     out += `
@@ -2772,7 +2822,7 @@ function renderDisplay() {
     if (phase === 'lobby') return gs?.quizWelcomeMusicUrl ? resolveMedia(gs.quizWelcomeMusicUrl) : '';
     if (phase === 'end') return ceremonyMusic || '';
     if (phase === 'round_intro') return (r?.introMusicUrl || r?.musicUrl) ? resolveMedia(r.introMusicUrl || r.musicUrl) : '';
-    if (['question','waiting','manual_scoring','answer_reveal'].includes(phase))
+    if (['get_ready','question','waiting','manual_scoring','answer_reveal'].includes(phase))
       return (r?.gameMusicUrl || r?.musicUrl) ? resolveMedia(r.gameMusicUrl || r.musicUrl) : '';
     if (['round_end','results'].includes(phase)) return r?.endMusicUrl ? resolveMedia(r.endMusicUrl) : '';
     return '';
@@ -2864,6 +2914,20 @@ function renderDisplay() {
           data-ctrl-at="${tvCtrl?.at || ''}"
           style="width:100%;max-height:70vh;border-radius:12px;background:#000;"
           playsinline></video>` : '<p class="muted" style="text-align:center;padding:40px;">Aucune vidéo configurée</p>'}
+      </div>`;
+  } else if (phase === 'get_ready') {
+    const _grRound = gs?.currentRound;
+    const _grIcons = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', vote:'🗳️' };
+    const _grIcon  = _grIcons[_grRound?.type] || '🎯';
+    const _grQNum  = (gs?.currentQuestionIndex ?? 0) + 1;
+    content += `
+      <div class="get-ready-screen">
+        <div class="get-ready-content">
+          <div class="get-ready-icon">${_grIcon}</div>
+          <div class="get-ready-label">Tenez-vous prêts !</div>
+          <div class="get-ready-sub">Question ${_grQNum}</div>
+          <div class="waiting-dots" style="margin-top:28px;"><span></span><span></span><span></span></div>
+        </div>
       </div>`;
   } else if (phase === 'question' || phase === 'waiting') {
     content += renderDisplayQuestion(gs);
@@ -3056,25 +3120,55 @@ function playBellSound() {
     const ctx = getAudioCtx();
     if (!ctx) return;
     const now = ctx.currentTime;
-    // Son de cloche : triangle à fréquence de cloche classique + décroissance lente
+    // Cloche douce : triangle 523 Hz (Do5) — chaleureux, pas criard
     const osc = ctx.createOscillator();
     const g   = ctx.createGain();
     osc.connect(g); g.connect(ctx.destination);
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(880, now);
-    osc.frequency.exponentialRampToValueAtTime(660, now + 0.08);
-    g.gain.setValueAtTime(0.35, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
-    osc.start(now); osc.stop(now + 0.55);
-    // Harmonique douce
+    osc.frequency.setValueAtTime(523, now);
+    osc.frequency.exponentialRampToValueAtTime(494, now + 0.1);
+    g.gain.setValueAtTime(0.28, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    osc.start(now); osc.stop(now + 0.5);
+    // Harmonique douce à l'octave
     const osc2 = ctx.createOscillator();
     const g2   = ctx.createGain();
     osc2.connect(g2); g2.connect(ctx.destination);
     osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(1760, now);
-    g2.gain.setValueAtTime(0.12, now);
-    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-    osc2.start(now); osc2.stop(now + 0.4);
+    osc2.frequency.setValueAtTime(1046, now);
+    g2.gain.setValueAtTime(0.08, now);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc2.start(now); osc2.stop(now + 0.35);
+  } catch { /* noop */ }
+}
+
+// ── Bip du compte à rebours (son chaleureux, pas aigu) ───────────────────────
+function playCountdownBeep(isLast) {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    // Bip doux : fréquence basse (do4 = 261 Hz pour bip normal, mi5 = 659 Hz pour le dernier)
+    const freq = isLast ? 659 : 330;
+    const dur  = isLast ? 0.55 : 0.3;
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.97, now + dur);
+    g.gain.setValueAtTime(0.22, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    osc.start(now); osc.stop(now + dur);
+    // Harmonique légère
+    const osc2 = ctx.createOscillator();
+    const g2   = ctx.createGain();
+    osc2.connect(g2); g2.connect(ctx.destination);
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(freq * 2, now);
+    g2.gain.setValueAtTime(0.07, now);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + dur * 0.7);
+    osc2.start(now); osc2.stop(now + dur * 0.7);
   } catch { /* noop */ }
 }
 

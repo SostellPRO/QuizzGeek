@@ -475,7 +475,39 @@ export function setupSocketHandlers(io) {
             break;
           case "next_question": {
             res = nextQuestion(session);
-            // Pas de timer automatique — le maître de jeu le lance manuellement
+            // Pour QCM, Buzzer, Vrai/Faux, Vote : passer en phase "get_ready" (joueurs verrouillés)
+            // L'admin choisit quand lancer la question via l'action "start_question"
+            if (res.ok && session.gameState?.status === 'question') {
+              const _rt = session.gameState?.currentRound?.type;
+              const _needsGetReady = ['qcm', 'rapidite', 'speed', 'true_false', 'vote'].includes(_rt);
+              if (_needsGetReady) {
+                session.gameState.status = 'get_ready';
+                session.gameState.phaseMeta = {
+                  ...session.gameState.phaseMeta,
+                  playerScreenLocked: true,
+                  allowAnswer: false,
+                  getReadyAt: new Date().toISOString(),
+                };
+              }
+            }
+            break;
+          }
+
+          case "start_question": {
+            // Passage manuel de get_ready → question (déclenché par l'admin)
+            if (session.gameState?.status !== 'get_ready') {
+              res = { ok: false, error: 'La partie n\'est pas en phase d\'attente' };
+              break;
+            }
+            session.gameState.status = 'question';
+            session.gameState.phaseMeta = {
+              ...session.gameState.phaseMeta,
+              playerScreenLocked: false,
+              allowAnswer: true,
+              getReadyAt: null,
+            };
+            session.gameState.updatedAt = new Date().toISOString();
+            res = { ok: true };
             break;
           }
 

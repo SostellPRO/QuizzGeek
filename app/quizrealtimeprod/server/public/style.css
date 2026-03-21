@@ -1839,3 +1839,49 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
 }
 .music-mute-btn:hover { transform: scale(1.12); background: rgba(50, 40, 90, 0.9); }
 .music-mute-btn.muted { background: rgba(235,51,73,0.7); border-color: rgba(235,51,73,0.5); }
+
+/* ═══════════════════════════════════════════════════════════
+   GET READY — Écran "Tenez-vous prêts" (TV + Joueur)
+   ═══════════════════════════════════════════════════════════ */
+.get-ready-screen {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 80vh; text-align: center;
+  background: radial-gradient(ellipse at 50% 40%, rgba(56,239,125,0.08) 0%, transparent 70%);
+  animation: get-ready-screen-in 0.4s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+}
+@keyframes get-ready-screen-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.get-ready-content { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.get-ready-icon {
+  font-size: clamp(3rem, 8vw, 5rem);
+  animation: end-bounce 1s ease-in-out infinite;
+  margin-bottom: 8px;
+}
+.get-ready-label {
+  font-size: clamp(1.6rem, 4vw, 3rem);
+  font-weight: 900; letter-spacing: 0.03em;
+  color: #fff; text-shadow: 0 0 30px rgba(255,255,255,0.3);
+  animation: get-ready-label-in 0.5s cubic-bezier(0.34, 1.3, 0.64, 1) 0.15s both;
+}
+@keyframes get-ready-label-in {
+  from { transform: translateY(-16px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.get-ready-sub {
+  font-size: clamp(1rem, 2.5vw, 1.6rem);
+  color: rgba(56,239,125,0.8); font-weight: 700; letter-spacing: 0.04em;
+  animation: get-ready-label-in 0.5s cubic-bezier(0.34, 1.3, 0.64, 1) 0.3s both;
+}
+
+/* ── Version joueur (écran mobile) ── */
+.player-get-ready {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 60vh; text-align: center; gap: 10px; padding: 30px 20px;
+  animation: get-ready-screen-in 0.4s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+}
+.player-gr-icon { font-size: 3.5rem; margin-bottom: 4px; animation: end-bounce 1s ease-in-out infinite; }
+.player-gr-title {
+  font-size: 1.6rem; font-weight: 900; color: #fff; margin: 0;
+}
