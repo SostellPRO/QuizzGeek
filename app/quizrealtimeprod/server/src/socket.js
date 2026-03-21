@@ -146,6 +146,8 @@ function emitSessionState(io, session) {
     session.gameState.quizWelcomeImageUrl = session.quiz.welcomeImageUrl || '';
     session.gameState.quizWelcomeMusicUrl = session.quiz.welcomeMusicUrl || '';
     session.gameState.quizTitle = session.quiz.title || session.gameState.quizTitle || 'Quiz Live';
+    session.gameState.ceremonyBackgroundUrl = session.quiz.closingCeremony?.backgroundUrl || '';
+    session.gameState.ceremonyMusicUrl = session.quiz.closingCeremony?.musicUrl || '';
   }
   const { leaderboardPlayers, leaderboardTeams } = buildLeaderboards(session);
   io.to(sessionRoom(session.sessionCode)).emit("game:state", {

@@ -68,10 +68,12 @@ function randCode() { return Math.floor(1000 + Math.random() * 9000).toString();
 
 // ── Tracking état local ───────────────────────────────────────
 let _lastBuzzerResultAt   = null;
+let _lastBuzzerFirstId    = null;  // pour détecter le premier buzzer d'une question
 let _currentMusicUrl      = null;
 let _buzzerCooldownTimer  = null;  // setInterval pour le compte à rebours du cooldown
 let _lastVoteRevealCursor = null;  // pour détecter un nouveau reveal de vote
 let _displayQuestionId    = null;  // pour éviter le clignotement de la question card au tick timer
+let _displayAnswerCount   = -1;   // pour détecter une nouvelle réponse et animer le compteur TV
 let _showAllTeams         = false; // afficher toutes les équipes dans le formulaire de connexion
 
 // ── P6 : Sons d'interaction (Web Audio API) ───────────────────
@@ -299,6 +301,17 @@ function initSocket() {
     const serverCeremonyView = state.gameState?.phaseMeta?.ceremonyView;
     if (serverCeremonyView && serverCeremonyView !== state.admin.ceremonyView) {
       state.admin.ceremonyView = serverCeremonyView;
+    }
+
+    // Détecter qu'un joueur vient de buzzer (côté display TV)
+    const buzzerFirstId = state.gameState?.buzzerState?.firstPlayerId;
+    if (buzzerFirstId && buzzerFirstId !== _lastBuzzerFirstId) {
+      _lastBuzzerFirstId = buzzerFirstId;
+      if (state.currentPage === 'display') {
+        playSound('buzzer');
+      }
+    } else if (!buzzerFirstId) {
+      _lastBuzzerFirstId = null; // réinitialiser entre les rounds
     }
 
     // Détecter changement de résultat buzzer pour jouer un son (côté display)
@@ -1692,6 +1705,20 @@ function renderHostPilotageTab(gs, phase) {
   // ═══════════════════════════════════════════════════════════
   // SECTION 1 : GESTION DE LA PARTIE EN COURS
   // ═══════════════════════════════════════════════════════════
+  // Lobby : bouton principal de lancement
+  if (phase === 'lobby') {
+    out += `
+      <div class="host-section host-section-primary" style="text-align:center;padding:20px 16px;">
+        <div class="host-section-label">🎪 LOBBY</div>
+        <p class="muted" style="margin-bottom:14px;font-size:.85rem;">
+          ${state.players.filter(p=>p.connected).length} joueur(s) connecté(s) — Quiz : <strong>${gs?.quizTitle || '—'}</strong>
+        </p>
+        <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" style="font-size:1.1rem;padding:14px 36px;" onclick="hostAction('start_quiz')">
+          ▶️ Lancer la partie
+        </button>
+      </div>`;
+  }
+
   if (['question','waiting','answer_reveal','manual_scoring','round_intro','training_video','round_end'].includes(phase)) {
     out += `<div class="host-section host-section-primary">
       <div class="host-section-label">⚡ PARTIE EN COURS</div>
@@ -1732,10 +1759,12 @@ function renderHostPilotageTab(gs, phase) {
   // Bouton "Question suivante" en surbrillance pulsée quand on est en question active
   const _burgerScored   = phase === 'manual_scoring' && !!(gs?.burgerFinalScore);
   const _voteRevealed   = gs?.phaseMeta?.answerMode === 'vote_revealed';
+  const _videoScored    = isVideoChallenge && gs?.videoState?.phase === 'scored';
   const nextQPulse = (
     ['round_intro','training_video','answer_reveal'].includes(phase) ||
     _burgerScored ||
-    _voteRevealed
+    _voteRevealed ||
+    _videoScored
   ) ? 'hbtn-pulse' : '';
   out += `<div class="host-section host-section-nav">
     <div class="host-section-label">🧭 NAVIGATION</div>
@@ -1782,10 +1811,8 @@ function renderHostPilotageTab(gs, phase) {
         const _vConnCount = _vConnected.length;
         const _vAnswers = gs?.answers?.[gs?.currentQuestion?.id] || {};
         const _vPropCount = Object.values(_vAnswers).filter(a => a?.answer?.trim()).length;
-        const _vAllProposed = _vPropCount >= _vConnCount && _vConnCount > 0;
-        return _vAllProposed
-          ? `<button class="hbtn hbtn-primary hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer le vote</button>`
-          : `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,.05);border-radius:8px;">
+        // Afficher uniquement la barre de progression (le bouton "Lancer les votes" est dans la section VOTE)
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,.05);border-radius:8px;">
               <span style="font-size:.82rem;color:rgba(255,255,255,.55);">⏳ Propositions reçues :</span>
               <strong style="color:#f7971e;font-size:.9rem;">${_vPropCount}/${_vConnCount}</strong>
               <div style="flex:1;height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;">
@@ -1884,7 +1911,7 @@ function renderHostPilotageTab(gs, phase) {
             </div>
           </div>
           <div class="host-ctrl-row">
-            <button class="hbtn hbtn-success hbtn-pulse" style="flex:1;" onclick="hostAction('buzzer_mark_correct')">✅ Bonne (+1)</button>
+            <button class="hbtn hbtn-success hbtn-pulse" style="flex:1;" onclick="hostAction('award_buzzer_correct')">✅ Bonne (+1)</button>
             <button class="hbtn hbtn-danger" style="flex:1;" onclick="hostAction('buzzer_mark_wrong')">❌ Mauvaise</button>
           </div>
           <div class="host-ctrl-row" style="margin-top:6px;">
@@ -1956,9 +1983,6 @@ function renderHostPilotageTab(gs, phase) {
           </div>` : '<p class="muted" style="margin-bottom:10px;font-size:.8rem;">Appuyez sur le bouton pour afficher la première proposition.</p>'}
           <div class="host-ctrl-row">
             ${cursor < total ? `<button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('vote_proposal_reveal_next')">▶ Proposition suivante (${total - cursor} restante${total - cursor > 1 ? 's' : ''})</button>` : `<p class="muted" style="font-size:.8rem;">✅ Toutes les propositions ont été affichées</p>`}
-          </div>
-          <div class="host-ctrl-row" style="margin-top:8px;">
-            <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer le vote</button>
           </div>
         </div>`;
     } else if (answerMode === 'vote_voting') {
@@ -2054,7 +2078,7 @@ function renderHostPilotageTab(gs, phase) {
           <input type="number" min="0" max="10" id="burger-score-input" placeholder="0-10"
             style="width:80px;text-align:center;font-size:1.5rem;font-weight:700;padding:8px;border-radius:10px;
             background:rgba(255,255,255,.1);border:2px solid rgba(247,151,30,.6);color:#fff;">
-          <button class="hbtn hbtn-success hbtn-wide" onclick="submitBurgerScore()">✅ Valider le score</button>
+          <button class="hbtn hbtn-success hbtn-wide ${burgerFinalScore ? '' : 'hbtn-pulse'}" onclick="submitBurgerScore()">✅ Valider le score</button>
         </div>
         ${burgerFinalScore ? `<p style="margin-top:8px;font-size:.85rem;color:#38ef7d;">✓ Score de ${burgerFinalScore.score}/10 attribué à <strong>${burgerFinalScore.pseudo}</strong>${selectedTeamId ? ' (équipe — chaque membre a reçu les points)' : ''}</p>` : ''}
       </div>`;
@@ -2063,7 +2087,7 @@ function renderHostPilotageTab(gs, phase) {
       <div class="host-section">
         <div class="host-section-label">🍔 BURGER — PILOTAGE</div>
         ${!isSelected ? `
-          <div style="background:rgba(255,180,0,.15);border:2px solid rgba(255,180,0,.7);border-radius:10px;padding:10px 14px;margin-bottom:10px;text-align:center;">
+          <div style="background:rgba(255,180,0,.15);border:2px solid rgba(255,180,0,.7);border-radius:10px;padding:10px 14px;margin-bottom:10px;text-align:center;animation:pulse-scale 1.4s ease-in-out infinite;">
             <span style="font-size:1.4rem;">⚠️</span>
             <span style="font-weight:700;color:#fbbf24;font-size:.92rem;margin-left:6px;">Sélectionnez un participant pour commencer !</span>
           </div>
@@ -2131,7 +2155,7 @@ function renderHostPilotageTab(gs, phase) {
           <input type="number" id="video-score-input" min="0" max="10" step="1" value="5"
             style="width:70px;text-align:center;font-size:1.4rem;font-weight:700;padding:8px;">
           <span class="muted" style="font-size:.85rem;">/10</span>
-          <button class="hbtn hbtn-success" style="flex:1;" onclick="submitVideoScore()">✅ Valider le score</button>
+          <button class="hbtn hbtn-success hbtn-pulse" style="flex:1;" onclick="submitVideoScore()">✅ Valider le score</button>
         </div>
         ${vs?.score != null ? `<p style="margin-top:8px;font-size:.85rem;color:#38ef7d;text-align:center;">✓ Score de ${vs.score}/10 attribué à <strong>${vPseudo}</strong></p>` : ''}
       </div>`;
@@ -2144,7 +2168,7 @@ function renderHostPilotageTab(gs, phase) {
     if (vPhase === 'select') {
       const _vNoSel = !vs?.selectedPlayerId && !vs?.selectedTeamId;
       if (_vNoSel) {
-        out += `<div style="background:rgba(255,180,0,.15);border:2px solid rgba(255,180,0,.7);border-radius:10px;padding:10px 14px;margin-bottom:10px;text-align:center;">
+        out += `<div style="background:rgba(255,180,0,.15);border:2px solid rgba(255,180,0,.7);border-radius:10px;padding:10px 14px;margin-bottom:10px;text-align:center;animation:pulse-scale 1.4s ease-in-out infinite;">
           <span style="font-size:1.4rem;">⚠️</span>
           <span style="font-weight:700;color:#fbbf24;font-size:.92rem;margin-left:6px;">Sélectionnez un participant pour commencer !</span>
         </div>`;
@@ -2227,8 +2251,8 @@ function renderHostPilotageTab(gs, phase) {
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
             <div class="host-section-label" style="margin:0;">🏅 POINTS</div>
             <div class="row" style="gap:5px;">
-              <button class="hbtn hbtn-success hbtn-sm" onclick="hostAction('award_all',{points:1})">+1 Tous</button>
-              <button class="hbtn hbtn-danger hbtn-sm" onclick="hostAction('award_all',{points:-1})">-1 Tous</button>
+              <button class="hbtn hbtn-success hbtn-sm" onclick="awardAll(1)">+1 Tous</button>
+              <button class="hbtn hbtn-danger hbtn-sm" onclick="awardAll(-1)">-1 Tous</button>
             </div>
           </div>
           <div class="player-point-grid">
@@ -2252,8 +2276,8 @@ function renderHostPilotageTab(gs, phase) {
                     <div style="font-size:.82rem;font-weight:600;margin-bottom:2px;">${t.name}</div>
                     <div style="font-size:.72rem;color:#f59e0b;margin-bottom:6px;">${t.scoreTotal??0} pts</div>
                     <div class="pt-btns">
-                      <button class="pt-btn pt-btn-minus" onclick="hostAction('award_team',{teamId:'${t.id}',points:-1})">-1</button>
-                      <button class="pt-btn pt-btn-plus" onclick="hostAction('award_team',{teamId:'${t.id}',points:1})">+1</button>
+                      <button class="pt-btn pt-btn-minus" onclick="awardTeam('${t.id}','${t.name?.replace(/'/g,"\\'") || t.id}',-1)">-1</button>
+                      <button class="pt-btn pt-btn-plus" onclick="awardTeam('${t.id}','${t.name?.replace(/'/g,"\\'") || t.id}',1)">+1</button>
                     </div>
                   </div>`).join('')}
               </div>
@@ -2535,18 +2559,24 @@ function hostAction(action, extra = {}) {
   // Actions spéciales rapidité buzzer
   if (action === 'buzzer_mark_wrong') {
     // Marquer mauvais + passer au joueur suivant immédiatement (géré côté serveur)
+    const wrongPseudo = gs?.buzzerState?.firstPseudo || '?';
     state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'buzzer_mark_wrong' }, (res) => {
       if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
+      alert$('host-alert', `<span style="color:#eb3349;font-weight:700;">❌ Mauvaise réponse — ${wrongPseudo}</span>`, 'error');
+      setTimeout(() => alert$('host-alert', ''), 2000);
       playSound('wrong');
     });
     return;
   }
   if (action === 'award_buzzer_correct') {
     const buzzerId = gs?.buzzerState?.firstPlayerId;
+    const correctPseudo = gs?.buzzerState?.firstPseudo || '?';
     if (!buzzerId) { alert$('host-alert', 'Aucun joueur n\'a buzzé', 'error'); return; }
     // 1. Marquer comme correct (attribue les points + feedback visuel sur display)
     state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'buzzer_mark_correct' }, (res) => {
       if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
+      alert$('host-alert', `<span style="color:#38ef7d;font-weight:700;">✅ Bonne réponse — +1 pt → ${correctPseudo}</span>`, 'success');
+      setTimeout(() => alert$('host-alert', ''), 2000);
       playSound('correct');
       // 2. Après 2s, débloquer pour la prochaine question
       setTimeout(() => {
@@ -2575,7 +2605,50 @@ function startTimer() {
 }
 
 function awardPoints(playerId, points) {
-  hostAction('award_manual_points', { playerId, points });
+  const player = state.players.find(p => (p.playerId || p.id) === playerId);
+  const pseudo = player?.pseudo || playerId;
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  if (!sc || !hk) return;
+  state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'award_manual_points', playerId, points }, (res) => {
+    if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
+    const msg = points > 0
+      ? `<span style="color:#38ef7d;font-weight:700;">+${points} pt(s) attribué(s) à ${pseudo}</span>`
+      : `<span style="color:#eb3349;font-weight:700;">${points} pt(s) retiré(s) à ${pseudo}</span>`;
+    alert$('host-alert', msg, points > 0 ? 'success' : 'error');
+    setTimeout(() => alert$('host-alert', ''), 2200);
+    playSound(points > 0 ? 'cashRegister' : 'wrong');
+  });
+}
+
+function awardAll(points) {
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  if (!sc || !hk) return;
+  state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'award_all', points }, (res) => {
+    if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
+    const msg = points > 0
+      ? `<span style="color:#38ef7d;font-weight:700;">+${points} pt(s) attribué(s) à tous les joueurs</span>`
+      : `<span style="color:#eb3349;font-weight:700;">${points} pt(s) retiré(s) à tous les joueurs</span>`;
+    alert$('host-alert', msg, points > 0 ? 'success' : 'error');
+    setTimeout(() => alert$('host-alert', ''), 2200);
+    playSound(points > 0 ? 'cashRegister' : 'wrong');
+  });
+}
+
+function awardTeam(teamId, teamName, points) {
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  if (!sc || !hk) return;
+  state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'award_team', teamId, points }, (res) => {
+    if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
+    const msg = points > 0
+      ? `<span style="color:#38ef7d;font-weight:700;">+${points} pt(s) attribué(s) à l'équipe ${teamName}</span>`
+      : `<span style="color:#eb3349;font-weight:700;">${points} pt(s) retiré(s) à l'équipe ${teamName}</span>`;
+    alert$('host-alert', msg, points > 0 ? 'success' : 'error');
+    setTimeout(() => alert$('host-alert', ''), 2200);
+    playSound(points > 0 ? 'cashRegister' : 'wrong');
+  });
 }
 
 function submitVideoScore() {
@@ -2585,8 +2658,16 @@ function submitVideoScore() {
     alert$('host-alert', 'Entrez un score entre 0 et 10', 'error');
     return;
   }
-  hostAction('video_set_score', { score: val });
-  playSound('correct');
+  const vPseudo = state.gameState?.videoState?.selectedPseudo || '?';
+  const sc = state.host.sessionCode;
+  const hk = state.host.hostKey;
+  if (!sc || !hk) return;
+  state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'video_set_score', score: val }, (res) => {
+    if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
+    alert$('host-alert', `<span style="color:#38ef7d;font-weight:700;">Score ${val}/10 attribué à ${vPseudo}</span>`, 'success');
+    setTimeout(() => alert$('host-alert', ''), 2200);
+    playSound('correct');
+  });
 }
 window.submitVideoScore = submitVideoScore;
 
@@ -2600,8 +2681,11 @@ function submitBurgerScore() {
   const sc = state.host.sessionCode;
   const hk = state.host.hostKey;
   if (!sc || !hk) { alert$('host-alert', 'Session non active', 'error'); return; }
+  const bPseudo = state.gameState?.burgerSelectedPseudo || '?';
   state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action: 'burger_set_score', score: val }, (res) => {
     if (!res?.ok) { alert$('host-alert', res?.error || 'Erreur', 'error'); return; }
+    alert$('host-alert', `<span style="color:#38ef7d;font-weight:700;">Score ${val}/10 attribué à ${bPseudo}</span>`, 'success');
+    setTimeout(() => alert$('host-alert', ''), 2200);
     playSound('correct');
   });
 }
@@ -2682,10 +2766,15 @@ function renderDisplay() {
   // Fond d'écran de la manche courante (utilisé pour les phases non-lobby)
   const roundBg = gs?.currentRound?.backgroundUrl ? resolveMedia(gs.currentRound.backgroundUrl) : '';
 
+  // Fond et musique de la cérémonie de clôture
+  const ceremonyBg    = gs?.ceremonyBackgroundUrl ? resolveMedia(gs.ceremonyBackgroundUrl) : '';
+  const ceremonyMusic = gs?.ceremonyMusicUrl ? resolveMedia(gs.ceremonyMusicUrl) : '';
+
   // Musique sélectionnée selon la phase
   const _phaseMusic = (() => {
     const r = gs?.currentRound;
     if (phase === 'lobby') return gs?.quizWelcomeMusicUrl ? resolveMedia(gs.quizWelcomeMusicUrl) : '';
+    if (phase === 'end') return ceremonyMusic || '';
     if (phase === 'round_intro') return (r?.introMusicUrl || r?.musicUrl) ? resolveMedia(r.introMusicUrl || r.musicUrl) : '';
     if (['question','waiting','manual_scoring','answer_reveal'].includes(phase))
       return (r?.gameMusicUrl || r?.musicUrl) ? resolveMedia(r.gameMusicUrl || r.musicUrl) : '';
@@ -2696,10 +2785,12 @@ function renderDisplay() {
   // Musique gérée en dehors du re-render pour éviter le redémarrage à chaque mise à jour
   updateRoundMusic(_phaseMusic);
 
-  const bgStyle = roundBg
-    ? `background-image:url('${roundBg}');background-size:cover;background-position:center;background-repeat:no-repeat;`
+  // Background : cérémonie en priorité si phase 'end'
+  const activeBg = (phase === 'end' && ceremonyBg) ? ceremonyBg : roundBg;
+  const bgStyle = activeBg
+    ? `background-image:url('${activeBg}');background-size:cover;background-position:center;background-repeat:no-repeat;`
     : '';
-  const bgOverlay = roundBg
+  const bgOverlay = activeBg
     ? `<div class="display-bg-overlay"></div>`
     : '';
 
@@ -2908,6 +2999,11 @@ function renderDisplay() {
   // Animer la question card uniquement quand la question change (évite le blink au tick timer)
   applyQuestionCardAnimation();
 
+  // Animer le compteur de réponses + son de cloche quand une nouvelle réponse arrive
+  const _currentQ = gs?.currentQuestion;
+  const _answered = _currentQ?.id ? Object.keys(gs?.answers?.[_currentQ.id] || {}).length : 0;
+  applyAnswerCountAnimation(_answered);
+
   // Restaurer les positions AVANT d'appliquer le contrôle (pause au bon endroit)
   // Exception : si l'action est 'rewind', ne pas restaurer (sinon la restauration écrase le retour à 0)
   Object.entries(_savedVidTimes).forEach(([id, saved]) => {
@@ -2933,12 +3029,57 @@ function applyQuestionCardAnimation() {
   const qid = card.dataset.qid || '';
   if (qid !== _displayQuestionId) {
     _displayQuestionId = qid;
+    _displayAnswerCount = -1; // réinitialiser le compteur pour la nouvelle question
     card.classList.remove('qc-animate');
     // forcer reflow pour que l'animation reparte
     void card.offsetWidth;
     card.classList.add('qc-animate');
     card.addEventListener('animationend', () => card.classList.remove('qc-animate'), { once: true });
   }
+}
+
+// ── Animation compteur réponses TV + son cloche ────────────────────────────────
+function applyAnswerCountAnimation(answered) {
+  if (answered == null || answered < 0) return;
+  if (answered > _displayAnswerCount && _displayAnswerCount >= 0) {
+    // Nouvelle réponse reçue : animer le compteur et jouer un son de cloche
+    playBellSound();
+    const el = document.getElementById('tv-answer-count');
+    if (el) {
+      el.classList.remove('tv-answer-bump');
+      void el.offsetWidth; // reflow
+      el.classList.add('tv-answer-bump');
+      el.addEventListener('animationend', () => el.classList.remove('tv-answer-bump'), { once: true });
+    }
+  }
+  _displayAnswerCount = answered;
+}
+
+function playBellSound() {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    // Son de cloche : triangle à fréquence de cloche classique + décroissance lente
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.exponentialRampToValueAtTime(660, now + 0.08);
+    g.gain.setValueAtTime(0.35, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+    osc.start(now); osc.stop(now + 0.55);
+    // Harmonique douce
+    const osc2 = ctx.createOscillator();
+    const g2   = ctx.createGain();
+    osc2.connect(g2); g2.connect(ctx.destination);
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(1760, now);
+    g2.gain.setValueAtTime(0.12, now);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc2.start(now); osc2.stop(now + 0.4);
+  } catch { /* noop */ }
 }
 
 // ── Contrôle effectif de la vidéo TV après rendu du DOM ──────────────────────
@@ -3205,7 +3346,7 @@ function renderDisplayQuestion(gs) {
     <div class="display-question-card" data-qid="${q.id || ''}">
       <div class="display-question-text">${q.content || ''}</div>
       ${pm.answerMode !== 'vote_proposal_reveal' ? media : ''}
-      ${showCounter ? `<p class="muted" style="margin-top:8px;font-size:.9rem;">${answered}/${connected} réponse(s)</p>` : ''}
+      ${showCounter ? `<p id="tv-answer-count" class="muted" style="margin-top:8px;font-size:.9rem;">${answered}/${connected} réponse(s)</p>` : ''}
     </div>
     ${opts}
     ${votes}
@@ -3640,7 +3781,7 @@ async function doLaunchGame(quizId, isTestMode) {
 }
 
 function emptyQuiz() {
-  return { id: '', title: 'Nouveau quiz', welcomeImageUrl: '', welcomeMusicUrl: '', rounds: [], closingCeremony: { rankComments: {} } };
+  return { id: '', title: 'Nouveau quiz', welcomeImageUrl: '', welcomeMusicUrl: '', rounds: [], closingCeremony: { rankComments: {}, backgroundUrl: '', musicUrl: '' } };
 }
 
 // ── Cérémonie de clôture : helpers ──────────────────────────────────────────
@@ -3691,6 +3832,38 @@ function removeRankComment(rank) {
   const listEl = document.getElementById('ceremony-rank-list');
   if (listEl) listEl.innerHTML = renderCeremonyRankList(state.admin.editingQuiz);
 }
+
+// ── Upload/suppression médias cérémonie de clôture ──────────────────────────
+async function uploadCeremonyMedia(field, accept) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = accept;
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch(`${API}/api/uploads/media`, { method: 'POST', body: fd });
+      const d   = await res.json();
+      if (!d.ok) { alert$('admin-alert', d.error || 'Erreur upload', 'error'); return; }
+      if (!state.admin.editingQuiz.closingCeremony) state.admin.editingQuiz.closingCeremony = { rankComments: {} };
+      state.admin.editingQuiz.closingCeremony[field] = d.file.mediaUrl;
+      alert$('admin-alert', '✅ Fichier uploadé !', 'success');
+      renderQuizEditor();
+    } catch { alert$('admin-alert', 'Erreur réseau upload', 'error'); }
+  };
+  input.click();
+}
+window.uploadCeremonyMedia = uploadCeremonyMedia;
+
+function clearCeremonyMedia(field) {
+  if (state.admin.editingQuiz?.closingCeremony) {
+    state.admin.editingQuiz.closingCeremony[field] = '';
+    renderQuizEditor();
+  }
+}
+window.clearCeremonyMedia = clearCeremonyMedia;
 
 function emptyRound(idx = 0) {
   return {
@@ -3846,8 +4019,32 @@ function renderQuizEditor() {
         <div class="card" style="border-color:rgba(255,215,0,.25);background:rgba(255,215,0,.04);margin-top:18px;">
           <h3 style="margin-bottom:6px;">🏆 Cérémonie de clôture</h3>
           <p class="muted" style="font-size:.8rem;margin-bottom:14px;">
-            Personnalisez le commentaire affiché pour chaque place. Laissez vide pour utiliser le texte par défaut.
+            Personnalisez l'ambiance et les commentaires de la cérémonie finale.
           </p>
+
+          <!-- Fond d'écran et musique -->
+          <div class="grid2" style="gap:12px;margin-bottom:14px;">
+            <div>
+              <label style="font-size:.8rem;">Image de fond cérémonie</label>
+              <div class="row" style="gap:6px;margin-top:4px;">
+                <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="uploadCeremonyMedia('backgroundUrl','image/*')">🖼️ Choisir image</button>
+                ${q.closingCeremony?.backgroundUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearCeremonyMedia('backgroundUrl')">✕</button>` : ''}
+              </div>
+              ${q.closingCeremony?.backgroundUrl ? `<img src="${resolveMedia(q.closingCeremony.backgroundUrl)}" style="max-height:80px;border-radius:8px;opacity:.75;margin-top:6px;">` : ''}
+            </div>
+            <div>
+              <label style="font-size:.8rem;">Musique de cérémonie</label>
+              <div class="row" style="gap:6px;margin-top:4px;">
+                <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="uploadCeremonyMedia('musicUrl','audio/*')">🎵 Choisir musique</button>
+                ${q.closingCeremony?.musicUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearCeremonyMedia('musicUrl')">✕</button>` : ''}
+              </div>
+              ${q.closingCeremony?.musicUrl ? `<audio controls src="${resolveMedia(q.closingCeremony.musicUrl)}" style="height:32px;width:100%;margin-top:6px;"></audio>` : ''}
+            </div>
+          </div>
+
+          <!-- Commentaires par rang -->
+          <label style="font-size:.8rem;display:block;margin-bottom:8px;">Commentaires par rang</label>
+          <p class="muted" style="font-size:.75rem;margin-bottom:10px;">Laissez vide pour utiliser le texte par défaut.</p>
           <div id="ceremony-rank-list">
             ${renderCeremonyRankList(q)}
           </div>
