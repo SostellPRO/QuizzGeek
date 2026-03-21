@@ -77,14 +77,7 @@ let _displayAnswerCount   = -1;   // pour détecter une nouvelle réponse et ani
 let _showAllTeams         = false; // afficher toutes les équipes dans le formulaire de connexion
 let _getReadyTimer        = null;  // timer du compte à rebours "tenez-vous prêts"
 
-// ── P6 : Sons d'interaction (Web Audio API) ───────────────────
-let _audioCtx = null;
-function getAudioCtx() {
-  if (!_audioCtx) {
-    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
-  }
-  return _audioCtx;
-}
+// ── P6 : Sons d'interaction (fichiers MP3) ────────────────────
 // ── Vibration haptique (mobile) — couplée à playSound ──────────
 function vibrate(pattern) {
   try {
@@ -92,119 +85,42 @@ function vibrate(pattern) {
   } catch { /* noop si non supporté */ }
 }
 
+// Table des fichiers MP3 et leurs volumes (0–1)
+const _SND = {
+  answer:       { src: '/sounds/answer.mp3',       vol: 0.65 },
+  buzzer:       { src: '/sounds/buzzer.mp3',        vol: 0.80 },
+  correct:      { src: '/sounds/correct.mp3',       vol: 0.70 },
+  wrong:        { src: '/sounds/wrong.mp3',         vol: 0.70 },
+  deduct:       { src: '/sounds/deduct.mp3',        vol: 0.65 },
+  cashRegister: { src: '/sounds/cashregister.mp3',  vol: 0.65 },
+  nav:          { src: null,                        vol: 0    },
+};
+
 function playSound(type) {
-  // Vibration haptique adaptée au type de son (silencieuse si mobile mute)
-  if (type === 'answer')       vibrate(25);
-  else if (type === 'buzzer')  vibrate(40);
-  else if (type === 'correct') vibrate([30, 40, 60]);
-  else if (type === 'wrong')   vibrate([50, 30, 50]);
-  else if (type === 'cashRegister') vibrate([20, 30, 40]);
-  else if (type === 'nav')     vibrate(15);
+  // Vibration haptique adaptée au type de son
+  if (type === 'answer')                          vibrate(25);
+  else if (type === 'buzzer')                     vibrate(40);
+  else if (type === 'correct')                    vibrate([30, 40, 60]);
+  else if (type === 'wrong' || type === 'deduct') vibrate([50, 30, 50]);
+  else if (type === 'cashRegister')               vibrate([20, 30, 40]);
+  else if (type === 'nav')                        vibrate(15);
 
+  const s = _SND[type];
+  if (!s?.src) return;
   try {
-    const ctx = getAudioCtx();
-    if (!ctx) return;
-    const now = ctx.currentTime;
-
-    const mk = (type, freq, gainVal, dur, dest) => {
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.connect(g); g.connect(dest || ctx.destination);
-      o.type = type; o.frequency.setValueAtTime(freq, now);
-      g.gain.setValueAtTime(gainVal, now);
-      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
-      o.start(now); o.stop(now + dur);
-      return { osc: o, gain: g };
-    };
-
-    if (type === 'answer') {
-      // Ping doux : marimba (do4 = 261Hz), chaleureux
-      const { osc, gain } = mk('triangle', 261, 0.22, 0.3);
-      osc.frequency.exponentialRampToValueAtTime(248, now + 0.3);
-      mk('sine', 523, 0.07, 0.2);
-    } else if (type === 'buzzer') {
-      // Buzzer : "bong" grave percussif, pas criard
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.type = 'triangle';
-      o.frequency.setValueAtTime(220, now);
-      o.frequency.exponentialRampToValueAtTime(110, now + 0.35);
-      g.gain.setValueAtTime(0.35, now);
-      g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-      o.start(now); o.stop(now + 0.4);
-      // Click percussif initial
-      const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
-      o2.connect(g2); g2.connect(ctx.destination);
-      o2.type = 'square'; o2.frequency.setValueAtTime(180, now);
-      g2.gain.setValueAtTime(0.18, now); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-      o2.start(now); o2.stop(now + 0.06);
-    } else if (type === 'nav') {
-      mk('sine', 330, 0.1, 0.1);
-    } else if (type === 'correct') {
-      // Victoire : arpège Do-Mi-Sol (octave 4, chaleureux)
-      [[261, 0], [329, 0.1], [392, 0.2], [523, 0.32]].forEach(([f, t]) => {
-        const o = ctx.createOscillator(); const g = ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.type = 'triangle';
-        o.frequency.setValueAtTime(f, now + t);
-        g.gain.setValueAtTime(0.22, now + t);
-        g.gain.exponentialRampToValueAtTime(0.001, now + t + 0.45);
-        o.start(now + t); o.stop(now + t + 0.45);
-      });
-    } else if (type === 'wrong') {
-      // Descente grave : "boum-boum"
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.type = 'triangle';
-      o.frequency.setValueAtTime(220, now);
-      o.frequency.exponentialRampToValueAtTime(110, now + 0.4);
-      g.gain.setValueAtTime(0.28, now);
-      g.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-      o.start(now); o.stop(now + 0.45);
-    } else if (type === 'cashRegister') {
-      // Ka-ching chaleureux : deux notes métal graves
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.type = 'triangle';
-      o.frequency.setValueAtTime(659, now);
-      o.frequency.exponentialRampToValueAtTime(523, now + 0.08);
-      g.gain.setValueAtTime(0.3, now);
-      g.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-      o.start(now); o.stop(now + 0.2);
-      // Deuxième note
-      const o2 = ctx.createOscillator(); const g2 = ctx.createGain();
-      o2.connect(g2); g2.connect(ctx.destination);
-      o2.type = 'triangle';
-      o2.frequency.setValueAtTime(880, now + 0.1);
-      o2.frequency.exponentialRampToValueAtTime(784, now + 0.22);
-      g2.gain.setValueAtTime(0.0, now);
-      g2.gain.setValueAtTime(0.26, now + 0.1);
-      g2.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-      o2.start(now + 0.1); o2.stop(now + 0.4);
-    }
-  } catch { /* noop si Web Audio non supporté */ }
+    const a = new Audio(s.src);
+    a.volume = s.vol;
+    a.play().catch(() => {});
+  } catch { /* noop */ }
 }
 
-// ── Son joyeux buzzer correct (joué une seule fois par victoire) ──────────────
+// ── Son joyeux buzzer correct (fanfare MP3) ───────────────────────────────────
 let _lastBuzzerWinnerId = null;
 function playBuzzerCorrectSound() {
   try {
-    const ctx = getAudioCtx();
-    if (!ctx) return;
-    const now = ctx.currentTime;
-    // Fanfare chaleureuse : Do-Mi-Sol-Do une octave plus bas (261-329-392-523)
-    const notes = [261, 329, 392, 523];
-    notes.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const g   = ctx.createGain();
-      osc.connect(g); g.connect(ctx.destination);
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, now + i * 0.12);
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.98, now + i * 0.12 + 0.5);
-      g.gain.setValueAtTime(0.24, now + i * 0.12);
-      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.55);
-      osc.start(now + i * 0.12);
-      osc.stop(now + i * 0.12 + 0.55);
-    });
+    const a = new Audio('/sounds/fanfare.mp3');
+    a.volume = 0.75;
+    a.play().catch(() => {});
   } catch { /* noop */ }
 }
 
@@ -2663,7 +2579,7 @@ function awardPoints(playerId, points) {
       : `<span style="color:#eb3349;font-weight:700;">${points} pt(s) retiré(s) à ${pseudo}</span>`;
     alert$('host-alert', msg, points > 0 ? 'success' : 'error');
     setTimeout(() => alert$('host-alert', ''), 2200);
-    playSound(points > 0 ? 'cashRegister' : 'wrong');
+    playSound(points > 0 ? 'cashRegister' : 'deduct');
   });
 }
 
@@ -2678,7 +2594,7 @@ function awardAll(points) {
       : `<span style="color:#eb3349;font-weight:700;">${points} pt(s) retiré(s) à tous les joueurs</span>`;
     alert$('host-alert', msg, points > 0 ? 'success' : 'error');
     setTimeout(() => alert$('host-alert', ''), 2200);
-    playSound(points > 0 ? 'cashRegister' : 'wrong');
+    playSound(points > 0 ? 'cashRegister' : 'deduct');
   });
 }
 
@@ -2693,7 +2609,7 @@ function awardTeam(teamId, teamName, points) {
       : `<span style="color:#eb3349;font-weight:700;">${points} pt(s) retiré(s) à l'équipe ${teamName}</span>`;
     alert$('host-alert', msg, points > 0 ? 'success' : 'error');
     setTimeout(() => alert$('host-alert', ''), 2200);
-    playSound(points > 0 ? 'cashRegister' : 'wrong');
+    playSound(points > 0 ? 'cashRegister' : 'deduct');
   });
 }
 
@@ -3117,58 +3033,19 @@ function applyAnswerCountAnimation(answered) {
 
 function playBellSound() {
   try {
-    const ctx = getAudioCtx();
-    if (!ctx) return;
-    const now = ctx.currentTime;
-    // Cloche douce : triangle 523 Hz (Do5) — chaleureux, pas criard
-    const osc = ctx.createOscillator();
-    const g   = ctx.createGain();
-    osc.connect(g); g.connect(ctx.destination);
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(523, now);
-    osc.frequency.exponentialRampToValueAtTime(494, now + 0.1);
-    g.gain.setValueAtTime(0.28, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-    osc.start(now); osc.stop(now + 0.5);
-    // Harmonique douce à l'octave
-    const osc2 = ctx.createOscillator();
-    const g2   = ctx.createGain();
-    osc2.connect(g2); g2.connect(ctx.destination);
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(1046, now);
-    g2.gain.setValueAtTime(0.08, now);
-    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-    osc2.start(now); osc2.stop(now + 0.35);
+    const a = new Audio('/sounds/bell.mp3');
+    a.volume = 0.70;
+    a.play().catch(() => {});
   } catch { /* noop */ }
 }
 
 // ── Bip du compte à rebours (son chaleureux, pas aigu) ───────────────────────
 function playCountdownBeep(isLast) {
+  // Non utilisé activement — fichier countdown.mp3 disponible si besoin
   try {
-    const ctx = getAudioCtx();
-    if (!ctx) return;
-    const now = ctx.currentTime;
-    // Bip doux : fréquence basse (do4 = 261 Hz pour bip normal, mi5 = 659 Hz pour le dernier)
-    const freq = isLast ? 659 : 330;
-    const dur  = isLast ? 0.55 : 0.3;
-    const osc = ctx.createOscillator();
-    const g   = ctx.createGain();
-    osc.connect(g); g.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq, now);
-    osc.frequency.exponentialRampToValueAtTime(freq * 0.97, now + dur);
-    g.gain.setValueAtTime(0.22, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
-    osc.start(now); osc.stop(now + dur);
-    // Harmonique légère
-    const osc2 = ctx.createOscillator();
-    const g2   = ctx.createGain();
-    osc2.connect(g2); g2.connect(ctx.destination);
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(freq * 2, now);
-    g2.gain.setValueAtTime(0.07, now);
-    g2.gain.exponentialRampToValueAtTime(0.001, now + dur * 0.7);
-    osc2.start(now); osc2.stop(now + dur * 0.7);
+    const a = new Audio('/sounds/countdown.mp3');
+    a.volume = 0.60;
+    a.play().catch(() => {});
   } catch { /* noop */ }
 }
 
