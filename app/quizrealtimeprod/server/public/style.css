@@ -1064,10 +1064,42 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
 .editor-sidebar-item {
   padding: 10px 13px; border-radius: 10px; cursor: pointer;
   border: 1px solid rgba(255,255,255,.08); margin-bottom: 6px;
-  transition: background .15s, border-color .15s;
+  transition: background .15s, border-color .15s, opacity .15s, transform .15s;
+  user-select: none;
 }
 .editor-sidebar-item:hover  { background: rgba(255,255,255,.08); }
 .editor-sidebar-item.active { background: rgba(99,179,237,.18); border-color: rgba(99,179,237,.4); }
+
+/* ── Drag handle ─────────────────────────────────── */
+.drag-handle {
+  cursor: grab; font-size: 1rem; color: rgba(255,255,255,.25);
+  flex-shrink: 0; line-height: 1; padding: 2px 3px; border-radius: 4px;
+  transition: color .15s;
+  user-select: none;
+}
+.drag-handle:hover { color: rgba(255,255,255,.7); background: rgba(255,255,255,.06); }
+.drag-handle:active { cursor: grabbing; }
+.question-drag-handle { font-size: 1.05rem; margin-right: 2px; }
+
+/* ── États drag ──────────────────────────────────── */
+.editor-sidebar-item.is-dragging,
+.question-row.is-dragging {
+  opacity: 0.35;
+  box-shadow: none;
+}
+.editor-sidebar-item.drag-over {
+  border-color: #79b8ff;
+  background: rgba(99,179,237,.14);
+  box-shadow: 0 0 0 2px rgba(99,179,237,.35);
+  transform: translateY(-2px);
+}
+.question-row.drag-over {
+  border-color: #38ef7d;
+  background: rgba(56,239,125,.08);
+  box-shadow: 0 0 0 2px rgba(56,239,125,.25);
+  transform: translateY(-2px);
+}
+
 .round-panel {
   background: rgba(255,255,255,0.05); border-radius: 14px; padding: 18px;
   margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.1);
@@ -1075,7 +1107,8 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
 .question-row {
   display: flex; gap: 10px; align-items: flex-start;
   background: rgba(255,255,255,0.04); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;
-  border: 1px solid rgba(255,255,255,0.08); transition: border-color .2s;
+  border: 1px solid rgba(255,255,255,0.08); transition: border-color .2s, opacity .15s, transform .15s, box-shadow .15s;
+  cursor: default;
 }
 .question-row:hover { border-color: rgba(255,255,255,0.16); }
 .question-row input { flex: 1; margin: 0; }

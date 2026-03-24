@@ -76,6 +76,9 @@ let _displayQuestionId    = null;  // pour éviter le clignotement de la questio
 let _displayAnswerCount   = -1;   // pour détecter une nouvelle réponse et animer le compteur TV
 let _showAllTeams         = false; // afficher toutes les équipes dans le formulaire de connexion
 let _getReadyTimer        = null;  // timer du compte à rebours "tenez-vous prêts"
+let _dragSrcRoundIdx      = null;  // index de la manche en cours de drag
+let _dragSrcQIdx          = null;  // index de la question en cours de drag
+let _dragSrcQRoundId      = null;  // roundId de la question en cours de drag
 let _countdownAudio       = null;  // élément audio pour le son countdown pendant le timer
 let _lastTimerActive      = false; // état précédent du timer (actif ou non)
 let _lastPhase            = null;  // phase précédente pour détecter les transitions
@@ -4023,17 +4026,30 @@ function renderQuizEditor() {
   const ari = state.admin.activeRoundIndex;
   const activeRound = rounds[ari] || null;
 
-  // Sidebar : liste des manches
+  // Sidebar : liste des manches (drag & drop)
   const sidebarItems = rounds.length
     ? rounds.map((r, ri) => `
-        <div class="editor-sidebar-item ${ari===ri?'active':''}" onclick="switchRound(${ri})">
-          <div style="font-size:.7rem;color:rgba(255,255,255,.4);margin-bottom:2px;">Manche ${ri+1}</div>
-          <div style="font-weight:${ari===ri?'700':'400'};font-size:.86rem;color:${ari===ri?'#79b8ff':'rgba(255,255,255,.8)'};
-            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-            ${r.title || `Manche ${ri+1}`}
-          </div>
-          <div style="font-size:.7rem;color:rgba(255,255,255,.35);margin-top:3px;">
-            ${(r.questions||[]).length} question(s) · ${r.type||'qcm'}
+        <div class="editor-sidebar-item ${ari===ri?'active':''}"
+             draggable="true"
+             data-round-idx="${ri}"
+             ondragstart="onRoundDragStart(event,${ri})"
+             ondragover="onRoundDragOver(event,${ri})"
+             ondragleave="onRoundDragLeave(event)"
+             ondrop="onRoundDrop(event,${ri})"
+             ondragend="onRoundDragEnd(event)"
+             onclick="switchRound(${ri})">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="drag-handle" title="Déplacer" onclick="event.stopPropagation()">⠿</span>
+            <div style="min-width:0;">
+              <div style="font-size:.7rem;color:rgba(255,255,255,.4);margin-bottom:2px;">Manche ${ri+1}</div>
+              <div style="font-weight:${ari===ri?'700':'400'};font-size:.86rem;color:${ari===ri?'#79b8ff':'rgba(255,255,255,.8)'};
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                ${r.title || `Manche ${ri+1}`}
+              </div>
+              <div style="font-size:.7rem;color:rgba(255,255,255,.35);margin-top:3px;">
+                ${(r.questions||[]).length} q · ${r.type||'qcm'}
+              </div>
+            </div>
           </div>
         </div>`).join('')
     : '<p class="muted" style="font-size:.8rem;text-align:center;">Aucune manche</p>';
@@ -4158,6 +4174,111 @@ function switchRound(idx) {
   state.admin.activeRoundIndex = idx;
   renderQuizEditor();
 }
+
+// ── Drag & Drop — Manches (sidebar) ──────────────────────────────────────────
+function onRoundDragStart(event, ri) {
+  _dragSrcRoundIdx = ri;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', String(ri));
+  // Déclencher la classe dragging après un tick (sinon la ghost image est grisée)
+  setTimeout(() => {
+    const el = document.querySelector(`.editor-sidebar-item[data-round-idx="${ri}"]`);
+    if (el) el.classList.add('is-dragging');
+  }, 0);
+}
+function onRoundDragOver(event, ri) {
+  if (_dragSrcRoundIdx === null || _dragSrcRoundIdx === ri) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  // Afficher l'indicateur drop-over uniquement sur la cible courante
+  document.querySelectorAll('.editor-sidebar-item').forEach(el => el.classList.remove('drag-over'));
+  const el = document.querySelector(`.editor-sidebar-item[data-round-idx="${ri}"]`);
+  if (el) el.classList.add('drag-over');
+}
+function onRoundDragLeave(event) {
+  event.currentTarget.classList.remove('drag-over');
+}
+function onRoundDrop(event, targetRi) {
+  event.preventDefault();
+  if (_dragSrcRoundIdx === null || _dragSrcRoundIdx === targetRi) { onRoundDragEnd(event); return; }
+  const rounds = state.admin.editingQuiz?.rounds;
+  if (!rounds) return;
+  // Réordonner le tableau
+  const [moved] = rounds.splice(_dragSrcRoundIdx, 1);
+  rounds.splice(targetRi, 0, moved);
+  // Ajuster l'index actif si besoin
+  let ari = state.admin.activeRoundIndex;
+  if (ari === _dragSrcRoundIdx) {
+    ari = targetRi;
+  } else if (_dragSrcRoundIdx < ari && targetRi >= ari) {
+    ari--;
+  } else if (_dragSrcRoundIdx > ari && targetRi <= ari) {
+    ari++;
+  }
+  state.admin.activeRoundIndex = ari;
+  _dragSrcRoundIdx = null;
+  renderQuizEditor();
+}
+function onRoundDragEnd(event) {
+  _dragSrcRoundIdx = null;
+  document.querySelectorAll('.editor-sidebar-item').forEach(el => {
+    el.classList.remove('is-dragging', 'drag-over');
+  });
+}
+window.onRoundDragStart = onRoundDragStart;
+window.onRoundDragOver  = onRoundDragOver;
+window.onRoundDragLeave = onRoundDragLeave;
+window.onRoundDrop      = onRoundDrop;
+window.onRoundDragEnd   = onRoundDragEnd;
+
+// ── Drag & Drop — Questions ───────────────────────────────────────────────────
+function onQuestionDragStart(event, roundId, qi) {
+  _dragSrcQIdx    = qi;
+  _dragSrcQRoundId = roundId;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', String(qi));
+  setTimeout(() => {
+    const el = document.querySelector(`.question-row[data-qidx="${qi}"][data-round-id="${roundId}"]`);
+    if (el) el.classList.add('is-dragging');
+  }, 0);
+}
+function onQuestionDragOver(event, roundId, qi) {
+  if (_dragSrcQIdx === null || (_dragSrcQIdx === qi && _dragSrcQRoundId === roundId)) return;
+  if (_dragSrcQRoundId !== roundId) return; // pas de déplacement inter-manches
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.question-row').forEach(el => el.classList.remove('drag-over'));
+  const el = document.querySelector(`.question-row[data-qidx="${qi}"][data-round-id="${roundId}"]`);
+  if (el) el.classList.add('drag-over');
+}
+function onQuestionDragLeave(event) {
+  event.currentTarget.classList.remove('drag-over');
+}
+function onQuestionDrop(event, roundId, targetQi) {
+  event.preventDefault();
+  if (_dragSrcQIdx === null || _dragSrcQRoundId !== roundId || _dragSrcQIdx === targetQi) {
+    onQuestionDragEnd(event); return;
+  }
+  const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+  if (!round?.questions) return;
+  const [moved] = round.questions.splice(_dragSrcQIdx, 1);
+  round.questions.splice(targetQi, 0, moved);
+  _dragSrcQIdx     = null;
+  _dragSrcQRoundId = null;
+  renderQuizEditor();
+}
+function onQuestionDragEnd(event) {
+  _dragSrcQIdx     = null;
+  _dragSrcQRoundId = null;
+  document.querySelectorAll('.question-row').forEach(el => {
+    el.classList.remove('is-dragging', 'drag-over');
+  });
+}
+window.onQuestionDragStart = onQuestionDragStart;
+window.onQuestionDragOver  = onQuestionDragOver;
+window.onQuestionDragLeave = onQuestionDragLeave;
+window.onQuestionDrop      = onQuestionDrop;
+window.onQuestionDragEnd   = onQuestionDragEnd;
 
 function renderRoundBlock(round, ri) {
   const roundTypes = [
@@ -4289,10 +4410,11 @@ function renderQuestionRow(q, qi, roundId, roundType) {
   const qMediaPreview = q.mediaUrl ? mediaPreview(q.mediaUrl,'margin-left:6px;') : '';
   const removeBtn = `<button class="btn-danger" style="padding:4px 8px;font-size:.8rem;flex-shrink:0;" onclick="removeQuestion('${roundId}','${q.id}')">✕</button>`;
 
-  // Ligne commune : numéro + contenu + média + supprimer
+  // Ligne commune : handle + numéro + contenu + média + supprimer
   const headerRow = `
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-      <span class="muted" style="min-width:24px;font-size:.85rem;flex-shrink:0;">${qi+1}.</span>
+      <span class="drag-handle question-drag-handle" title="Déplacer la question">⠿</span>
+      <span class="muted" style="min-width:18px;font-size:.82rem;flex-shrink:0;text-align:right;">${qi+1}.</span>
       <input value="${(q.content||'').replace(/"/g,'&quot;')}" placeholder="Énoncé de la question"
         onchange="updateQuestion('${roundId}','${q.id}','content',this.value)"
         style="flex:1;min-width:160px;">
@@ -4457,7 +4579,15 @@ function renderQuestionRow(q, qi, roundId, roundType) {
   }
 
   return `
-    <div class="question-row" id="question-${q.id}" style="flex-direction:column;align-items:stretch;gap:4px;margin-bottom:10px;">
+    <div class="question-row" id="question-${q.id}"
+         draggable="true"
+         data-qidx="${qi}" data-qid="${q.id}" data-round-id="${roundId}"
+         ondragstart="onQuestionDragStart(event,'${roundId}',${qi})"
+         ondragover="onQuestionDragOver(event,'${roundId}',${qi})"
+         ondragleave="onQuestionDragLeave(event)"
+         ondrop="onQuestionDrop(event,'${roundId}',${qi})"
+         ondragend="onQuestionDragEnd(event)"
+         style="flex-direction:column;align-items:stretch;gap:4px;margin-bottom:10px;">
       ${headerRow}
       ${body}
     </div>`;
