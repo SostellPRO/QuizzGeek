@@ -1918,3 +1918,193 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
 .player-gr-title {
   font-size: 1.6rem; font-weight: 900; color: #fff; margin: 0;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   VRAI / FAUX — Écran de révélation (TV + Joueur + Admin)
+   ═══════════════════════════════════════════════════════════ */
+
+/* Conteneur principal */
+.tf-reveal-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(16px, 3vw, 32px);
+  padding: clamp(16px, 3vw, 40px) 20px;
+  min-height: 55vh;
+  animation: tf-screen-in 0.45s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+}
+@keyframes tf-screen-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Rangée des deux tuiles */
+.tf-reveal-tiles {
+  display: flex;
+  flex-direction: row;
+  gap: clamp(12px, 2.5vw, 28px);
+  align-items: stretch;
+  width: 100%;
+  max-width: 900px;
+  justify-content: center;
+}
+
+/* Chaque tuile VRAI / FAUX */
+.tf-reveal-tile {
+  flex: 1 1 0;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: clamp(18px, 3vw, 36px) clamp(12px, 2vw, 28px);
+  border-radius: 20px;
+  border: 3px solid transparent;
+  cursor: default;
+  transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Tuile VRAI – fond vert tamisé */
+.tf-tile-vrai {
+  background: rgba(56, 239, 125, 0.10);
+  border-color: rgba(56, 239, 125, 0.30);
+}
+/* Tuile FAUX – fond rouge tamisé */
+.tf-tile-faux {
+  background: rgba(235, 51, 73, 0.10);
+  border-color: rgba(235, 51, 73, 0.30);
+}
+
+/* Quand c'est la bonne réponse → mise en évidence */
+.tf-tile-correct.tf-tile-vrai {
+  background: rgba(56, 239, 125, 0.22);
+  border-color: #38ef7d;
+  box-shadow: 0 0 30px rgba(56, 239, 125, 0.35), 0 0 0 4px rgba(56, 239, 125, 0.15);
+  transform: scale(1.04);
+}
+.tf-tile-correct.tf-tile-faux {
+  background: rgba(235, 51, 73, 0.22);
+  border-color: #eb3349;
+  box-shadow: 0 0 30px rgba(235, 51, 73, 0.35), 0 0 0 4px rgba(235, 51, 73, 0.15);
+  transform: scale(1.04);
+}
+
+/* Mauvaise réponse → atténuée */
+.tf-tile-wrong {
+  opacity: 0.5;
+  filter: saturate(0.4);
+}
+
+/* Réponse du joueur → légèrement surlignée */
+.tf-tile-mine::after {
+  content: '◀ vous';
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Grand emoji/icône */
+.tf-tile-icon {
+  font-size: clamp(2.2rem, 5vw, 4rem);
+  line-height: 1;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+}
+
+/* Label VRAI / FAUX */
+.tf-tile-label {
+  font-size: clamp(1.4rem, 3.5vw, 2.6rem);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+.tf-tile-vrai .tf-tile-label { color: #38ef7d; }
+.tf-tile-faux .tf-tile-label { color: #eb3349; }
+
+/* Compteur de votes */
+.tf-tile-votes {
+  font-size: clamp(0.75rem, 1.5vw, 1rem);
+  font-weight: 600;
+  color: rgba(255,255,255,0.65);
+  letter-spacing: 0.02em;
+}
+
+/* Barre de progression des votes */
+.tf-tile-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.tf-tile-bar > div {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tf-tile-vrai .tf-tile-bar > div { background: linear-gradient(90deg, #38ef7d, #11998e); }
+.tf-tile-faux .tf-tile-bar > div { background: linear-gradient(90deg, #f7797d, #eb3349); }
+
+/* ── Panneau d'explication ── */
+.tf-reveal-explanation {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 860px;
+  width: 100%;
+  background: rgba(255, 214, 0, 0.10);
+  border: 2px solid rgba(255, 214, 0, 0.40);
+  border-radius: 16px;
+  padding: clamp(12px, 2vw, 20px) clamp(14px, 2.5vw, 24px);
+  animation: tf-expl-in 0.4s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+}
+@keyframes tf-expl-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.tf-expl-icon {
+  font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+  flex-shrink: 0;
+  margin-top: 2px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+.tf-expl-text {
+  font-size: clamp(0.85rem, 1.8vw, 1.15rem);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.5;
+  flex: 1;
+}
+
+/* ── Version joueur mobile (tuiles plus compactes) ── */
+.tf-reveal-tiles-player {
+  max-width: 100%;
+  gap: 10px;
+}
+.tf-reveal-tiles-player .tf-reveal-tile {
+  padding: 16px 12px;
+  border-radius: 14px;
+  gap: 6px;
+}
+.tf-reveal-tiles-player .tf-tile-icon   { font-size: 1.8rem; }
+.tf-reveal-tiles-player .tf-tile-label  { font-size: 1.2rem; }
+.tf-reveal-tiles-player .tf-tile-votes  { font-size: 0.7rem; }
+
+/* ── Responsive : empiler les tuiles sur très petit écran ── */
+@media (max-width: 420px) {
+  .tf-reveal-tiles:not(.tf-reveal-tiles-player) {
+    flex-direction: column;
+    align-items: center;
+  }
+  .tf-reveal-tile { max-width: 100%; width: 100%; }
+}

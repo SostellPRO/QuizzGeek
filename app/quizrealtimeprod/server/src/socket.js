@@ -574,6 +574,30 @@ export function setupSocketHandlers(io) {
           case "reveal_answer":
             res = revealAnswer(session);
             break;
+
+          case "reveal_tf_explanation": {
+            // Affiche l'explication Vrai/Faux sur le display TV
+            if (!session.gameState?.revealedAnswer) {
+              res = { ok: false, error: "Aucune réponse révélée" };
+              break;
+            }
+            session.gameState.phaseMeta = {
+              ...session.gameState.phaseMeta,
+              showTFExplanation: true,
+            };
+            session.gameState.updatedAt = new Date().toISOString();
+            res = { ok: true };
+            break;
+          }
+
+          case "hide_tf_explanation": {
+            if (session.gameState?.phaseMeta) {
+              session.gameState.phaseMeta.showTFExplanation = false;
+              session.gameState.updatedAt = new Date().toISOString();
+            }
+            res = { ok: true };
+            break;
+          }
           case "show_results":
             res = showResults(session);
             break;

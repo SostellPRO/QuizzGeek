@@ -417,6 +417,7 @@ function buildRevealPayloadForCurrentQuestion(session) {
     questionId: q.id,
     revealMode,
     correctAnswer: q.correctAnswer ?? q.solution ?? null,
+    explanation:   q.explanation  ?? null,
     answers,
   };
 }

@@ -786,8 +786,48 @@ function renderPlayerGame() {
       content += renderPlayerQuestionContent(gs, s.playerId, gs.phaseMeta?.playerScreenLocked);
     }
   } else if (phase === 'answer_reveal') {
-    // L'écran de révélation s'affiche sur la TV, sur le téléphone on attend
-    content += renderPlayerWaitingScreen(gs, s, myPlayer);
+    const _revAM = gs?.phaseMeta?.answerMode;
+    if (_revAM === 'true_false' && gs?.revealedAnswer) {
+      // Révélation Vrai/Faux : montrer si le joueur avait bon ou faux
+      const _revData    = gs.revealedAnswer;
+      const _qId        = gs?.currentQuestion?.id;
+      const _myAnswer   = gs?.answers?.[_qId]?.[s?.playerId]?.answer || null;
+      const _correct    = (_revData.correctAnswer || '').trim().toLowerCase();
+      const _isCorrect  = _myAnswer && _myAnswer.toLowerCase() === _correct;
+      const _hasAnswered = !!_myAnswer;
+      const _showExpl   = !!gs?.phaseMeta?.showTFExplanation;
+      const _expl       = _revData.explanation || '';
+
+      content += `
+        <div class="card" style="text-align:center;padding:28px 20px;">
+          <div class="tf-reveal-tiles tf-reveal-tiles-player">
+            <div class="tf-reveal-tile tf-tile-vrai ${_correct==='vrai'?'tf-tile-correct':'tf-tile-wrong'} ${_myAnswer?.toLowerCase()==='vrai'?'tf-tile-mine':''}">
+              <div class="tf-tile-icon">${_correct==='vrai'?'✅':'✗'}</div>
+              <div class="tf-tile-label" style="font-size:1.3rem;">VRAI</div>
+            </div>
+            <div class="tf-reveal-tile tf-tile-faux ${_correct==='faux'?'tf-tile-correct':'tf-tile-wrong'} ${_myAnswer?.toLowerCase()==='faux'?'tf-tile-mine':''}">
+              <div class="tf-tile-icon">${_correct==='faux'?'✅':'✗'}</div>
+              <div class="tf-tile-label" style="font-size:1.3rem;">FAUX</div>
+            </div>
+          </div>
+          ${_hasAnswered ? `
+            <div style="margin-top:16px;padding:10px 18px;border-radius:12px;font-weight:700;font-size:1rem;
+              background:${_isCorrect?'rgba(56,239,125,.15)':'rgba(235,51,73,.15)'};
+              border:2px solid ${_isCorrect?'#38ef7d':'#eb3349'};
+              color:${_isCorrect?'#38ef7d':'#eb3349'};">
+              ${_isCorrect ? '✅ Bonne réponse !' : '❌ Mauvaise réponse'}
+            </div>` : `<p class="muted" style="margin-top:12px;">Vous n'avez pas répondu</p>`}
+          ${_showExpl && _expl ? `
+            <div style="margin-top:14px;padding:10px 14px;background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.25);border-radius:10px;text-align:left;">
+              <p style="font-size:.75rem;color:rgba(255,255,255,.4);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em;">💡 Explication</p>
+              <p style="font-size:.9rem;line-height:1.4;">${_expl}</p>
+            </div>` : ''}
+          <button class="btn-recap-mini" style="margin-top:14px;" onclick="showPlayerRecap()">📊 Voir mes scores</button>
+        </div>`;
+    } else {
+      // Mode par défaut : écran d'attente
+      content += renderPlayerWaitingScreen(gs, s, myPlayer);
+    }
   } else if (phase === 'manual_scoring') {
     if (gs?.buzzerState?.firstPseudo) {
       content += `
@@ -2337,20 +2377,44 @@ function renderHostPilotageTab(gs, phase) {
   if (phase === 'answer_reveal' && gs?.revealedAnswer) {
     const revealed = gs.revealedAnswer;
     const correctNorm = (revealed.correctAnswer || '').trim().toLowerCase();
+    const isTFReveal  = gs?.phaseMeta?.answerMode === 'true_false';
+    const showExpl    = !!gs?.phaseMeta?.showTFExplanation;
+    const expl        = revealed.explanation || '';
+
     const answerRows = (revealed.answers || []).map(a => {
       const isCorrect = (a.answer || '').trim().toLowerCase() === correctNorm;
       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:8px;background:${isCorrect?'rgba(56,239,125,.1)':'rgba(235,51,73,.08)'};margin-bottom:4px;">
         <span style="font-weight:600;font-size:.88rem;">${a.pseudo || '—'}</span>
-        <span style="color:${isCorrect?'#38ef7d':'#eb3349'};font-size:.85rem;">${a.answer || '—'} ${isCorrect?'✅':'❌'}</span>
+        <span style="color:${isCorrect?'#38ef7d':'#eb3349'};font-size:.85rem;">${isTFReveal ? formatTrueFalseAnswer(a.answer) : (a.answer || '—')} ${isCorrect?'✅':'❌'}</span>
       </div>`;
     }).join('') || '<p class="muted">Aucune réponse</p>';
+
     out += `
       <div class="host-section">
         <div class="host-section-label">📋 RÉPONSES RÉVÉLÉES</div>
-        <div style="padding:8px 12px;background:rgba(56,239,125,.08);border:1px solid rgba(56,239,125,.25);border-radius:8px;margin-bottom:8px;">
-          <p class="muted" style="font-size:.65rem;margin-bottom:2px;">BONNE RÉPONSE</p>
-          <p style="font-size:1.2rem;font-weight:700;color:#38ef7d;">${revealed.correctAnswer || '—'}</p>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(56,239,125,.08);border:1px solid rgba(56,239,125,.25);border-radius:8px;margin-bottom:8px;">
+          <div style="flex:1;">
+            <p class="muted" style="font-size:.65rem;margin-bottom:2px;">BONNE RÉPONSE</p>
+            <p style="font-size:1.2rem;font-weight:700;color:#38ef7d;">${isTFReveal ? formatTrueFalseAnswer(revealed.correctAnswer) : (revealed.correctAnswer || '—')}</p>
+          </div>
+          ${isTFReveal ? `
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              ${expl && !showExpl ? `
+                <button class="hbtn hbtn-success hbtn-sm hbtn-pulse" onclick="hostAction('reveal_tf_explanation')" title="Afficher l'explication sur le TV">
+                  💡 Afficher l'explication
+                </button>` : ''}
+              ${showExpl ? `
+                <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('hide_tf_explanation')" title="Masquer l'explication">
+                  🙈 Masquer l'explication
+                </button>` : ''}
+              ${!expl ? `<span class="muted" style="font-size:.72rem;font-style:italic;">Aucune explication saisie</span>` : ''}
+            </div>` : ''}
         </div>
+        ${isTFReveal && expl ? `
+          <div style="padding:8px 12px;background:rgba(255,215,0,.07);border:1px solid rgba(255,215,0,.2);border-radius:8px;margin-bottom:8px;">
+            <p class="muted" style="font-size:.65rem;margin-bottom:3px;">💡 EXPLICATION (visible admin)</p>
+            <p style="font-size:.88rem;line-height:1.4;color:rgba(255,255,255,.85);">${expl}</p>
+          </div>` : ''}
         <div>${answerRows}</div>
       </div>`;
   }
@@ -2966,9 +3030,48 @@ function renderDisplay() {
     const isTrueFalseReveal = gs?.phaseMeta?.answerMode === 'true_false';
     const isVoteReveal = gs?.phaseMeta?.answerMode === 'vote_revealed';
     const isVoteRevealing = gs?.phaseMeta?.answerMode === 'vote_revealing';
+    const showExpl = !!gs?.phaseMeta?.showTFExplanation;
 
     if ((isVoteReveal || isVoteRevealing) && gs?.voteState) {
       content += renderDisplayVoteRevealing(gs);
+    } else if (isTrueFalseReveal) {
+      // ── Révélation Vrai / Faux : deux tuiles visuelles ──────────────
+      const correctNorm = (revealed?.correctAnswer || '').trim().toLowerCase();
+      const isCorrectVrai = correctNorm === 'vrai';
+      const expl = revealed?.explanation || '';
+      // Comptage des votes
+      const answers = revealed?.answers || [];
+      const nVrai = answers.filter(a => (a.answer||'').toLowerCase() === 'vrai').length;
+      const nFaux = answers.filter(a => (a.answer||'').toLowerCase() === 'faux').length;
+      const nTotal = answers.length;
+      const pctVrai = nTotal > 0 ? Math.round(nVrai / nTotal * 100) : 0;
+      const pctFaux = nTotal > 0 ? Math.round(nFaux / nTotal * 100) : 0;
+
+      content += `
+        <div class="tf-reveal-screen">
+          <div class="tf-reveal-tiles">
+            <!-- Tuile VRAI -->
+            <div class="tf-reveal-tile tf-tile-vrai ${isCorrectVrai ? 'tf-tile-correct' : 'tf-tile-wrong'}">
+              <div class="tf-tile-icon">${isCorrectVrai ? '✅' : '✗'}</div>
+              <div class="tf-tile-label">VRAI</div>
+              <div class="tf-tile-votes">${nVrai} joueur${nVrai>1?'s':''} · ${pctVrai}%</div>
+              <div class="tf-tile-bar"><div style="width:${pctVrai}%;height:100%;background:rgba(255,255,255,0.5);border-radius:4px;transition:width 0.8s;"></div></div>
+            </div>
+            <!-- Tuile FAUX -->
+            <div class="tf-reveal-tile tf-tile-faux ${!isCorrectVrai ? 'tf-tile-correct' : 'tf-tile-wrong'}">
+              <div class="tf-tile-icon">${!isCorrectVrai ? '✅' : '✗'}</div>
+              <div class="tf-tile-label">FAUX</div>
+              <div class="tf-tile-votes">${nFaux} joueur${nFaux>1?'s':''} · ${pctFaux}%</div>
+              <div class="tf-tile-bar"><div style="width:${pctFaux}%;height:100%;background:rgba(255,255,255,0.5);border-radius:4px;transition:width 0.8s;"></div></div>
+            </div>
+          </div>
+          ${showExpl && expl ? `
+            <div class="tf-reveal-explanation" style="animation:tf-expl-in 0.5s cubic-bezier(0.34,1.4,0.64,1) both;">
+              <div class="tf-expl-icon">💡</div>
+              <p class="tf-expl-text">${expl}</p>
+            </div>` : ''}
+        </div>
+        ${renderAnswerList(answers, true)}`;
     } else if (isBuzzerReveal) {
       // Pour le buzzer : on affiche la réponse mais PAS les scores
       content += `
@@ -2976,15 +3079,15 @@ function renderDisplay() {
           <h2>📋 Bonne réponse</h2>
           <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${formatTrueFalseAnswer(revealed?.correctAnswer)}</div>
         </div>
-        ${renderAnswerList(revealed?.answers || [], isTrueFalseReveal)}`;
+        ${renderAnswerList(revealed?.answers || [], false)}`;
     } else {
       // Mode standard : afficher la réponse + les scores
       content += `
         <div class="card" style="text-align:center;padding:40px;">
           <h2>📋 Bonne réponse</h2>
-          <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${isTrueFalseReveal ? formatTrueFalseAnswer(revealed?.correctAnswer) : (revealed?.correctAnswer ?? '—')}</div>
+          <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${revealed?.correctAnswer ?? '—'}</div>
         </div>
-        ${renderAnswerList(revealed?.answers || [], isTrueFalseReveal)}`;
+        ${renderAnswerList(revealed?.answers || [], false)}`;
     }
   } else if (phase === 'round_end') {
     const round = gs?.currentRound;
@@ -4465,20 +4568,28 @@ function renderQuestionRow(q, qi, roundId, roundType) {
   else if (effectiveType === 'true_false') {
     const isVrai = (q.correctAnswer||'vrai').toLowerCase() === 'vrai';
     body = `
-      <div style="margin:8px 0 4px 28px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-        <span style="font-size:.78rem;color:rgba(255,255,255,.5);">✅ Bonne réponse :</span>
-        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
-          <input type="radio" name="tf-${q.id}" value="vrai" ${isVrai?'checked':''}
-            onchange="updateQuestion('${roundId}','${q.id}','correctAnswer','vrai')"
-            style="accent-color:#38ef7d;">
-          <span style="color:#38ef7d;font-weight:600;">✅ VRAI</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
-          <input type="radio" name="tf-${q.id}" value="faux" ${!isVrai?'checked':''}
-            onchange="updateQuestion('${roundId}','${q.id}','correctAnswer','faux')"
-            style="accent-color:#eb3349;">
-          <span style="color:#eb3349;font-weight:600;">❌ FAUX</span>
-        </label>
+      <div style="margin:8px 0 4px 28px;display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:.78rem;color:rgba(255,255,255,.5);white-space:nowrap;">✅ Bonne réponse :</span>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:6px 12px;border-radius:8px;border:2px solid ${isVrai?'#38ef7d':'rgba(56,239,125,.2)'};background:${isVrai?'rgba(56,239,125,.1)':'transparent'};transition:.15s;">
+            <input type="radio" name="tf-${q.id}" value="vrai" ${isVrai?'checked':''}
+              onchange="updateQuestion('${roundId}','${q.id}','correctAnswer','vrai');renderQuizEditor()"
+              style="accent-color:#38ef7d;">
+            <span style="color:#38ef7d;font-weight:700;">✅ VRAI</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:6px 12px;border-radius:8px;border:2px solid ${!isVrai?'#eb3349':'rgba(235,51,73,.2)'};background:${!isVrai?'rgba(235,51,73,.1)':'transparent'};transition:.15s;">
+            <input type="radio" name="tf-${q.id}" value="faux" ${!isVrai?'checked':''}
+              onchange="updateQuestion('${roundId}','${q.id}','correctAnswer','faux');renderQuizEditor()"
+              style="accent-color:#eb3349;">
+            <span style="color:#eb3349;font-weight:700;">❌ FAUX</span>
+          </label>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="font-size:.78rem;color:rgba(255,255,255,.45);white-space:nowrap;padding-top:7px;">💡 Explication :</span>
+          <textarea rows="2" placeholder="Explication de la réponse (affichée par l'admin après révélation…)"
+            oninput="updateQuestion('${roundId}','${q.id}','explanation',this.value)"
+            style="flex:1;font-size:.82rem;padding:6px 10px;border-radius:8px;resize:vertical;min-height:48px;">${(q.explanation||'').replace(/</g,'&lt;')}</textarea>
+        </div>
       </div>`;
   }
 
