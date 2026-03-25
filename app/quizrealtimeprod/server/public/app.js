@@ -302,8 +302,14 @@ function initSocket() {
         // Écran d'attente → petit son de préparation
         playSound('answer');
       } else if (_nowPhase === 'answer_reveal') {
-        // Révélation de la réponse → son correct ou wrong selon le contexte
-        // (le son spécifique correct/wrong est déjà géré par buzzerLastResult)
+        // Révélation de la réponse → auto-play de la musique de révélation si définie
+        const _revAudio = state.gameState?.revealedAnswer?.revealAudio;
+        if (_revAudio) {
+          setTimeout(() => {
+            const _player = document.getElementById('reveal-audio-player');
+            if (_player) _player.play().catch(() => {});
+          }, 400);
+        }
       } else if (_nowPhase === 'round_end') {
         // Fin de manche → fanfare
         playBuzzerCorrectSound();
@@ -822,11 +828,17 @@ function renderPlayerGame() {
               <p style="font-size:.75rem;color:rgba(255,255,255,.4);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em;">💡 Explication</p>
               <p style="font-size:.9rem;line-height:1.4;">${_expl}</p>
             </div>` : ''}
+          ${(_revData.revealImage || _revData.revealText || _revData.revealAudio) ? `
+            <div style="margin-top:14px;">${renderRevealMedia(_revData, 'player')}</div>` : ''}
           <button class="btn-recap-mini" style="margin-top:14px;" onclick="showPlayerRecap()">📊 Voir mes scores</button>
         </div>`;
     } else {
-      // Mode par défaut : écran d'attente
+      // Mode par défaut : écran d'attente + éventuels médias de révélation
       content += renderPlayerWaitingScreen(gs, s, myPlayer);
+      const _defRevealed = gs?.revealedAnswer;
+      if (_defRevealed && (_defRevealed.revealImage || _defRevealed.revealText || _defRevealed.revealAudio)) {
+        content += `<div style="padding:0 16px 16px;">${renderRevealMedia(_defRevealed, 'player')}</div>`;
+      }
     }
   } else if (phase === 'manual_scoring') {
     if (gs?.buzzerState?.firstPseudo) {
@@ -2415,6 +2427,11 @@ function renderHostPilotageTab(gs, phase) {
             <p class="muted" style="font-size:.65rem;margin-bottom:3px;">💡 EXPLICATION (visible admin)</p>
             <p style="font-size:.88rem;line-height:1.4;color:rgba(255,255,255,.85);">${expl}</p>
           </div>` : ''}
+        ${(revealed.revealImage || revealed.revealText || revealed.revealAudio) ? `
+          <div style="margin-bottom:8px;">
+            <p class="muted" style="font-size:.65rem;margin-bottom:4px;">✨ CONTENU DE RÉVÉLATION (affiché sur TV)</p>
+            ${renderRevealMedia(revealed, 'host')}
+          </div>` : ''}
         <div>${answerRows}</div>
       </div>`;
   }
@@ -3070,6 +3087,7 @@ function renderDisplay() {
               <div class="tf-expl-icon">💡</div>
               <p class="tf-expl-text">${expl}</p>
             </div>` : ''}
+          ${renderRevealMedia(revealed, 'tv')}
         </div>
         ${renderAnswerList(answers, true)}`;
     } else if (isBuzzerReveal) {
@@ -3078,6 +3096,7 @@ function renderDisplay() {
         <div class="card" style="text-align:center;padding:40px;">
           <h2>📋 Bonne réponse</h2>
           <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${formatTrueFalseAnswer(revealed?.correctAnswer)}</div>
+          ${renderRevealMedia(revealed, 'tv')}
         </div>
         ${renderAnswerList(revealed?.answers || [], false)}`;
     } else {
@@ -3086,6 +3105,7 @@ function renderDisplay() {
         <div class="card" style="text-align:center;padding:40px;">
           <h2>📋 Bonne réponse</h2>
           <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${revealed?.correctAnswer ?? '—'}</div>
+          ${renderRevealMedia(revealed, 'tv')}
         </div>
         ${renderAnswerList(revealed?.answers || [], false)}`;
     }
@@ -3777,6 +3797,42 @@ function renderDisplayVoteVoting(gs) {
           </div>`).join('')}
       </div>
     </div>`;
+}
+
+// ── Bloc de médias de révélation (image / texte / audio) ─────────────────
+// context : 'tv' | 'player' | 'host'
+function renderRevealMedia(revealed, context) {
+  if (!revealed) return '';
+  const img   = revealed.revealImage || '';
+  const txt   = revealed.revealText  || '';
+  const audio = revealed.revealAudio || '';
+  if (!img && !txt && !audio) return '';
+
+  const isTV     = context === 'tv';
+  const isPlayer = context === 'player';
+
+  const parts = [];
+
+  if (img) parts.push(`
+    <div class="reveal-media-image">
+      <img src="${resolveMedia(img)}" alt="Image de révélation"
+           style="max-width:100%;max-height:${isTV?'380px':'220px'};border-radius:${isTV?'16px':'12px'};object-fit:contain;box-shadow:0 8px 32px rgba(0,0,0,0.55);">
+    </div>`);
+
+  if (txt) parts.push(`
+    <div class="reveal-media-text">
+      <div class="reveal-media-text-icon">💬</div>
+      <p class="reveal-media-text-body" style="font-size:${isTV?'clamp(1rem,2vw,1.3rem)':isPlayer?'0.85rem':'0.9rem'};">${txt.replace(/\n/g,'<br>').replace(/</g,'&lt;').replace(/&lt;br>/g,'<br>')}</p>
+    </div>`);
+
+  if (audio) parts.push(`
+    <div class="reveal-media-audio">
+      <div class="reveal-media-audio-icon">🎵</div>
+      <audio controls src="${resolveMedia(audio)}" id="reveal-audio-player"
+             style="height:${isTV?'40px':'32px'};max-width:${isTV?'400px':'280px'};"></audio>
+    </div>`);
+
+  return `<div class="reveal-media-block">${parts.join('')}</div>`;
 }
 
 function formatTrueFalseAnswer(answer) {
@@ -4689,6 +4745,47 @@ function renderQuestionRow(q, qi, roundId, roundType) {
       </div>`;
   }
 
+  // ── SECTION RÉVÉLATION — commune à tous les types de question ──────────
+  const _ri = q.revealImage || '';
+  const _rt = q.revealText  || '';
+  const _ra = q.revealAudio || '';
+  const revealSection = `
+    <div style="margin:8px 0 2px 28px;padding:10px 12px;background:rgba(99,179,237,.05);border:1px solid rgba(99,179,237,.18);border-radius:10px;">
+      <div style="font-size:.7rem;color:rgba(99,179,237,.7);text-transform:uppercase;letter-spacing:.5px;margin-bottom:9px;display:flex;align-items:center;gap:6px;">
+        <span>✨</span><span>Contenu à afficher lors de la révélation</span>
+        <span style="font-size:.65rem;color:rgba(255,255,255,.25);font-style:italic;text-transform:none;letter-spacing:0;">(optionnel)</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:.78rem;color:rgba(255,255,255,.45);min-width:68px;flex-shrink:0;">🖼️ Image :</span>
+          <button class="btn-secondary" style="padding:3px 9px;font-size:.75rem;white-space:nowrap;"
+            onclick="openRevealMediaUpload('${roundId}','${q.id}','revealImage','image/*')">Uploader</button>
+          ${_ri
+            ? `<span style="font-size:.72rem;color:rgba(255,255,255,.32);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;" title="${_ri}">${_ri.split('/').pop()}</span>
+               <button class="btn-secondary" style="padding:2px 5px;font-size:.72rem;color:#eb3349;" onclick="updateQuestion('${roundId}','${q.id}','revealImage','');renderQuizEditor()" title="Supprimer">✕</button>
+               <img src="${resolveMedia(_ri)}" style="max-height:38px;border-radius:5px;opacity:.8;">`
+            : `<span style="font-size:.72rem;color:rgba(255,255,255,.22);font-style:italic;">Aucune image</span>`}
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="font-size:.78rem;color:rgba(255,255,255,.45);min-width:68px;flex-shrink:0;padding-top:6px;">📝 Texte :</span>
+          <textarea rows="2" placeholder="Texte à afficher lors de la révélation (anecdote, explication…)"
+            oninput="updateQuestion('${roundId}','${q.id}','revealText',this.value)"
+            style="flex:1;font-size:.8rem;padding:5px 8px;border-radius:8px;resize:vertical;min-height:44px;">${(_rt).replace(/</g,'&lt;')}</textarea>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:.78rem;color:rgba(255,255,255,.45);min-width:68px;flex-shrink:0;">🎵 Musique :</span>
+          <button class="btn-secondary" style="padding:3px 9px;font-size:.75rem;white-space:nowrap;"
+            onclick="openRevealMediaUpload('${roundId}','${q.id}','revealAudio','audio/*')">Uploader</button>
+          ${_ra
+            ? `<span style="font-size:.72rem;color:rgba(255,255,255,.32);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;" title="${_ra}">${_ra.split('/').pop()}</span>
+               <button class="btn-secondary" style="padding:2px 5px;font-size:.72rem;color:#eb3349;" onclick="updateQuestion('${roundId}','${q.id}','revealAudio','');renderQuizEditor()" title="Supprimer">✕</button>
+               <audio controls src="${resolveMedia(_ra)}" style="height:26px;max-width:180px;"></audio>`
+            : `<span style="font-size:.72rem;color:rgba(255,255,255,.22);font-style:italic;">Aucune musique</span>`}
+        </div>
+      </div>
+    </div>`;
+  body += revealSection;
+
   return `
     <div class="question-row" id="question-${q.id}"
          draggable="true"
@@ -5047,6 +5144,30 @@ async function openMediaUpload(qId) {
         const q = (round.questions || []).find(q => q.id === qId);
         if (q) { q.mediaUrl = d.file.mediaUrl; break; }
       }
+      alert$('admin-alert', '✅ Fichier uploadé : ' + d.file.filename, 'success');
+      renderQuizEditor();
+    } catch { alert$('admin-alert', 'Erreur réseau upload', 'error'); }
+  };
+  input.click();
+}
+
+// Upload d'un fichier de révélation (image ou audio) vers un champ spécifique de la question
+async function openRevealMediaUpload(roundId, qId, field, accept) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = accept || 'image/*,audio/*';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch(`${API}/api/uploads/media`, { method: 'POST', body: fd });
+      const d   = await res.json();
+      if (!d.ok) { alert$('admin-alert', d.error || 'Erreur upload', 'error'); return; }
+      const round = state.admin.editingQuiz?.rounds?.find(r => r.id === roundId);
+      const q = round?.questions?.find(q => q.id === qId);
+      if (q) q[field] = d.file.mediaUrl;
       alert$('admin-alert', '✅ Fichier uploadé : ' + d.file.filename, 'success');
       renderQuizEditor();
     } catch { alert$('admin-alert', 'Erreur réseau upload', 'error'); }

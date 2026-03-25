@@ -418,6 +418,9 @@ function buildRevealPayloadForCurrentQuestion(session) {
     revealMode,
     correctAnswer: q.correctAnswer ?? q.solution ?? null,
     explanation:   q.explanation  ?? null,
+    revealImage:   q.revealImage  ?? null,
+    revealText:    q.revealText   ?? null,
+    revealAudio:   q.revealAudio  ?? null,
     answers,
   };
 }
