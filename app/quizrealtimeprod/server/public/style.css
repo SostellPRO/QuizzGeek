@@ -2180,3 +2180,238 @@ th { font-weight: 600; color: rgba(255,255,255,0.55); font-size: 0.78rem; text-t
   flex: 1;
   min-width: 0;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   OVERRIDES — AMÉLIORATIONS UI GLOBALES
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 1. FULLSCREEN — display TV + joueur : pas d'ascenseur ── */
+body.screen-display,
+body.screen-player {
+  overflow: hidden;
+  height: 100vh;
+}
+/* Display TV : plein écran, défilement invisible si dépassement */
+body.screen-display .display-stage {
+  min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+body.screen-display .display-stage::-webkit-scrollbar { display: none; }
+/* Player mobile : zone jeu plein écran */
+body.screen-player #page-player {
+  height: 100vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+body.screen-player #page-player::-webkit-scrollbar { display: none; }
+/* Host admin : scroll discret mais contrôlé */
+body.screen-host #page-host {
+  height: 100vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99,179,237,.3) transparent;
+}
+
+/* ── 2. ÉDITEUR QUIZ — contraste renforcé ── */
+.question-row {
+  background: rgba(255,255,255,0.07) !important;
+  border-color: rgba(255,255,255,0.14) !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+}
+.question-row:hover {
+  background: rgba(255,255,255,0.10) !important;
+  border-color: rgba(255,255,255,0.22) !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.round-panel {
+  background: rgba(255,255,255,0.08) !important;
+  border-color: rgba(255,255,255,0.18) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.editor-sidebar-item {
+  background: rgba(255,255,255,0.05);
+}
+.editor-sidebar-item:hover {
+  background: rgba(255,255,255,0.10) !important;
+}
+
+/* ── 3. INTERFACE HOST — meilleur contraste entre sections ── */
+.host-section {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+}
+.host-section-label {
+  font-size: .65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: rgba(255,255,255,.45);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.host-section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,.08);
+  margin-left: 6px;
+}
+/* Sections avec couleur d'accentuation */
+.host-section-nav   { border-color: rgba(99,179,237,.25); background: rgba(99,179,237,.05); }
+.host-section-display { border-color: rgba(240,147,251,.2); background: rgba(240,147,251,.04); }
+.host-section-question { border-color: rgba(56,239,125,.25); background: rgba(56,239,125,.05); }
+
+/* Bouton actif (score peek) */
+.hbtn-active {
+  background: rgba(255,215,0,.18) !important;
+  border-color: rgba(255,215,0,.5) !important;
+  color: #ffd700 !important;
+}
+
+/* Grille nav host plus lisible */
+.host-nav-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.host-ctrl-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ── 4. MISE EN VALEUR des réponses / titres ── */
+/* Bonne réponse sur TV : plus grande et plus lumineuse */
+.display-stage .card h2 {
+  font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+/* Réponse correcte en plein écran TV */
+.answer-reveal-correct-big {
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 900;
+  color: #38ef7d;
+  text-shadow: 0 0 40px rgba(56,239,125,.6), 0 0 80px rgba(56,239,125,.2);
+  letter-spacing: .04em;
+  animation: tf-screen-in 0.4s cubic-bezier(0.34,1.2,0.64,1) both;
+}
+
+/* ── 5. CÉRÉMONIE FINALE AMÉLIORÉE ── */
+.ceremony-container {
+  padding: 16px 0;
+  min-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Podium : marches 3D améliorées */
+.podium-stage {
+  gap: 4px !important;
+  padding: 40px 8px 0 !important;
+}
+.podium-stage-slot {
+  border-radius: 20px 20px 0 0 !important;
+  transition: all 0.6s cubic-bezier(0.34,1.2,0.64,1) !important;
+}
+.podium-slot-filled {
+  box-shadow: 0 -8px 40px rgba(255,255,255,.08), inset 0 2px 0 rgba(255,255,255,.15) !important;
+}
+/* Or */
+.podium-stage .podium-stage-slot:nth-child(2) {
+  background: linear-gradient(180deg, rgba(255,215,0,.45), rgba(255,150,0,.2)) !important;
+  border-color: rgba(255,215,0,.7) !important;
+  box-shadow: 0 -12px 50px rgba(255,215,0,.4) !important;
+}
+/* Argent */
+.podium-stage .podium-stage-slot:nth-child(1) {
+  background: linear-gradient(180deg, rgba(200,210,230,.35), rgba(160,175,200,.15)) !important;
+  border-color: rgba(200,210,230,.5) !important;
+}
+/* Bronze */
+.podium-stage .podium-stage-slot:nth-child(3) {
+  background: linear-gradient(180deg, rgba(210,140,60,.35), rgba(170,110,45,.15)) !important;
+  border-color: rgba(210,140,60,.5) !important;
+}
+
+/* Cartes podium améliorées */
+.podium-card.rank-1-card {
+  background: linear-gradient(135deg, rgba(255,215,0,.28), rgba(255,170,0,.12)) !important;
+  border-color: rgba(255,215,0,.7) !important;
+  box-shadow: 0 0 40px rgba(255,215,0,.3), 0 8px 30px rgba(0,0,0,.4) !important;
+}
+.podium-card.rank-2-card {
+  background: linear-gradient(135deg, rgba(210,220,235,.22), rgba(170,185,205,.08)) !important;
+  border-color: rgba(210,220,235,.5) !important;
+  box-shadow: 0 0 24px rgba(210,220,235,.2), 0 6px 20px rgba(0,0,0,.35) !important;
+}
+.podium-card.rank-3-card {
+  background: linear-gradient(135deg, rgba(210,140,60,.22), rgba(170,110,45,.08)) !important;
+  border-color: rgba(210,140,60,.5) !important;
+  box-shadow: 0 0 20px rgba(210,140,60,.2), 0 4px 16px rgba(0,0,0,.3) !important;
+}
+.podium-rank   { font-size: clamp(2rem,5vw,3.2rem) !important; }
+.podium-pseudo { font-size: clamp(1.1rem,2.5vw,1.6rem) !important; font-weight: 900 !important; }
+.podium-score  { font-size: clamp(.95rem,1.8vw,1.2rem) !important; }
+
+/* Confettis plus denses et colorés */
+.confetti-piece {
+  width: 8px !important;
+  height: 14px !important;
+  border-radius: 3px !important;
+  animation: confetti-fall linear forwards !important;
+}
+@keyframes confetti-fall {
+  0%   { transform: translateY(0) rotateZ(0deg) rotateX(0deg); opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateY(105vh) rotateZ(720deg) rotateX(360deg); opacity: 0; }
+}
+
+/* Ligne de rang (défilement de révélation) */
+.ceremony-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.09);
+  margin-bottom: 7px;
+  transition: all 0.3s ease;
+  animation: podium-entry .45s ease both;
+}
+.ceremony-rank-row.top-rank {
+  background: rgba(255,215,0,.08);
+  border-color: rgba(255,215,0,.25);
+}
+.ceremony-rank-avatar { font-size: clamp(1.1rem,2.5vw,1.6rem); }
+.ceremony-rank-medal  { font-size: clamp(1rem,2vw,1.4rem); min-width: 30px; text-align: center; }
+.ceremony-rank-pseudo { flex: 1; font-weight: 700; font-size: clamp(.9rem,1.8vw,1.1rem); }
+.ceremony-rank-score  { font-weight: 800; color: #f7971e; font-size: clamp(.9rem,1.8vw,1.15rem); }
+
+/* Titre de fin modernisé */
+.ceremony-end-title {
+  text-align: center;
+  font-size: clamp(1.8rem,5vw,3.5rem);
+  font-weight: 900;
+  letter-spacing: .04em;
+  background: linear-gradient(135deg,#f093fb,#f5576c,#ffd700);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 8px;
+  text-shadow: none;
+  animation: tf-screen-in .5s cubic-bezier(0.34,1.2,0.64,1) both;
+}

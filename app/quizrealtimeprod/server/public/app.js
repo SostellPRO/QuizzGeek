@@ -83,6 +83,7 @@ let _countdownAudio       = null;  // élément audio pour le son countdown pend
 let _lastTimerActive      = false; // état précédent du timer (actif ou non)
 let _lastPhase            = null;  // phase précédente pour détecter les transitions
 let _lastPlayerCount      = 0;     // nombre de joueurs précédent pour détecter les nouveaux
+let _hostScoresPeek       = false; // afficher le classement en overlay dans le panel host sans stopper la question
 
 // ── P6 : Sons d'interaction (fichiers MP3) ────────────────────
 // ── Vibration haptique (mobile) — couplée à playSound ──────────
@@ -318,6 +319,10 @@ function initSocket() {
         playBuzzerCorrectSound();
       }
       _lastPhase = _nowPhase;
+      // Fermer le peek scores automatiquement quand on quitte la phase question
+      if (!['question','waiting','manual_scoring','answer_reveal'].includes(_nowPhase)) {
+        _hostScoresPeek = false;
+      }
     }
 
     // Nouveau joueur dans le lobby → son de notification
@@ -678,6 +683,8 @@ function reconnectPlayer() {
 }
 
 function renderPlayerGame() {
+  document.body.classList.add('screen-player');
+  document.body.classList.remove('screen-display','screen-host');
   const gs = state.gameState;
   const s  = state.playerSession;
   if (!s) { renderPlayerJoin(); return; }
@@ -1504,6 +1511,8 @@ function openDisplayPopup() {
 }
 
 function renderHostGame() {
+  document.body.classList.add('screen-host');
+  document.body.classList.remove('screen-display','screen-player');
   if (!state.host.connected) return;
   const gs    = state.gameState;
   const phase = gs?.status || 'lobby';
@@ -1875,8 +1884,8 @@ function renderHostPilotageTab(gs, phase) {
     </div>
     <div class="host-ctrl-row" style="margin-top:6px;">
       ${['question','waiting','answer_reveal','manual_scoring'].includes(phase) ? `
-        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Scores</button>
-        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('start_round')">🔁 Refaire manche</button>
+        <button class="hbtn hbtn-secondary hbtn-sm ${_hostScoresPeek?'hbtn-active':''}" onclick="toggleHostScoresPeek()" title="Voir le classement sans stopper la question">📊 Scores</button>
+        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('start_round')">🔁 Refaire</button>
       ` : ''}
       ${phase === 'round_end' ? `
         <button class="hbtn hbtn-success hbtn-pulse hbtn-wide" onclick="hostAction('next_round')">▶▶ Manche suivante</button>
@@ -1901,8 +1910,10 @@ function renderHostPilotageTab(gs, phase) {
   out += `<div class="host-section host-section-display">
     <div class="host-section-label">📺 AFFICHAGE</div>
     <div class="host-ctrl-row">
-      ${['question','waiting','manual_scoring','round_end','answer_reveal'].includes(phase) ? `
-        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Scores</button>` : ''}
+      ${['question','waiting','manual_scoring','answer_reveal'].includes(phase) ? `
+        <button class="hbtn hbtn-secondary hbtn-sm ${_hostScoresPeek?'hbtn-active':''}" onclick="toggleHostScoresPeek()" title="Voir le classement sans interrompre la question">📊 Scores</button>` : ''}
+      ${phase === 'round_end' ? `
+        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Scores TV</button>` : ''}
       ${!isBurger && !isBuzzer && !isVotePhase && !isVideoChallenge && ['question','waiting','manual_scoring'].includes(phase) ? `
         <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reveal_answer')">📋 Solution</button>` : ''}
       ${_voteAM === 'vote_input' ? (() => {
@@ -2514,6 +2525,41 @@ function renderHostPilotageTab(gs, phase) {
   // Accordion des manches
   out += renderRoundsAccordion(gs);
 
+  // ── Peek Scores (classement inline, sans changer la phase) ──
+  if (_hostScoresPeek) {
+    const lb = state.leaderboardPlayers || [];
+    const lbTeams = state.leaderboardTeams || [];
+    const rows = lb.slice(0, 12).map((p, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;
+        background:${i<3?'rgba(255,215,0,.07)':'rgba(255,255,255,.03)'};
+        border:1px solid ${i<3?'rgba(255,215,0,.18)':'rgba(255,255,255,.06)'};margin-bottom:4px;">
+        <span style="min-width:28px;font-size:.9rem;">${medal}</span>
+        <span style="font-size:.7rem;font-size:1.2rem;">${p.avatar||'🎮'}</span>
+        <span style="flex:1;font-weight:600;font-size:.9rem;">${p.pseudo||'—'}</span>
+        ${p.teamName?`<span style="font-size:.72rem;color:rgba(255,255,255,.4);">⚽ ${p.teamName}</span>`:''}
+        <span style="font-weight:700;color:#f7971e;font-size:.95rem;">${p.scoreTotal??0} pts</span>
+      </div>`;
+    }).join('') || '<p class="muted" style="font-size:.8rem;text-align:center;">Aucun score</p>';
+
+    out += `
+      <div class="host-section" style="border-color:rgba(255,215,0,.3);background:rgba(255,215,0,.05);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div class="host-section-label" style="margin:0;">📊 CLASSEMENT ACTUEL</div>
+          <button class="hbtn hbtn-secondary hbtn-sm" onclick="toggleHostScoresPeek()" style="padding:3px 8px;font-size:.75rem;">✕ Fermer</button>
+        </div>
+        ${rows}
+        ${lbTeams.length ? `<details style="margin-top:8px;"><summary style="font-size:.75rem;color:rgba(255,255,255,.5);cursor:pointer;">⚽ Équipes</summary>
+          <div style="margin-top:6px;">
+            ${lbTeams.slice(0,6).map((t,i) => `<div style="display:flex;justify-content:space-between;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,.03);margin-bottom:3px;">
+              <span style="font-size:.85rem;">${i<3?['🥇','🥈','🥉'][i]:`#${i+1}`} ${t.name||'—'}</span>
+              <span style="font-weight:700;color:#f7971e;">${t.scoreTotal??0} pts</span>
+            </div>`).join('')}
+          </div>
+        </details>` : ''}
+      </div>`;
+  }
+
   return out;
 }
 
@@ -2550,10 +2596,10 @@ function buildHostGameActions(gs, phase, isPaused, isBuzzer, isBurger) {
       btns.push({ label: '📋 Révéler réponse', style: 'secondary', onclick: "hostAction('reveal_answer')" });
     }
     btns.push({ label: '🔁 Refresh question', style: 'secondary', onclick: "hostAction('refresh_question')" });
-    btns.push({ label: '📊 Afficher scores', style: 'secondary', onclick: "hostAction('show_results')" });
+    btns.push({ label: '📊 Scores (peek)', style: 'secondary', onclick: "toggleHostScoresPeek()" });
   }
   if (phase === 'answer_reveal') {
-    btns.push({ label: '📊 Résultats manche', style: 'secondary', onclick: "hostAction('show_results')" });
+    btns.push({ label: '📊 Scores manche TV', style: 'secondary', onclick: "hostAction('show_results')" });
   }
   if (phase === 'results') {
     btns.push({ label: '⏭️ Manche suivante', style: 'success', onclick: "hostAction('next_round')" });
@@ -2568,7 +2614,7 @@ function buildHostGameActions(gs, phase, isPaused, isBuzzer, isBurger) {
       btns.push({ label: '🍔 Élément suivant', style: 'success', onclick: "hostAction('burger_next_item')" });
     }
     btns.push({ label: '📋 Révéler réponse', style: 'secondary', onclick: "hostAction('reveal_answer')" });
-    btns.push({ label: '📊 Résultats manche', style: 'secondary', onclick: "hostAction('show_results')" });
+    btns.push({ label: '📊 Scores (peek)', style: 'secondary', onclick: "toggleHostScoresPeek()" });
   }
   if (phase === 'end') {
     btns.push({ label: '🔁 Nouvelle partie', style: 'secondary', onclick: "hostAction('reset_game')" });
@@ -2678,6 +2724,13 @@ function setTimerPreset(sec) {
   $$('.timer-preset-btn').forEach(b => b.classList.remove('active'));
   event?.target?.classList.add('active');
 }
+
+// Afficher/masquer le classement en peek sans toucher à la partie
+function toggleHostScoresPeek() {
+  _hostScoresPeek = !_hostScoresPeek;
+  renderHostGame();
+}
+window.toggleHostScoresPeek = toggleHostScoresPeek;
 
 function hostAction(action, extra = {}) {
   const sc = state.host.sessionCode;
@@ -2882,6 +2935,8 @@ function connectDisplay() {
 }
 
 function renderDisplay() {
+  document.body.classList.add('screen-display');
+  document.body.classList.remove('screen-player','screen-host');
   if (!state.display.connected) return;
   const gs   = state.gameState;
   const phase = gs?.status || 'lobby';
@@ -3091,20 +3146,18 @@ function renderDisplay() {
         </div>
         ${renderAnswerList(answers, true)}`;
     } else if (isBuzzerReveal) {
-      // Pour le buzzer : on affiche la réponse mais PAS les scores
       content += `
-        <div class="card" style="text-align:center;padding:40px;">
-          <h2>📋 Bonne réponse</h2>
-          <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${formatTrueFalseAnswer(revealed?.correctAnswer)}</div>
+        <div class="card" style="text-align:center;padding:clamp(24px,4vw,50px);">
+          <p style="font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.4);margin-bottom:12px;">📋 Bonne réponse</p>
+          <div class="answer-reveal-correct-big">${formatTrueFalseAnswer(revealed?.correctAnswer)}</div>
           ${renderRevealMedia(revealed, 'tv')}
         </div>
         ${renderAnswerList(revealed?.answers || [], false)}`;
     } else {
-      // Mode standard : afficher la réponse + les scores
       content += `
-        <div class="card" style="text-align:center;padding:40px;">
-          <h2>📋 Bonne réponse</h2>
-          <div style="font-size:2.5rem;font-weight:700;color:#38ef7d;margin:20px 0;">${revealed?.correctAnswer ?? '—'}</div>
+        <div class="card" style="text-align:center;padding:clamp(24px,4vw,50px);">
+          <p style="font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.4);margin-bottom:12px;">📋 Bonne réponse</p>
+          <div class="answer-reveal-correct-big">${revealed?.correctAnswer ?? '—'}</div>
           ${renderRevealMedia(revealed, 'tv')}
         </div>
         ${renderAnswerList(revealed?.answers || [], false)}`;
@@ -5320,66 +5373,83 @@ function renderFinalCeremony(gs, leaderboard, leaderboardTeams) {
   const first = revealed.find(p => p.rank === 1);
   const confettiJs = first ? '<script>if(window.launchConfetti)launchConfetti();<\/script>' : '';
 
-  // Liste 4e et au-delà (triée du dernier vers le 4e = ordre croissant de rang)
+  // Titre de fin
+  const endTitleHtml = first ? `<h1 class="ceremony-end-title">🏆 Félicitations !</h1>` : '';
+
+  // Liste 4e et au-delà — rangées stylisées avec avatar
   const othersListHtml = revealedOthers.length ? `
-    <div style="margin-bottom:20px;">
-      <p class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;text-align:center;">Classement</p>
+    <div style="margin-bottom:24px;">
+      <p class="muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;text-align:center;opacity:.6;">Classement</p>
       ${revealedOthers.map((p, i) => {
         const isNew = i === revealedOthers.length - 1 && revealedTop3.length === 0;
-        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;
-          background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:6px;
-          ${isNew ? 'animation:podium-entry .45s ease forwards;' : ''}">
-          <span style="font-size:1.1rem;min-width:32px;text-align:center;">${rankEmoji(p.rank)}</span>
-          <div style="flex:1;font-weight:600;font-size:.95rem;">${p.pseudo}</div>
-          ${p.teamName ? `<span style="font-size:.75rem;color:rgba(255,255,255,.4);">⚽ ${p.teamName}</span>` : ''}
-          <span style="font-size:.95rem;font-weight:700;color:rgba(255,255,255,.7);">${p.scoreTotal ?? 0} pts</span>
+        return `<div class="ceremony-rank-row${isNew?' ceremony-rank-new':''}">
+          <span class="ceremony-rank-medal">${rankEmoji(p.rank)}</span>
+          <span class="ceremony-rank-avatar">${p.avatar||'🎮'}</span>
+          <span class="ceremony-rank-pseudo">${p.pseudo}</span>
+          ${p.teamName ? `<span style="font-size:.72rem;color:rgba(255,255,255,.35);">⚽ ${p.teamName}</span>` : ''}
+          <span class="ceremony-rank-score">${p.scoreTotal ?? 0} pts</span>
         </div>`;
       }).join('')}
     </div>` : '';
 
-  // Cartes podium (top 3, révélées progressivement)
-  const sortedTop3 = [...revealedTop3].sort((a, b) => b.rank - a.rank);
-  const newestRevealIndex = sortedTop3.length - 1;
-  const podiumCards = sortedTop3.map((p, i) => {
-    const isNew = i === newestRevealIndex;
-    const animStyle = isNew ? 'animation-delay:0s;' : 'animation:none;';
-    return `<div class="podium-card ${rankClass(p.rank)}" style="${animStyle}">
+  // Cartes podium (top 3, révélées progressivement) — affichées en 2e position ordre : argent, or, bronze
+  const podiumOrder = [2,1,3];
+  const sortedTop3 = podiumOrder.map(r => revealedTop3.find(p => p.rank === r)).filter(Boolean);
+  const newestRevealIndex = [...revealedTop3].sort((a,b) => a.rank - b.rank).findIndex(
+    p => p.rank === Math.max(...revealedTop3.map(x => x.rank))
+  );
+  const podiumCards = [...revealedTop3].sort((a,b)=>b.rank-a.rank).map((p, i) => {
+    const isNew = i === 0;
+    return `<div class="podium-card ${rankClass(p.rank)}" style="${isNew?'':'animation:none;opacity:1;'}">
       <span class="podium-rank">${rankEmoji(p.rank)}</span>
+      <span style="font-size:clamp(1.6rem,4vw,2.5rem);display:block;margin-bottom:6px;">${p.avatar||'🎮'}</span>
       <div class="podium-pseudo">${p.pseudo}</div>
       ${p.teamName ? `<div class="muted" style="font-size:.78rem;margin-top:2px;">⚽ ${p.teamName}</div>` : ''}
       <div class="podium-score">${p.scoreTotal ?? 0} pts</div>
-      <div class="podium-nickname">${p.nickname || ''}</div>
     </div>`;
   }).join('');
 
   return `
     <div class="ceremony-container">
       ${confettiJs}
+      ${endTitleHtml}
       ${othersListHtml}
       ${renderPodiumStage(revealedTop3, fc.revealOrder.length)}
-      ${revealedTop3.length ? `<div class="podium-revealed-list" style="margin-top:16px;">${podiumCards}</div>` : ''}
+      ${revealedTop3.length ? `<div class="podium-revealed-list" style="margin-top:20px;">${podiumCards}</div>` : ''}
     </div>`;
 }
 
 // ── Confettis (lancés côté display/player au moment de la révélation du 1er) ──
 function launchConfetti() {
-  const colors = ['#f093fb','#f5576c','#38ef7d','#ffcc00','#4facfe','#ff9a56'];
+  const colors = ['#f093fb','#f5576c','#38ef7d','#ffcc00','#4facfe','#ff9a56','#a78bfa','#34d399','#fb923c','#38bdf8'];
   const container = document.body;
-  for (let i = 0; i < 80; i++) {
-    const el = document.createElement('div');
-    el.className = 'confetti-piece';
-    el.style.cssText = `
-      left:${Math.random() * 100}vw;
-      top:-20px;
-      background:${colors[Math.floor(Math.random() * colors.length)]};
-      width:${6 + Math.random() * 8}px;
-      height:${10 + Math.random() * 12}px;
-      animation-duration:${2.5 + Math.random() * 3}s;
-      animation-delay:${Math.random() * 1.5}s;
-    `;
-    container.appendChild(el);
-    el.addEventListener('animationend', () => el.remove());
-  }
+  // Supprimer les anciens confettis s'il en reste
+  document.querySelectorAll('.confetti-piece').forEach(el => el.remove());
+  // Lancer 200 confettis en trois vagues
+  const launch = (count, delayOffset) => {
+    for (let i = 0; i < count; i++) {
+      const el = document.createElement('div');
+      el.className = 'confetti-piece';
+      const size = 6 + Math.random() * 9;
+      const isCircle = Math.random() > 0.6;
+      el.style.cssText = `
+        left:${Math.random() * 100}vw;
+        top:-${20 + Math.random() * 30}px;
+        background:${colors[Math.floor(Math.random() * colors.length)]};
+        width:${size}px;
+        height:${isCircle ? size : size * (1.4 + Math.random())}px;
+        border-radius:${isCircle ? '50%' : '2px'};
+        animation-duration:${3 + Math.random() * 3.5}s;
+        animation-delay:${delayOffset + Math.random() * 1.8}s;
+        opacity:${0.8 + Math.random() * 0.2};
+      `;
+      container.appendChild(el);
+      el.addEventListener('animationend', () => el.remove());
+    }
+  };
+  launch(80, 0);
+  launch(70, 0.5);
+  launch(60, 1.2);
 }
 window.launchConfetti = launchConfetti;
 
