@@ -575,6 +575,8 @@ pageInits.player = function() {
 };
 
 function renderPlayerJoin(suggestedCode = '') {
+  // Retirer les classes de mode jeu pour que la page de connexion puisse défiler
+  document.body.classList.remove('screen-player', 'screen-display', 'screen-host');
   _showAllTeams = false; // réinitialiser à chaque affichage
 
   // Cartes d'équipes si disponibles (12 par défaut, "voir plus" si besoin)
