@@ -588,7 +588,7 @@ function renderPlayerJoin(suggestedCode = '') {
     : '';
 
   html('page-player', `
-    <div class="card" style="text-align:center;background:linear-gradient(135deg,rgba(240,147,251,.1),rgba(245,87,108,.1));">
+    <div class="card" style="text-align:center;background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(99,102,241,.08));">
       <h1>📱 Quiz Live</h1>
       <p class="muted">Rejoins une partie et joue avec tes amis !</p>
     </div>
@@ -941,72 +941,82 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
   const pm = gs?.phaseMeta || {};
   const answerMode = pm.answerMode || 'none';
   const answered = !!(gs?.answers?.[q?.id]?.[playerId]);
+  const _rtIconsQ = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', burger:'🍔', vote:'🗳️', video_challenge:'🎬' };
+  const _rtQ = gs?.currentRound?.type || q?.type || 'qcm';
+  const rtIcon = _rtIconsQ[_rtQ] || '🎯';
 
   if (!q) return `<div class="card" style="text-align:center;padding:30px;"><p class="muted">En attente de la question…</p></div>`;
 
-  let media = '';
-  if (q.mediaUrl) {
-    const url = resolveMedia(q.mediaUrl);
-    if (/\.(mp3|wav|ogg)$/i.test(url)) media = `<div class="media-block"><audio controls autoplay src="${url}"></audio></div>`;
-    else if (/\.(mp4|webm|mov)$/i.test(url)) media = `<div class="media-block"><video controls autoplay src="${url}" style="max-height:45vh;"></video></div>`;
-    else media = `<div class="media-block"><img src="${url}" alt="media"></div>`;
-  }
-
-  // Timer
-  let timer = '';
+  // Timer compact (barre de progression) — calculé tôt pour pouvoir l'utiliser dans les retours anticipés
+  let timerBar = '';
   if (pm.timer?.remainingSec != null) {
     const pct = pm.timer.totalSec > 0 ? Math.max(0, (pm.timer.remainingSec / pm.timer.totalSec) * 100) : 0;
-    timer = `
-      <div class="card">
-        <div class="row" style="justify-content:space-between;margin-bottom:8px;">
-          <span>⏱️ Temps restant</span>
-          <strong style="color:#ff9a56;font-size:1.3rem;">${pm.timer.remainingSec}s</strong>
+    const tColor = pct < 25 ? '#eb3349' : pct < 55 ? '#f7971e' : '#38ef7d';
+    timerBar = `
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+        <div style="flex:1;height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${tColor};border-radius:3px;transition:width .5s linear;"></div>
         </div>
-        <div class="progress-bar"><div class="fill" style="width:${pct}%"></div></div>
+        <span style="font-size:.85rem;font-weight:700;color:${tColor};min-width:28px;text-align:right;">${pm.timer.remainingSec}s</span>
       </div>`;
   }
 
-  // Buzzer gris initial: afficher le buzzer désactivé (gris) quand verrouillé
-  if (locked && answerMode === 'buzzer') {
-    return `
-      ${timer}
-      <div class="player-question-bubble">
-        <p class="player-question-text">${q.content || ''}</p>
+  // Audio de question — pas d'image/vidéo sur le mobile joueur
+  let audioEl = '';
+  if (q.mediaUrl) {
+    const url = resolveMedia(q.mediaUrl);
+    if (/\.(mp3|wav|ogg)$/i.test(url)) {
+      audioEl = `<audio controls autoplay src="${url}" style="width:100%;height:32px;margin-top:4px;"></audio>`;
+    }
+  }
+
+  // Helper : header de la question (toujours affiché en haut)
+  const qHeader = `
+    <div class="player-question-header">
+      <div class="player-question-meta">
+        <span>${rtIcon ?? '🎯'} Q${(gs.currentQuestionIndex ?? 0) + 1}</span>
+        ${pm.answerMode ? `<span>·</span><span style="text-transform:capitalize;">${pm.answerMode.replace(/_/g,' ')}</span>` : ''}
       </div>
+      <p class="player-question-text">${q.content || ''}</p>
+      ${audioEl}
+      ${timerBar}
+    </div>`;
+
+  // Buzzer gris initial : affiché quand le round est verrouillé avant le top départ
+  if (locked && answerMode === 'buzzer') {
+    return qHeader + `
+    <div class="player-answer-zone">
       <div class="buzzer-wrap">
-        <button class="buzzer-btn buzzer-disabled" disabled>
-          BUZZER
-        </button>
+        <button class="buzzer-btn buzzer-disabled" disabled>BUZZER</button>
         <p class="muted" style="margin-top:10px;font-size:.88rem;">En attente du signal du maître de jeu…</p>
-      </div>`;
+      </div>
+    </div>`;
   }
 
   // Phase de révélation des propositions : afficher un écran "en attente" élaboré
   if (answerMode === 'vote_proposal_reveal') {
-    return `
-      ${timer}
+    return qHeader + `
+    <div class="player-answer-zone">
       <div class="player-waiting-screen">
         <div class="waiting-host-text">🗳️</div>
         <div class="waiting-host-label">RÉVÉLATION DES<br>PROPOSITIONS</div>
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
         <p class="muted" style="font-size:.9rem;">Regardez l'écran TV…</p>
-      </div>`;
+      </div>
+    </div>`;
   }
 
   // Challenge vidéo : écrans dédiés
   if (answerMode === 'video_select') {
-    const vs = gs?.videoState;
-    const isMe = vs?.selectedPlayerId === playerId;
-    const myTeamId = state.players.find(p => p.id === playerId)?.teamId;
-    const isMyTeam = myTeamId && vs?.selectedTeamId === myTeamId;
-    return `
-      ${timer}
+    return qHeader + `
+    <div class="player-answer-zone">
       <div class="player-waiting-screen">
         <div class="waiting-host-text">🎬</div>
         <div class="waiting-host-label">CHALLENGE<br>VIDÉO</div>
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
         <p class="muted" style="font-size:.9rem;">Le maître de jeu choisit un participant…</p>
-      </div>`;
+      </div>
+    </div>`;
   }
   if (answerMode === 'video_training_ready') {
     const vs = gs?.videoState;
@@ -1015,24 +1025,26 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
     const myTeamId = myPlayer?.teamId;
     const isMyTeam = myTeamId && vs?.selectedTeamId === myTeamId;
     const isSelected = isMe || isMyTeam;
-    return `
-      ${timer}
+    return qHeader + `
+    <div class="player-answer-zone">
       <div class="player-waiting-screen" style="background:${isSelected ? 'rgba(255,215,0,.07)' : 'transparent'};">
         <div class="waiting-host-text">🏋️</div>
         <div class="waiting-host-label">${isSelected ? 'ATTENTION' : 'REGARDEZ L\'ÉCRAN'}</div>
         ${isSelected ? `<p style="margin-top:14px;font-size:1rem;color:#ffd700;">La vidéo d'entraînement va démarrer !</p>` : '<p class="muted" style="margin-top:14px;font-size:.9rem;">Entraînement en cours…</p>'}
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
-      </div>`;
+      </div>
+    </div>`;
   }
   if (answerMode === 'video_training_playing') {
-    return `
-      ${timer}
+    return qHeader + `
+    <div class="player-answer-zone">
       <div class="player-waiting-screen">
         <div class="waiting-host-text">🏋️</div>
         <div class="waiting-host-label">ENTRAÎNEMENT</div>
         <p class="muted" style="margin-top:14px;font-size:.9rem;">Regardez l'écran TV</p>
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
-      </div>`;
+      </div>
+    </div>`;
   }
   if (answerMode === 'video_ready') {
     const vs = gs?.videoState;
@@ -1041,50 +1053,54 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
     const myTeamId = myPlayer?.teamId;
     const isMyTeam = myTeamId && vs?.selectedTeamId === myTeamId;
     const isSelected = isMe || isMyTeam;
-    return `
-      ${timer}
+    return qHeader + `
+    <div class="player-answer-zone">
       <div class="player-waiting-screen" style="background:${isSelected ? 'rgba(255,215,0,.07)' : 'transparent'};">
         <div class="waiting-host-text">${isSelected ? '🎬' : '👀'}</div>
         <div class="waiting-host-label">${isSelected ? 'TENEZ-VOUS PRÊT !' : 'REGARDEZ L\'ÉCRAN'}</div>
         ${isSelected ? `<p style="margin-top:14px;font-size:1rem;color:#ffd700;">La vidéo va démarrer !</p>` : '<p class="muted" style="margin-top:14px;font-size:.9rem;">Un participant passe le challenge…</p>'}
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
-      </div>`;
+      </div>
+    </div>`;
   }
   if (answerMode === 'video_playing') {
-    return `
-      ${timer}
+    return qHeader + `
+    <div class="player-answer-zone">
       <div class="player-waiting-screen">
         <div class="waiting-host-text">🎥</div>
         <div class="waiting-host-label">VIDÉO EN COURS</div>
         <p class="muted" style="margin-top:14px;font-size:.9rem;">Regardez l'écran TV</p>
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
-      </div>`;
+      </div>
+    </div>`;
   }
   if (answerMode === 'video_eval' || answerMode === 'video_scored') {
     const vs = gs?.videoState;
-    return `
-      ${timer}
+    return qHeader + `
+    <div class="player-answer-zone">
       <div class="player-waiting-screen">
         <div class="waiting-host-text">${answerMode === 'video_scored' ? '🏆' : '⚖️'}</div>
         <div class="waiting-host-label">${answerMode === 'video_scored' ? `${vs?.score ?? '?'}/10` : 'ÉVALUATION EN COURS'}</div>
         ${answerMode === 'video_scored' && vs?.selectedPseudo ? `<p style="margin-top:10px;color:#f7971e;font-size:1rem;">Score de <strong>${vs.selectedPseudo}</strong></p>` : ''}
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
         <button class="btn-recap-mini" onclick="showPlayerRecap()">📊 Voir mes scores</button>
-      </div>`;
+      </div>
+    </div>`;
   }
 
   // En phase de vote (vote_voting), ne pas bloquer avec l'écran d'attente
   // même si le joueur a déjà soumis sa proposition lors de vote_input
   if ((locked || answered) && answerMode !== 'vote_voting') {
-    return `
-      ${timer}
+    return qHeader + `
+    <div class="player-answer-zone">
       <div class="player-waiting-screen">
         <div class="waiting-host-text">⏳</div>
         <div class="waiting-host-label">EN ATTENTE DU<br>MAÎTRE DE JEU</div>
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
         ${answered ? '<p class="muted" style="font-size:.9rem;margin-bottom:16px;">Votre réponse a été envoyée ✅</p>' : ''}
         <button class="btn-recap-mini" onclick="showPlayerRecap()">📊 Voir mes scores</button>
-      </div>`;
+      </div>
+    </div>`;
   }
 
   // Buzzer queue info
@@ -1129,11 +1145,11 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
   } else if (answerMode === 'true_false') {
     answerUI = `
       <div class="answer-tiles answer-tiles-tf">
-        <button class="answer-tile answer-tile-true" onclick="playSound('answer');sendAnswer('${gs.sessionCode || ''}','${playerId}','vrai')">
+        <button class="answer-tile answer-tile-true" onclick="vibrate(30);playSound('answer');sendAnswer('${gs.sessionCode || ''}','${playerId}','vrai')">
           <span class="answer-tile-icon">✅</span>
           <span class="answer-tile-label" style="color:#22c55e;font-weight:900;">VRAI</span>
         </button>
-        <button class="answer-tile answer-tile-false" onclick="playSound('answer');sendAnswer('${gs.sessionCode || ''}','${playerId}','faux')">
+        <button class="answer-tile answer-tile-false" onclick="vibrate(30);playSound('answer');sendAnswer('${gs.sessionCode || ''}','${playerId}','faux')">
           <span class="answer-tile-icon">❌</span>
           <span class="answer-tile-label" style="color:#ef4444;font-weight:900;">FAUX</span>
         </button>
@@ -1148,15 +1164,10 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
     const labels = ['A','B','C','D'];
     const opts = q.options.map((opt, i) => {
       const label = typeof opt === 'object' ? (opt.text || '') : String(opt || '');
-      const optMedia = typeof opt === 'object' && opt.mediaUrl ? resolveMedia(opt.mediaUrl) : '';
-      const isImg = optMedia && /\.(jpg|jpeg|png|gif|webp)$/i.test(optMedia);
-      const isAudio = optMedia && /\.(mp3|wav|ogg)$/i.test(optMedia);
-      const mediaEl = isImg ? `<img src="${optMedia}" style="max-height:70px;border-radius:8px;margin-bottom:8px;">` :
-                      isAudio ? `<audio controls src="${optMedia}" style="height:28px;margin-bottom:6px;"></audio>` : '';
+      // Pas d'images sur le mobile joueur — uniformisation de l'affichage
       const c = tileColors[i] || tileColors[0];
       return `<button class="answer-tile answer-tile-mcq" style="background:${c.bg};border-color:${c.border};"
-        onclick="playSound('answer');sendAnswerByIndex(${i})">
-        ${mediaEl}
+        onclick="vibrate(30);playSound('answer');sendAnswerByIndex(${i})">
         <span class="answer-tile-letter" style="color:${c.label};">${labels[i]}</span>
         <span class="answer-tile-text">${label}</span>
       </button>`;
@@ -1199,8 +1210,12 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
     const vs = gs?.voteState;
     const myVote = vs?.votes?.[playerId];
     const hasVoted = myVote !== undefined && myVote !== null;
+    // Guard : voteState périmé (question précédente) — attendre la réinitialisation serveur
+    const staleVote = !vs || !vs.options || (vs.questionId && vs.questionId !== q?.id);
 
-    if (!vs || !vs.options) {
+    if (staleVote) {
+      answerUI = `<div class="player-waiting-screen"><div class="waiting-host-text">🗳️</div><div class="waiting-host-label">VOTE</div><div class="waiting-dots"><span></span><span></span><span></span></div></div>`;
+    } else if (!vs || !vs.options) {
       answerUI = `<div class="card" style="text-align:center;padding:30px;"><p class="muted">Chargement des votes…</p></div>`;
     } else if (hasVoted) {
       const votedOption = vs.options[myVote];
@@ -1221,7 +1236,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
             "${opt.text}" <span style="font-size:.75rem;">(votre réponse)</span>
           </div>`;
         return `
-          <button class="answer-tile answer-tile-vote" onclick="playSound('answer');sendVote(${idx})">
+          <button class="answer-tile answer-tile-vote" onclick="vibrate(25);playSound('answer');sendVote(${idx})">
             <span class="vote-tile-idx">${String.fromCharCode(65 + idx)}</span>
             <span class="answer-tile-text">${opt.text}</span>
           </button>`;
@@ -1246,10 +1261,10 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
       </div>`;
   }
 
-  return `
-    ${media}
-    ${timer}
-    ${answerUI}`;
+  return qHeader + `
+    <div class="player-answer-zone">
+      ${answerUI}
+    </div>`;
 }
 
 function renderPlayerRevealContent(gs, playerId) {
@@ -1340,7 +1355,7 @@ function showPlayerDirectMessage(bm) {
   overlay.id = 'player-direct-message';
   overlay.style.cssText = `
     position:fixed;bottom:0;left:0;right:0;z-index:9999;
-    background:linear-gradient(135deg,rgba(240,147,251,.95),rgba(245,87,108,.95));
+    background:linear-gradient(135deg,rgba(99,102,241,.95),rgba(79,70,229,.95));
     padding:20px;border-radius:16px 16px 0 0;
     box-shadow:0 -4px 24px rgba(0,0,0,.4);
     animation:slide-up-msg .3s ease;
@@ -1534,52 +1549,52 @@ function renderHostGame() {
 
   let html_ = `
     <style>
-      .host-main-tabs { display:flex; background:rgba(0,0,0,.25); border-bottom:2px solid rgba(255,255,255,.08); }
+      .host-main-tabs { display:flex; background:rgba(0,0,0,.3); border-bottom:2px solid rgba(255,255,255,.08); }
       .host-main-tab {
-        flex:1; padding:15px 8px; border:none; border-bottom:3px solid transparent;
-        background:transparent; color:rgba(255,255,255,.5); font-family:inherit;
-        font-size:1rem; font-weight:600; cursor:pointer; transition:all .2s; text-align:center;
-        margin-bottom:-2px;
+        flex:1; padding:14px 6px; border:none; border-bottom:3px solid transparent;
+        background:transparent; color:rgba(255,255,255,.4); font-family:inherit;
+        font-size:.95rem; font-weight:700; cursor:pointer; transition:all .18s; text-align:center;
+        margin-bottom:-2px; letter-spacing:.01em;
       }
-      .host-main-tab:hover { color:rgba(255,255,255,.85); background:rgba(255,255,255,.04); }
-      .host-main-tab.active { color:#fff; border-bottom-color:#f093fb; background:rgba(240,147,251,.08); }
+      .host-main-tab:hover { color:rgba(255,255,255,.75); background:rgba(255,255,255,.03); }
+      .host-main-tab.active { color:#818cf8; border-bottom-color:#6366f1; background:rgba(99,102,241,.07); }
       @keyframes pulse-scale {
-        0%,100% { transform:scale(1); box-shadow:0 0 0 0 rgba(56,239,125,.4); }
-        50% { transform:scale(1.04); box-shadow:0 0 0 8px rgba(56,239,125,0); }
+        0%,100% { transform:scale(1); box-shadow:0 0 0 0 rgba(16,185,129,.4); }
+        50% { transform:scale(1.04); box-shadow:0 0 0 8px rgba(16,185,129,0); }
       }
       .hbtn-pulse {
         animation: pulse-scale 1.4s ease-in-out infinite;
-        border-color: rgba(56,239,125,.6) !important;
+        border-color: rgba(16,185,129,.6) !important;
       }
-      .hbtn-pulse.hbtn-success { background:linear-gradient(135deg,#38ef7d,#11998e) !important; color:#fff !important; }
-      .hbtn-pulse.hbtn-primary { background:linear-gradient(135deg,#f093fb,#f5576c) !important; color:#fff !important; }
-      .hbtn-pulse.hbtn-nav-fwd { background:rgba(99,179,237,.2) !important; border-color:rgba(99,179,237,.5) !important; }
+      .hbtn-pulse.hbtn-success { background:linear-gradient(135deg,#10b981,#059669) !important; color:#fff !important; }
+      .hbtn-pulse.hbtn-primary { background:linear-gradient(135deg,#6366f1,#4f46e5) !important; color:#fff !important; }
+      .hbtn-pulse.hbtn-nav-fwd { background:rgba(14,165,233,.2) !important; border-color:rgba(14,165,233,.5) !important; }
       .answer-tile-vote {
         display:block; width:100%; padding:16px 20px; text-align:left;
-        background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.15);
-        border-radius:12px; cursor:pointer; transition:all .15s;
+        background:rgba(139,92,246,.08); border:1.5px solid rgba(139,92,246,.28);
+        border-radius:14px; cursor:pointer; transition:all .15s;
         font-family:inherit; font-size:1rem; font-weight:600; color:#fff;
       }
-      .answer-tile-vote:hover { background:rgba(240,147,251,.2); border-color:rgba(240,147,251,.5); }
-      .host-tab-body { padding:16px; }
+      .answer-tile-vote:hover { background:rgba(139,92,246,.2); border-color:rgba(139,92,246,.55); }
+      .host-tab-body { padding:12px; }
       .ctrl-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
       @media(min-width:560px){ .ctrl-grid { grid-template-columns:repeat(3,1fr); } }
-      .round-accordion { border:1px solid rgba(255,255,255,.1); border-radius:12px; overflow:hidden; margin-bottom:10px; }
+      .round-accordion { border:1px solid rgba(255,255,255,.08); border-radius:14px; overflow:hidden; margin-bottom:10px; }
       .round-acc-hdr {
-        display:flex; align-items:center; gap:10px; padding:13px 16px;
-        background:rgba(255,255,255,.05); cursor:pointer; border:none;
-        width:100%; color:#fff; font-family:inherit; text-align:left; transition:background .15s;
+        display:flex; align-items:center; gap:10px; padding:12px 16px;
+        background:rgba(255,255,255,.04); cursor:pointer; border:none;
+        width:100%; color:#f1f5f9; font-family:inherit; text-align:left; transition:background .15s;
       }
-      .round-acc-hdr:hover { background:rgba(255,255,255,.09); }
-      .round-acc-hdr.cur-round { background:rgba(240,147,251,.1); border-left:3px solid #f093fb; }
-      .round-acc-body { padding:12px 16px; background:rgba(0,0,0,.15); }
+      .round-acc-hdr:hover { background:rgba(255,255,255,.07); }
+      .round-acc-hdr.cur-round { background:rgba(99,102,241,.1); border-left:3px solid #6366f1; }
+      .round-acc-body { padding:12px 16px; background:rgba(0,0,0,.2); }
       .q-line {
         display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
         padding:9px 12px; border-radius:8px; margin-bottom:6px;
-        background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07);
+        background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
         transition:background .15s;
       }
-      .q-line.q-active { background:rgba(99,179,237,.12); border-color:rgba(99,179,237,.3); }
+      .q-line.q-active { background:rgba(14,165,233,.1); border-color:rgba(14,165,233,.3); }
     </style>
     <div class="session-banner">
       <span>Session : <strong class="session-code">${sc}</strong></span>
@@ -1876,11 +1891,15 @@ function renderHostPilotageTab(gs, phase) {
   ) ? 'hbtn-pulse' : '';
   out += `<div class="host-section host-section-nav">
     <div class="host-section-label">🧭 NAVIGATION</div>
-    <div class="host-nav-grid">
-      <button class="hbtn hbtn-nav" onclick="hostAction('prev_round')" title="Manche précédente">◀ Manche</button>
-      <button class="hbtn hbtn-nav" onclick="hostAction('prev_question')" title="Question précédente">◀ Question</button>
-      <button class="hbtn hbtn-nav hbtn-nav-fwd ${nextQPulse}" onclick="hostAction('next_question')" title="Question suivante">Question ▶</button>
-      <button class="hbtn hbtn-nav hbtn-nav-fwd" onclick="hostAction('next_round')" title="Manche suivante">Manche ▶</button>
+    <div style="display:grid;gap:5px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">
+        <button class="hbtn hbtn-nav" onclick="hostAction('prev_question')" title="Question précédente">◀ Question</button>
+        <button class="hbtn hbtn-nav hbtn-nav-fwd ${nextQPulse}" onclick="hostAction('next_question')" title="Question suivante">Question ▶</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">
+        <button class="hbtn hbtn-nav" style="opacity:.7;font-size:.78rem;" onclick="hostAction('prev_round')" title="Manche précédente">◀ Manche</button>
+        <button class="hbtn hbtn-nav hbtn-nav-fwd" style="opacity:.7;font-size:.78rem;" onclick="hostAction('next_round')" title="Manche suivante">Manche ▶</button>
+      </div>
     </div>
     <div class="host-ctrl-row" style="margin-top:6px;">
       ${['question','waiting','answer_reveal','manual_scoring'].includes(phase) ? `
@@ -2024,8 +2043,10 @@ function renderHostPilotageTab(gs, phase) {
             <button class="hbtn hbtn-success hbtn-pulse" style="flex:1;" onclick="hostAction('award_buzzer_correct')">✅ Bonne (+1)</button>
             <button class="hbtn hbtn-danger" style="flex:1;" onclick="hostAction('buzzer_mark_wrong')">❌ Mauvaise</button>
           </div>
-          <div class="host-ctrl-row" style="margin-top:6px;">
-            <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reveal_answer')">📋 Afficher réponse</button>
+          <div class="host-ctrl-row" style="margin-top:8px;">
+            <button class="hbtn hbtn-primary hbtn-pulse" style="flex:1;font-size:.95rem;" onclick="hostAction('reveal_answer')">📋 Afficher la réponse</button>
+          </div>
+          <div class="host-ctrl-row" style="margin-top:5px;">
             <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('next_question')">⏭ Question suiv.</button>
           </div>
         </div>`;
@@ -2035,7 +2056,7 @@ function renderHostPilotageTab(gs, phase) {
         <div style="text-align:center;padding:10px;">
           <p style="color:#ffa500;font-weight:600;">🔔 Buzzers actifs — en attente d'un joueur…</p>
           <p class="muted" style="font-size:.8rem;margin-top:4px;">${buzzerQueuePseudos.length}/${allConnected} ont déjà participé</p>
-          <button class="hbtn hbtn-secondary hbtn-sm" style="margin-top:8px;" onclick="hostAction('reveal_answer')">📋 Afficher réponse</button>
+          <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" style="margin-top:12px;" onclick="hostAction('reveal_answer')">📋 Afficher la réponse</button>
         </div>`;
     }
     out += `</div>`;
@@ -3240,7 +3261,7 @@ function renderDisplay() {
   if (gs?.phaseMeta?.broadcastMessage) {
     const bm = gs.phaseMeta.broadcastMessage;
     content += `
-      <div class="card" style="margin-top:14px;border-color:rgba(240,147,251,.4);background:rgba(240,147,251,.07);text-align:center;padding:20px;">
+      <div class="card" style="margin-top:14px;border-color:rgba(99,102,241,.4);background:rgba(99,102,241,.07);text-align:center;padding:20px;">
         ${bm.imageUrl ? `<img src="${bm.imageUrl}" style="max-width:100%;max-height:280px;border-radius:12px;margin-bottom:12px;object-fit:contain;">` : ''}
         ${bm.text ? `<p style="font-size:1.1rem;font-weight:600;">${bm.text}</p>` : ''}
       </div>`;
@@ -4288,7 +4309,7 @@ function renderQuizEditor() {
         </div>
 
         <!-- Page de bienvenue -->
-        <div class="card" style="border-color:rgba(240,147,251,.2);background:rgba(240,147,251,.03);">
+        <div class="card" style="border-color:rgba(99,102,241,.2);background:rgba(99,102,241,.03);">
           <h3>🎉 Page de bienvenue</h3>
           <p class="muted" style="font-size:.8rem;margin:6px 0 14px;">Affiché sur l'écran TV pendant l'attente des joueurs (lobby).</p>
           <div class="grid2" style="gap:12px;">
@@ -5668,13 +5689,13 @@ function renderThemePicker() {
       style="
         display:flex;align-items:center;gap:12px;
         width:100%;padding:12px 14px;border-radius:10px;
-        border:${_currentTheme===key ? '2px solid rgba(240,147,251,0.8)' : '1px solid rgba(255,255,255,0.1)'};
-        background:${_currentTheme===key ? 'rgba(240,147,251,0.12)' : 'rgba(255,255,255,0.05)'};
+        border:${_currentTheme===key ? '2px solid rgba(99,102,241,0.8)' : '1px solid rgba(255,255,255,0.1)'};
+        background:${_currentTheme===key ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.05)'};
         cursor:pointer;text-align:left;color:#fff;font-family:inherit;
         transition:all 0.15s;margin-bottom:6px;
       "
       onmouseover="this.style.background='rgba(255,255,255,0.1)'"
-      onmouseout="this.style.background='${_currentTheme===key ? 'rgba(240,147,251,0.12)' : 'rgba(255,255,255,0.05)'}'">
+      onmouseout="this.style.background='${_currentTheme===key ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.05)'}'">
       <span style="font-size:1.5rem;">${t.label.split(' ')[0]}</span>
       <div>
         <div style="font-weight:700;font-size:.92rem;">${t.name}${_currentTheme===key ? ' ✓' : ''}</div>
@@ -5693,7 +5714,7 @@ function openThemePicker() {
   `;
   modal.innerHTML = `
     <div style="
-      background:#1a1740;border:1px solid rgba(255,255,255,.15);
+      background:#131a26;border:1px solid rgba(255,255,255,.15);
       border-radius:18px;padding:22px;width:100%;max-width:380px;
     ">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
