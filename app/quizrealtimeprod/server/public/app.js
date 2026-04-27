@@ -174,7 +174,7 @@ function updateRoundMusic(url) {
 }
 
 function _ensureMuteButton() {
-  if (state.currentPage !== 'display') return;
+  if (!['display','player','host'].includes(state.currentPage)) return;
   let btn = document.getElementById('music-mute-btn');
   if (!btn) {
     btn = document.createElement('button');
@@ -403,36 +403,36 @@ async function apiFetch(path, opts = {}) {
 pageInits.home = function() {
   html('page-home', `
     <div class="home-hero">
-      <div class="home-hero-logo">🎮</div>
+      <div class="home-hero-logo">⚡</div>
       <h1 class="home-hero-title">QuizzGeek</h1>
-      <p class="home-hero-sub">Quiz en temps réel · Buzzers · Votes · Podium</p>
+      <p class="home-hero-sub">Quiz live · Buzzers · Votes · Podium</p>
     </div>
     <div class="home-roles">
       <button class="home-role-btn home-role-player" onclick="navigate('player');playSound('nav')">
-        <span class="home-role-icon">📱</span>
+        <span class="home-role-icon">🎮</span>
         <span class="home-role-label">Jouer</span>
         <span class="home-role-sub">Rejoindre une partie</span>
       </button>
       <button class="home-role-btn home-role-host" onclick="navigate('host');playSound('nav')">
-        <span class="home-role-icon">🎤</span>
+        <span class="home-role-icon">🎬</span>
         <span class="home-role-label">Maître de jeu</span>
         <span class="home-role-sub">Animer et piloter</span>
       </button>
       <button class="home-role-btn home-role-display" onclick="navigate('display');playSound('nav')">
-        <span class="home-role-icon">📺</span>
+        <span class="home-role-icon">🖥️</span>
         <span class="home-role-label">Écran TV</span>
         <span class="home-role-sub">Affichage grand écran</span>
       </button>
       <button class="home-role-btn home-role-admin" onclick="navigate('admin');playSound('nav')">
-        <span class="home-role-icon">⚙️</span>
+        <span class="home-role-icon">🛠️</span>
         <span class="home-role-label">Admin</span>
         <span class="home-role-sub">Créer les quiz</span>
       </button>
     </div>
     <div class="home-round-types">
-      <div class="home-rt home-rt-qcm">🔘 QCM</div>
+      <div class="home-rt home-rt-qcm">🧠 QCM</div>
       <div class="home-rt home-rt-rapide">⚡ Rapidité</div>
-      <div class="home-rt home-rt-tf">✅ Vrai/Faux</div>
+      <div class="home-rt home-rt-tf">🟢 Vrai/Faux</div>
       <div class="home-rt home-rt-burger">🍔 Burger</div>
       <div class="home-rt home-rt-vote">🗳️ Vote</div>
     </div>
@@ -1146,14 +1146,14 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
     }
   } else if (answerMode === 'true_false') {
     answerUI = `
-      <div class="answer-tiles answer-tiles-tf">
+      <div class="answer-tiles">
         <button class="answer-tile answer-tile-true" onclick="vibrate(30);playSound('answer');sendAnswer('${gs.sessionCode || ''}','${playerId}','vrai')">
-          <span class="answer-tile-icon">✅</span>
-          <span class="answer-tile-label" style="color:#22c55e;font-weight:900;">VRAI</span>
+          <span class="answer-tile-icon">🟢</span>
+          <span class="answer-tile-label">VRAI</span>
         </button>
         <button class="answer-tile answer-tile-false" onclick="vibrate(30);playSound('answer');sendAnswer('${gs.sessionCode || ''}','${playerId}','faux')">
-          <span class="answer-tile-icon">❌</span>
-          <span class="answer-tile-label" style="color:#ef4444;font-weight:900;">FAUX</span>
+          <span class="answer-tile-icon">🔴</span>
+          <span class="answer-tile-label">FAUX</span>
         </button>
       </div>`;
   } else if (answerMode === 'mcq' && Array.isArray(q.options) && q.options.length) {
@@ -1166,7 +1166,6 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
     const labels = ['A','B','C','D'];
     const opts = q.options.map((opt, i) => {
       const label = typeof opt === 'object' ? (opt.text || '') : String(opt || '');
-      // Pas d'images sur le mobile joueur — uniformisation de l'affichage
       const c = tileColors[i] || tileColors[0];
       return `<button class="answer-tile answer-tile-mcq" style="background:${c.bg};border-color:${c.border};"
         onclick="vibrate(30);playSound('answer');sendAnswerByIndex(${i})">
@@ -1174,8 +1173,8 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
         <span class="answer-tile-text">${label}</span>
       </button>`;
     }).join('');
-    const cols = q.options.length <= 2 ? 'answer-tiles-2' : 'answer-tiles-mcq-grid';
-    answerUI = `<div class="answer-tiles ${cols}">${opts}</div>`;
+    // Toujours une seule colonne sur mobile joueur
+    answerUI = `<div class="answer-tiles answer-tiles-col">${opts}</div>`;
   } else if (answerMode === 'burger') {
     answerUI = `
       <div class="player-question-bubble" style="text-align:center;">
@@ -2041,16 +2040,24 @@ function renderHostPilotageTab(gs, phase) {
               ${blr ? `<p style="font-size:.85rem;font-weight:700;margin-top:4px;color:${blr.result==='correct'?'#38ef7d':'#eb3349'};">${blr.result==='correct'?'✅ Bonne réponse !':'❌ Mauvaise réponse'}</p>` : ''}
             </div>
           </div>
+          ${blr ? `
+          <div class="host-ctrl-row" style="margin-top:10px;">
+            <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" style="font-size:1.05rem;padding:14px;" onclick="hostAction('next_question')">⏭ Question suivante</button>
+          </div>
+          <div class="host-ctrl-row" style="margin-top:6px;opacity:0.55;">
+            <button class="hbtn hbtn-success" style="flex:1;font-size:.8rem;" onclick="hostAction('award_buzzer_correct')">✅ Bonne</button>
+            <button class="hbtn hbtn-danger" style="flex:1;font-size:.8rem;" onclick="hostAction('buzzer_mark_wrong')">❌ Mauvaise</button>
+          </div>` : `
           <div class="host-ctrl-row">
             <button class="hbtn hbtn-success hbtn-pulse" style="flex:1;" onclick="hostAction('award_buzzer_correct')">✅ Bonne (+1)</button>
             <button class="hbtn hbtn-danger" style="flex:1;" onclick="hostAction('buzzer_mark_wrong')">❌ Mauvaise</button>
           </div>
           <div class="host-ctrl-row" style="margin-top:8px;">
-            <button class="hbtn hbtn-primary hbtn-pulse" style="flex:1;font-size:.95rem;" onclick="hostAction('reveal_answer')">📋 Afficher la réponse</button>
+            <button class="hbtn hbtn-secondary hbtn-wide" style="font-size:.85rem;" onclick="hostAction('reveal_answer')">📋 Afficher la réponse</button>
           </div>
           <div class="host-ctrl-row" style="margin-top:5px;">
             <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('next_question')">⏭ Question suiv.</button>
-          </div>
+          </div>`}
         </div>`;
     } else {
       // Buzzers actifs, en attente
