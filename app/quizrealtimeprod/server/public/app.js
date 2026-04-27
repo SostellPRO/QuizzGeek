@@ -2000,7 +2000,7 @@ function renderHostPilotageTab(gs, phase) {
       </div>
       <div class="row" style="gap:6px;margin-top:6px;">
         <input type="number" id="timer-sec" value="${timerInfo?.remainingSec || 30}" min="1" max="300" style="width:76px;flex-shrink:0;font-size:.9rem;">
-        <button class="hbtn hbtn-success" style="flex:1;" onclick="startTimer()">⏱ Timer</button>
+        <button class="hbtn hbtn-success hbtn-wide" onclick="startTimer()">⏱ Timer</button>
       </div>
     </div>`;
   }
@@ -2045,12 +2045,12 @@ function renderHostPilotageTab(gs, phase) {
             <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" style="font-size:1.05rem;padding:14px;" onclick="hostAction('next_question')">⏭ Question suivante</button>
           </div>
           <div class="host-ctrl-row" style="margin-top:6px;opacity:0.55;">
-            <button class="hbtn hbtn-success" style="flex:1;font-size:.8rem;" onclick="hostAction('award_buzzer_correct')">✅ Bonne</button>
-            <button class="hbtn hbtn-danger" style="flex:1;font-size:.8rem;" onclick="hostAction('buzzer_mark_wrong')">❌ Mauvaise</button>
+            <button class="hbtn hbtn-success" onclick="hostAction('award_buzzer_correct')">✅ Bonne</button>
+            <button class="hbtn hbtn-danger" onclick="hostAction('buzzer_mark_wrong')">❌ Mauvaise</button>
           </div>` : `
           <div class="host-ctrl-row">
-            <button class="hbtn hbtn-success hbtn-pulse" style="flex:1;" onclick="hostAction('award_buzzer_correct')">✅ Bonne (+1)</button>
-            <button class="hbtn hbtn-danger" style="flex:1;" onclick="hostAction('buzzer_mark_wrong')">❌ Mauvaise</button>
+            <button class="hbtn hbtn-success hbtn-pulse hbtn-wide" onclick="hostAction('award_buzzer_correct')">✅ Bonne (+1)</button>
+            <button class="hbtn hbtn-danger hbtn-wide" onclick="hostAction('buzzer_mark_wrong')">❌ Mauvaise</button>
           </div>
           <div class="host-ctrl-row" style="margin-top:8px;">
             <button class="hbtn hbtn-secondary hbtn-wide" style="font-size:.85rem;" onclick="hostAction('reveal_answer')">📋 Afficher la réponse</button>
