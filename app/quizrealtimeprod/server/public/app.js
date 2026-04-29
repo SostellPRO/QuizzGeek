@@ -1892,12 +1892,12 @@ function renderHostPilotageTab(gs, phase) {
   ) ? 'hbtn-pulse' : '';
   out += `<div class="host-section host-section-nav">
     <div class="host-section-label">🧭 NAVIGATION</div>
-    <div style="display:grid;gap:5px;">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">
+    <div class="host-nav-grid-wrap">
+      <div class="host-nav-pair">
         <button class="hbtn hbtn-nav" onclick="hostAction('prev_question')" title="Question précédente">◀ Question</button>
         <button class="hbtn hbtn-nav hbtn-nav-fwd ${nextQPulse}" onclick="hostAction('next_question')" title="Question suivante">Question ▶</button>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">
+      <div class="host-nav-pair">
         <button class="hbtn hbtn-nav" style="opacity:.7;font-size:.78rem;" onclick="hostAction('prev_round')" title="Manche précédente">◀ Manche</button>
         <button class="hbtn hbtn-nav hbtn-nav-fwd" style="opacity:.7;font-size:.78rem;" onclick="hostAction('next_round')" title="Manche suivante">Manche ▶</button>
       </div>
@@ -1908,7 +1908,7 @@ function renderHostPilotageTab(gs, phase) {
         <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('start_round')">🔁 Refaire</button>
       ` : ''}
       ${phase === 'round_end' ? `
-        <button class="hbtn hbtn-success hbtn-pulse hbtn-wide" onclick="hostAction('next_round')">▶▶ Manche suivante</button>
+        <button class="hbtn hbtn-success hbtn-pulse" style="padding:12px 28px;" onclick="hostAction('next_round')">▶▶ Manche suivante</button>
         <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Voir les scores</button>
         <button class="hbtn hbtn-danger hbtn-sm" onclick="hostAction('finish_quiz')">🏁 Terminer le quiz</button>
       ` : ''}
@@ -2024,7 +2024,7 @@ function renderHostPilotageTab(gs, phase) {
       out += `
         <div style="text-align:center;padding:16px 8px;">
           <p class="muted" style="margin-bottom:14px;font-size:.9rem;">🔒 Buzzers désactivés — les joueurs voient un buzzer gris</p>
-          <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" style="font-size:1.1rem;padding:16px;" onclick="hostAction('activate_buzzer')">🔔 ACTIVER LES BUZZERS</button>
+          <button class="hbtn hbtn-success hbtn-pulse" style="font-size:1.1rem;padding:14px 32px;" onclick="hostAction('activate_buzzer')">🔔 ACTIVER LES BUZZERS</button>
         </div>`;
     } else if (bz?.firstPseudo) {
       // Un joueur a buzzé
@@ -2042,18 +2042,18 @@ function renderHostPilotageTab(gs, phase) {
           </div>
           ${blr ? `
           <div class="host-ctrl-row" style="margin-top:10px;">
-            <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" style="font-size:1.05rem;padding:14px;" onclick="hostAction('next_question')">⏭ Question suivante</button>
+            <button class="hbtn hbtn-primary hbtn-pulse" style="font-size:1.05rem;padding:14px 32px;" onclick="hostAction('next_question')">⏭ Question suivante</button>
           </div>
           <div class="host-ctrl-row" style="margin-top:6px;opacity:0.55;">
             <button class="hbtn hbtn-success" onclick="hostAction('award_buzzer_correct')">✅ Bonne</button>
             <button class="hbtn hbtn-danger" onclick="hostAction('buzzer_mark_wrong')">❌ Mauvaise</button>
           </div>` : `
           <div class="host-ctrl-row">
-            <button class="hbtn hbtn-success hbtn-pulse hbtn-wide" onclick="hostAction('award_buzzer_correct')">✅ Bonne (+1)</button>
-            <button class="hbtn hbtn-danger hbtn-wide" onclick="hostAction('buzzer_mark_wrong')">❌ Mauvaise</button>
+            <button class="hbtn hbtn-success hbtn-pulse" style="padding:13px 28px;font-size:.95rem;" onclick="hostAction('award_buzzer_correct')">✅ Bonne (+1)</button>
+            <button class="hbtn hbtn-danger" style="padding:13px 24px;font-size:.95rem;" onclick="hostAction('buzzer_mark_wrong')">❌ Mauvaise</button>
           </div>
           <div class="host-ctrl-row" style="margin-top:8px;">
-            <button class="hbtn hbtn-secondary hbtn-wide" style="font-size:.85rem;" onclick="hostAction('reveal_answer')">📋 Afficher la réponse</button>
+            <button class="hbtn hbtn-secondary" style="font-size:.85rem;" onclick="hostAction('reveal_answer')">📋 Afficher la réponse</button>
           </div>
           <div class="host-ctrl-row" style="margin-top:5px;">
             <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('next_question')">⏭ Question suiv.</button>
@@ -2065,7 +2065,7 @@ function renderHostPilotageTab(gs, phase) {
         <div style="text-align:center;padding:10px;">
           <p style="color:#ffa500;font-weight:600;">🔔 Buzzers actifs — en attente d'un joueur…</p>
           <p class="muted" style="font-size:.8rem;margin-top:4px;">${buzzerQueuePseudos.length}/${allConnected} ont déjà participé</p>
-          <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" style="margin-top:12px;" onclick="hostAction('reveal_answer')">📋 Afficher la réponse</button>
+          <button class="hbtn hbtn-primary hbtn-pulse" style="margin-top:12px;padding:12px 28px;" onclick="hostAction('reveal_answer')">📋 Afficher la réponse</button>
         </div>`;
     }
     out += `</div>`;
@@ -2092,7 +2092,7 @@ function renderHostPilotageTab(gs, phase) {
           <p style="font-size:1.6rem;font-weight:700;color:#f59e0b;margin-bottom:4px;">${submittedCount}<span class="muted" style="font-size:.9rem;">/${connectedCount}</span></p>
           <p class="muted" style="font-size:.8rem;margin-bottom:14px;">réponses reçues</p>
           <div class="host-ctrl-row">
-            <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer les votes</button>
+            <button class="hbtn hbtn-primary hbtn-pulse" style="padding:12px 28px;" onclick="hostAction('vote_start_voting')">🗳️ Lancer les votes</button>
           </div>
         </div>`;
       // Liste des réponses reçues (anonymisées dans l'ordre d'arrivée)
