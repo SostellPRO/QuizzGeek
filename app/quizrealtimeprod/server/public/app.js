@@ -763,8 +763,8 @@ function renderPlayerGame() {
       <div class="player-get-ready">
         <div class="player-gr-icon">${_rtIconsP[_rtP] || '🎯'}</div>
         <h2 class="player-gr-title">Tenez-vous prêts !</h2>
-        <p class="muted" style="margin-top:12px;font-size:.88rem;">Le maître de jeu va lancer la question…</p>
-        <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
+        <p class="muted" style="margin-top:8px;font-size:clamp(.95rem,3.5vw,1.1rem);">Le maître de jeu va lancer la question…</p>
+        <div class="waiting-dots" style="margin-top:24px;"><span></span><span></span><span></span></div>
       </div>`;
   } else if (phase === 'question' || phase === 'waiting') {
     // Burger : seul le joueur/équipe sélectionné joue, les autres attendent
@@ -1138,7 +1138,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
     } else {
       answerUI = `
         <div class="buzzer-wrap">
-          <button class="buzzer-btn" id="buzzer-btn" onclick="sendBuzzer('${gs.sessionCode || ''}')">
+          <button class="buzzer-btn" id="buzzer-btn" onclick="vibrate([60,20,60]);sendBuzzer('${gs.sessionCode || ''}')">
             BUZZER
           </button>
           ${allBuzzed ? '<p class="muted" style="margin-top:12px;">Tour suivant !</p>' : ''}
@@ -1779,7 +1779,7 @@ function renderHostPilotageTab(gs, phase) {
       </div>
       <div class="row" style="gap:6px;">
         <button class="btn-secondary btn-sm" onclick="showBroadcastModal()">💬 Message</button>
-        <button class="btn-primary btn-sm" onclick="openDisplayPopup()">📺 TV ↗</button>
+        <button class="hbtn hbtn-tv hbtn-pulse" onclick="openDisplayPopup()" title="Ouvrir l'écran de diffusion TV">📺 Diffusion TV ↗</button>
       </div>
     </div>`;
 
@@ -3118,7 +3118,7 @@ function renderDisplay() {
     content += `
       <div class="get-ready-screen">
         <div class="get-ready-content">
-          <div class="get-ready-icon">${_grIcon}</div>
+          <div class="get-ready-icon" style="font-size:clamp(5rem,12vw,9rem);animation:di-icon-pulse 2.5s ease-in-out infinite;">${_grIcon}</div>
           <div class="get-ready-label">Tenez-vous prêts !</div>
           <div class="get-ready-sub">Question ${_grQNum}</div>
           <div class="waiting-dots" style="margin-top:28px;"><span></span><span></span><span></span></div>
@@ -3950,11 +3950,11 @@ pageInits.admin = function() {
 
 async function loadQuizList() {
   html('page-admin', `
-    <div class="row" style="justify-content:space-between;margin-bottom:20px;">
-      <h1>⚙️ Admin Quiz</h1>
-      <div class="row">
-        <button class="btn-primary" onclick="startNewQuiz()">+ Nouveau quiz</button>
-        <button class="btn-secondary" onclick="navigate('home')">Accueil</button>
+    <div class="row" style="justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+      <h1 style="margin:0;">⚙️ Admin Quiz</h1>
+      <div class="row" style="gap:8px;">
+        <button class="btn-primary btn-sm" onclick="startNewQuiz()">+ Nouveau quiz</button>
+        <button class="btn-secondary btn-sm" onclick="navigate('home')">← Accueil</button>
       </div>
     </div>
     <div id="admin-alert"></div>
@@ -3979,17 +3979,19 @@ function renderQuizList() {
     return;
   }
   html('quiz-list-card', `
-    <h2>Mes quiz (${qs.length})</h2>
-    <div style="margin-top:14px;display:grid;gap:10px;">
+    <h2 style="margin-bottom:12px;">Mes quiz <span class="muted" style="font-size:.9rem;font-weight:600;">(${qs.length})</span></h2>
+    <div style="display:flex;flex-direction:column;gap:8px;">
       ${qs.map(q => `
-        <div class="row" style="background:rgba(255,255,255,.04);padding:12px 16px;border-radius:10px;gap:12px;">
-          <div style="flex:1;">
-            <strong>${q.title}</strong>
-            <span class="muted" style="margin-left:8px;font-size:.85rem;">${q.rounds?.length||0} manche(s)</span>
+        <div class="quiz-list-item">
+          <div class="quiz-list-item-info">
+            <div class="quiz-list-item-title">${q.title}</div>
+            <div class="quiz-list-item-meta">${q.rounds?.length||0} manche${(q.rounds?.length||0)>1?'s':''}</div>
           </div>
-          <button class="btn-secondary" style="font-size:.85rem;" onclick="editQuiz('${q.id}')">✏️ Éditer</button>
-          <button class="btn-success"   style="font-size:.85rem;" onclick="launchQuiz('${q.id}')">▶️ Lancer</button>
-          <button class="btn-danger"    style="font-size:.85rem;" onclick="deleteQuiz('${q.id}')">🗑️</button>
+          <div class="quiz-list-item-actions">
+            <button class="btn-secondary btn-sm" onclick="editQuiz('${q.id}')">✏️ Éditer</button>
+            <button class="btn-success btn-sm" onclick="launchQuiz('${q.id}')">▶️ Lancer</button>
+            <button class="btn-danger btn-sm" onclick="deleteQuiz('${q.id}')">🗑️</button>
+          </div>
         </div>`).join('')}
     </div>`);
 }
@@ -4023,44 +4025,41 @@ async function launchQuiz(quizId) {
   modal.className = 'modal-overlay';
   modal.id = 'launch-modal';
   modal.innerHTML = `
-    <div class="modal">
-      <h2>▶️ Lancer le quiz</h2>
-      <p class="muted" style="margin-bottom:16px;">📚 <strong>${quiz?.title || 'Quiz'}</strong></p>
-      <div style="display:grid;gap:14px;">
-        <div class="grid2">
-          <div>
-            <label>Code de session</label>
-            <input id="launch-code" value="${code}" placeholder="ex: 1234"
-              style="text-transform:uppercase;letter-spacing:4px;text-align:center;"
-              oninput="this.value=this.value.toUpperCase()">
-          </div>
-          <div>
-            <label>Clé host</label>
-            <input id="launch-hostkey" value="demo-host" placeholder="demo-host">
-          </div>
+    <div class="modal-box">
+      <h2 style="margin-bottom:4px;">▶️ Lancer le quiz</h2>
+      <p class="muted" style="margin-bottom:16px;font-size:.9rem;">📚 <strong style="color:var(--t1);">${quiz?.title || 'Quiz'}</strong></p>
+      <div class="grid2" style="gap:12px;margin-bottom:14px;">
+        <div>
+          <label>Code de session</label>
+          <input id="launch-code" value="${code}" placeholder="ex: 1234"
+            style="text-transform:uppercase;letter-spacing:4px;text-align:center;"
+            oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div>
+          <label>Clé host</label>
+          <input id="launch-hostkey" value="demo-host" placeholder="demo-host">
         </div>
       </div>
-      <div id="launch-alert" style="margin-top:12px;"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px;">
-        <div style="background:rgba(56,239,125,.06);border:1px solid rgba(56,239,125,.25);border-radius:16px;padding:16px;text-align:center;">
-          <div style="font-size:2rem;margin-bottom:8px;">🎮</div>
-          <h3 style="font-size:1rem;margin-bottom:6px;">Partie réelle</h3>
-          <p class="muted" style="font-size:.8rem;margin-bottom:12px;">Les joueurs rejoignent avec le code</p>
-          <button class="btn-success" style="width:100%;" onclick="doLaunchGame('${quizId}',false)">▶️ Lancer la partie</button>
+      <div id="launch-alert"></div>
+      <div class="grid2" style="gap:10px;margin-top:14px;">
+        <div style="background:rgba(16,185,129,.08);border:1px solid rgba(74,222,128,.3);border-radius:var(--r-lg);padding:14px;text-align:center;">
+          <div style="font-size:2rem;margin-bottom:6px;">🎮</div>
+          <h3 style="font-size:.95rem;margin-bottom:4px;">Partie réelle</h3>
+          <p class="muted" style="font-size:.75rem;margin-bottom:10px;">Les joueurs rejoignent avec le code</p>
+          <button class="btn-success" style="padding:10px 18px;" onclick="doLaunchGame('${quizId}',false)">▶️ Lancer la partie</button>
         </div>
-        <div style="background:rgba(245,87,108,.06);border:1px solid rgba(245,87,108,.25);border-radius:16px;padding:16px;text-align:center;">
-          <div style="font-size:2rem;margin-bottom:8px;">🧪</div>
-          <h3 style="font-size:1rem;margin-bottom:6px;">Mode test</h3>
-          <p class="muted" style="font-size:.8rem;margin-bottom:12px;">Simulez avec des bots</p>
-          <div style="margin-bottom:8px;">
-            <label style="font-size:.78rem;color:rgba(255,255,255,.5);">Bots :</label>
-            <input type="number" id="launch-bots" value="3" min="0" max="20" style="width:60px;margin-left:6px;">
+        <div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.3);border-radius:var(--r-lg);padding:14px;text-align:center;">
+          <div style="font-size:2rem;margin-bottom:6px;">🧪</div>
+          <h3 style="font-size:.95rem;margin-bottom:4px;">Mode test</h3>
+          <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px;">
+            <label style="font-size:.78rem;margin:0;">Bots :</label>
+            <input type="number" id="launch-bots" value="3" min="0" max="20" style="width:56px;padding:5px 8px;text-align:center;">
           </div>
-          <button class="btn-warning" style="width:100%;" onclick="doLaunchGame('${quizId}',true)">🧪 Tester</button>
+          <button class="btn-warning" style="padding:10px 18px;" onclick="doLaunchGame('${quizId}',true)">🧪 Tester</button>
         </div>
       </div>
-      <div style="text-align:right;margin-top:16px;">
-        <button class="btn-secondary" onclick="closeModal('launch-modal')">Annuler</button>
+      <div style="text-align:right;margin-top:14px;">
+        <button class="btn-secondary btn-sm" onclick="closeModal('launch-modal')">✕ Annuler</button>
       </div>
     </div>
   `;
@@ -4297,11 +4296,11 @@ function renderQuizEditor() {
     : '<p class="muted" style="font-size:.8rem;text-align:center;">Aucune manche</p>';
 
   html('page-admin', `
-    <div class="row" style="justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
-      <h1>✏️ Éditeur de quiz</h1>
-      <div class="row">
-        <button class="btn-success"   onclick="saveQuiz()">💾 Enregistrer</button>
-        <button class="btn-secondary" onclick="loadQuizList()">← Retour</button>
+    <div class="row" style="justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+      <h1 style="margin:0;">✏️ Éditeur de quiz</h1>
+      <div class="row" style="gap:8px;">
+        <button class="btn-success btn-sm"   onclick="saveQuiz()">💾 Enregistrer</button>
+        <button class="btn-secondary btn-sm" onclick="loadQuizList()">← Retour</button>
       </div>
     </div>
     <div id="admin-alert"></div>
