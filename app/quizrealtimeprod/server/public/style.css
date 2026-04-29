@@ -1062,7 +1062,6 @@ body.screen-host #page-host {
 }
 .host-section-label::after { content:''; flex:1; height:1px; background:var(--bdr2); margin-left:6px; }
 .host-section .hbtn-wide { max-width:420px; display:flex; margin:0 auto; }
-.host-ctrl-row .hbtn-wide { max-width:460px; margin:0; }
 
 /* ── hbtn — boutons host ── */
 .hbtn {
@@ -1124,20 +1123,23 @@ body.screen-host #page-host {
 }
 .hbtn-nav-fwd.hbtn-pulse { animation: nav-pulse 1.4s ease-in-out infinite; }
 
-.host-ctrl-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-/* Les boutons host NE s'étirent PAS par défaut */
+.host-ctrl-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center; }
+/* Boutons host normaux : taille auto */
 .host-ctrl-row .hbtn { flex:0 0 auto; }
-/* hbtn-wide dans ctrl-row : grandit mais jamais au-delà de 460px */
-.host-ctrl-row .hbtn-wide { flex:1 1 auto; min-width: 140px; max-width: 460px; }
+/* Boutons host non-sm : taille minimum confortable */
+.host-ctrl-row .hbtn:not(.hbtn-sm) { min-width: 130px; }
+/* hbtn-wide dans ctrl-row : s'étire entre 220px et 460px */
+.host-ctrl-row .hbtn-wide { flex:1 1 220px; min-width: 220px; max-width: 460px; }
 
-/* Grille navigation host — 2 colonnes, jamais plein-écran */
+/* Grille navigation host — 2 colonnes centrées, taille confortable */
 .host-nav-pair {
   display: grid;
-  grid-template-columns: repeat(2, minmax(110px, 280px));
-  gap: 5px;
+  grid-template-columns: repeat(2, minmax(160px, 300px));
+  gap: 6px;
+  justify-content: center;
 }
 /* Conteneur principal de la zone nav */
-.host-nav-grid-wrap { display: flex; flex-direction: column; gap: 5px; }
+.host-nav-grid-wrap { display: flex; flex-direction: column; gap: 6px; align-items: center; }
 
 /* ── Bouton TV Diffusion — très visible, pulse ── */
 @keyframes tv-pulse {
