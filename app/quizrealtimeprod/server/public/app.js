@@ -3475,8 +3475,8 @@ function renderDisplayQuestion(gs) {
       const isAudio = optMedia && /\.(mp3|wav|ogg)$/i.test(optMedia);
       const mediaEl = isImg ? `<img src="${optMedia}" style="max-height:70px;border-radius:6px;margin-bottom:6px;">` :
                       isAudio ? `<audio controls src="${optMedia}" style="height:28px;margin-bottom:6px;"></audio>` : '';
-      return `<div class="answer-btn" style="border-color:${labelColors[i]};flex-direction:column;padding:14px;">
-        ${mediaEl}<span style="color:${labelColors[i]};font-weight:700;margin-bottom:6px;">${labels[i]}.</span><span style="margin-left:4px;">${label}</span>
+      return `<div class="answer-btn" style="border-color:${labelColors[i]};flex-direction:row;">
+        ${mediaEl}<span style="display:inline-flex;align-items:center;justify-content:center;width:clamp(44px,5.5vw,72px);height:clamp(44px,5.5vw,72px);border-radius:12px;background:rgba(255,255,255,.15);color:${labelColors[i]};font-weight:900;font-size:clamp(1.4rem,2.8vw,2.2rem);flex-shrink:0;">${labels[i]}</span><span style="flex:1;font-size:clamp(1.3rem,2.5vw,2.2rem);font-weight:700;line-height:1.25;">${label}</span>
       </div>`;
     }).join('')}</div>`;
   }
@@ -3570,11 +3570,11 @@ function renderDisplayQuestion(gs) {
     const answered = gs.answers?.[q.id] ? Object.keys(gs.answers[q.id]).length : 0;
     const connected = state.players.filter(p => p.connected).length;
     voteDisplay = `
-      <div class="card" style="text-align:center;padding:30px;">
-        <div style="font-size:2.5rem;margin-bottom:12px;">✍️</div>
-        <h2>Répondez maintenant !</h2>
-        <p class="muted" style="margin-top:10px;font-size:1rem;">${answered}/${connected} réponse(s) reçue(s)</p>
-        <div class="progress-bar" style="margin-top:12px;"><div class="fill" style="width:${connected > 0 ? Math.round(answered/connected*100) : 0}%"></div></div>
+      <div class="card" style="text-align:center;padding:clamp(36px,5vw,64px) clamp(20px,4vw,48px);">
+        <div style="font-size:clamp(4rem,10vw,7rem);margin-bottom:20px;">✍️</div>
+        <h2 style="font-size:clamp(2.5rem,7vw,5rem);font-weight:900;background:linear-gradient(135deg,#a78bfa,#22d3ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Répondez maintenant !</h2>
+        <p style="margin-top:14px;font-size:clamp(1.2rem,3vw,2rem);color:rgba(255,255,255,.7);font-weight:600;">${answered}/${connected} réponse(s) reçue(s)</p>
+        <div class="progress-bar" style="margin-top:16px;height:12px;"><div class="fill" style="width:${connected > 0 ? Math.round(answered/connected*100) : 0}%"></div></div>
       </div>`;
   } else if (pm.answerMode === 'vote_proposal_reveal') {
     // Phase intermédiaire : révélation des propositions avant le vote

@@ -1441,22 +1441,22 @@ body.screen-host #page-host {
 .answer-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: clamp(14px,2vw,28px);
-  margin-top: 18px;
+  gap: clamp(10px,1.5vw,20px);
+  margin-top: 16px;
 }
 .answer-btn {
   background: rgba(255,255,255,.09);
   border: 3px solid rgba(255,255,255,.2);
-  border-radius: 24px;
-  padding: clamp(26px,4vw,50px) clamp(20px,3vw,38px);
-  font-size: clamp(1.8rem,3.5vw,3rem);
+  border-radius: 18px;
+  padding: clamp(16px,2.5vw,32px) clamp(14px,2vw,26px);
+  font-size: clamp(1.3rem,2.5vw,2.2rem);
   font-weight: 800;
   color: #fff;
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: clamp(14px,1.8vw,24px);
-  min-height: clamp(100px,14vh,180px);
+  gap: clamp(12px,1.5vw,20px);
+  min-height: clamp(72px,10vh,130px);
   text-align: left;
   line-height: 1.2;
   transition: background 0.2s;
