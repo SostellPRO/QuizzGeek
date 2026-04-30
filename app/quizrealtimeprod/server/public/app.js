@@ -1016,7 +1016,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
         <div class="waiting-host-text">🎬</div>
         <div class="waiting-host-label">CHALLENGE<br>VIDÉO</div>
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
-        <p class="muted" style="font-size:.9rem;">Le maître de jeu choisit un participant…</p>
+        <p style="font-size:clamp(1rem,4.5vw,1.4rem);color:rgba(255,255,255,.7);font-weight:600;">Le maître de jeu choisit un participant…</p>
       </div>
     </div>`;
   }
@@ -3510,9 +3510,10 @@ function renderDisplayQuestion(gs) {
     } else if (!bz?.firstPseudo) {
       // Buzzer actif mais personne n'a encore buzzé
       buzzerDisplay = `
-        <div class="card" style="text-align:center;padding:24px;border:2px solid rgba(255,165,0,.3);">
-          <div style="font-size:2.5rem;margin-bottom:8px;">🔔</div>
-          <p style="color:#ffa500;font-weight:600;">Buzzers actifs — prêts à répondre !</p>
+        <div class="card" style="text-align:center;padding:clamp(32px,5vw,64px) clamp(20px,4vw,48px);border:2px solid rgba(255,165,0,.4);background:rgba(255,165,0,.06);">
+          <div style="font-size:clamp(4rem,10vw,7rem);margin-bottom:20px;animation:pulse-pause 1.5s ease-in-out infinite;">🔔</div>
+          <p style="color:#ffa500;font-weight:900;font-size:clamp(2rem,5vw,4rem);line-height:1.2;text-shadow:0 0 30px rgba(255,165,0,.5);">Buzzers actifs</p>
+          <p style="color:rgba(255,165,0,.8);font-weight:700;font-size:clamp(1.3rem,3vw,2.2rem);margin-top:8px;">Soyez prêts à répondre !</p>
         </div>`;
     }
   }
@@ -3529,21 +3530,21 @@ function renderDisplayQuestion(gs) {
     if (burgerFinalScore) {
       // Score validé — afficher le résultat
       burgerDisplay = `
-        <div class="card" style="text-align:center;padding:50px 20px;background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
-          <div style="font-size:4rem;margin-bottom:16px;">🍔</div>
-          <h2 style="color:#f7971e;">${burgerFinalScore.pseudo}</h2>
-          <div style="font-size:5rem;font-weight:900;color:#f7971e;margin:16px 0;">${burgerFinalScore.score}<span style="font-size:2rem;color:rgba(255,255,255,.4);">/10</span></div>
-          <p class="muted">Score attribué par le maître de jeu</p>
+        <div class="card" style="text-align:center;padding:clamp(40px,6vw,80px) clamp(20px,4vw,60px);background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
+          <div style="font-size:clamp(4rem,10vw,7rem);margin-bottom:20px;">🍔</div>
+          <h2 style="color:#f7971e;font-size:clamp(2rem,6vw,4rem);font-weight:900;">${burgerFinalScore.pseudo}</h2>
+          <div style="font-size:clamp(5rem,18vw,10rem);font-weight:900;color:#f7971e;margin:20px 0;text-shadow:0 0 60px rgba(247,151,30,.6);">${burgerFinalScore.score}<span style="font-size:clamp(2rem,5vw,3.5rem);color:rgba(255,255,255,.4);">/10</span></div>
+          <p style="font-size:clamp(1rem,2.5vw,1.6rem);color:rgba(255,255,255,.6);">Score attribué par le maître de jeu</p>
         </div>`;
     } else if (!bs || bs.currentItemIndex < 0) {
       // Pas encore commencé — message "Prêts ?"
       burgerDisplay = `
-        <div class="card" style="text-align:center;padding:60px 20px;background:rgba(247,151,30,.07);border-color:rgba(247,151,30,.3);">
-          <div style="font-size:5rem;margin-bottom:20px;">🍔</div>
-          <h2 style="font-size:2rem;">Épreuve Burger</h2>
-          ${selectedPseudo ? `<p style="font-size:1.3rem;margin-top:12px;"><strong style="color:#f7971e;">${selectedPseudo}</strong> passe l'épreuve</p>` : '<p class="muted" style="margin-top:12px;">En attente de la sélection du joueur…</p>'}
-          <p class="muted" style="margin-top:16px;font-size:1rem;">Le maître de jeu va dévoiler les éléments un par un.</p>
-          <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
+        <div class="card" style="text-align:center;padding:clamp(40px,6vw,80px) clamp(20px,4vw,60px);background:rgba(247,151,30,.07);border-color:rgba(247,151,30,.3);">
+          <div style="font-size:clamp(4rem,10vw,8rem);margin-bottom:24px;">🍔</div>
+          <h2 style="font-size:clamp(2.5rem,7vw,5rem);font-weight:900;color:#f7971e;text-shadow:0 0 40px rgba(247,151,30,.5);">Burger de la Mort</h2>
+          ${selectedPseudo ? `<p style="font-size:clamp(1.5rem,4vw,2.5rem);margin-top:16px;font-weight:700;"><strong style="color:#f7971e;">${selectedPseudo}</strong> passe l'épreuve</p>` : '<p style="font-size:clamp(1.2rem,3vw,2rem);margin-top:16px;color:rgba(255,255,255,.6);font-weight:600;">En attente de la sélection du joueur…</p>'}
+          <p style="margin-top:16px;font-size:clamp(1.1rem,2.5vw,1.8rem);color:rgba(255,255,255,.6);font-weight:600;">Le maître de jeu va dévoiler les éléments un par un.</p>
+          <div class="waiting-dots" style="margin-top:24px;"><span></span><span></span><span></span></div>
         </div>`;
     } else {
       const curItem = items[bs.currentItemIndex];
@@ -3555,7 +3556,7 @@ function renderDisplayQuestion(gs) {
           <div style="font-size:.85rem;color:rgba(255,255,255,.4);margin-bottom:14px;letter-spacing:1px;">🍔 ÉLÉMENT ${bs.currentItemIndex+1} / ${items.length}</div>
           ${isImg ? `<img src="${itemUrl}" style="max-height:220px;border-radius:12px;margin-bottom:16px;">` : ''}
           ${isAudio ? `<audio controls autoplay src="${itemUrl}" style="margin-bottom:14px;"></audio>` : ''}
-          ${curItem ? `<p style="font-size:clamp(1.6rem,5vw,2.4rem);font-weight:700;line-height:1.2;">${curItem.text || ''}</p>` : ''}
+          ${curItem ? `<p style="font-size:clamp(2.2rem,6vw,4rem);font-weight:800;line-height:1.2;color:#fff;">${curItem.text || ''}</p>` : ''}
           <div style="margin-top:16px;display:flex;justify-content:center;gap:6px;">
             ${items.map((_, i) => `<span style="width:10px;height:10px;border-radius:50%;background:${i <= bs.currentItemIndex ? '#f7971e' : 'rgba(255,255,255,.2)'}; display:inline-block;"></span>`).join('')}
           </div>
@@ -3652,11 +3653,11 @@ function renderDisplayVideoChallenge(gs) {
 
   if (phase === 'select') {
     return `
-      <div class="card" style="text-align:center;padding:60px 20px;background:rgba(255,215,0,.05);border-color:rgba(255,215,0,.2);">
-        <div style="font-size:5rem;margin-bottom:20px;">🎬</div>
-        <h2 style="color:#ffd700;font-size:2rem;">Challenge Vidéo</h2>
-        <p class="muted" style="margin-top:16px;font-size:1.1rem;">Le maître de jeu choisit un participant…</p>
-        <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
+      <div class="card" style="text-align:center;padding:clamp(40px,6vw,80px) clamp(20px,4vw,60px);background:rgba(255,215,0,.06);border-color:rgba(255,215,0,.3);">
+        <div style="font-size:clamp(4rem,10vw,8rem);margin-bottom:24px;">🎬</div>
+        <h2 style="color:#ffd700;font-size:clamp(2.5rem,7vw,5rem);font-weight:900;text-shadow:0 0 40px rgba(255,215,0,.5);">Challenge Vidéo</h2>
+        <p style="margin-top:20px;font-size:clamp(1.4rem,3.5vw,2.4rem);font-weight:600;color:rgba(255,255,255,.8);">Le maître de jeu choisit un participant…</p>
+        <div class="waiting-dots" style="margin-top:24px;"><span></span><span></span><span></span></div>
       </div>`;
   }
 

@@ -100,10 +100,10 @@ nav .nav-brand {
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
 }
 nav button {
-  padding: 6px 14px; border-radius: var(--r-pill);
+  padding: 8px 18px; border-radius: var(--r-pill);
   border: 1px solid var(--border);
   background: transparent;
-  color: var(--t2); font-size: 0.82rem; cursor: pointer;
+  color: var(--t2); font-size: 0.9rem; cursor: pointer;
   font-family: inherit; transition: all 0.15s; white-space: nowrap; flex-shrink: 0; font-weight: 600;
 }
 nav button:hover { background: var(--bg-2); color: var(--t1); border-color: var(--bdr2); }
@@ -115,8 +115,8 @@ nav button.active {
 /* ── Pages ────────────────────────────────────────────────────── */
 .page { display: none; flex: 1; padding: 16px; max-width: 720px; margin: 0 auto; width: 100%; }
 .page.active { display: block; }
-/* Host et Display utilisent toute la largeur */
-#page-host, #page-display, #page-admin { max-width: none; }
+/* Host, Display, Admin et Player utilisent toute la largeur */
+#page-host, #page-display, #page-admin, #page-player { max-width: none; }
 
 /* ── Cards ────────────────────────────────────────────────────── */
 .card {
@@ -270,8 +270,8 @@ th { font-weight: 700; color: var(--t3); font-size: 0.73rem; text-transform: upp
 }
 
 /* ── Media blocks ─────────────────────────────────────────────── */
-.media-block { margin-bottom: 16px; }
-.media-block img { max-width: 100%; max-height: 55vh; object-fit: contain; border-radius: var(--r-lg); }
+.media-block { margin-bottom: 20px; display: flex; justify-content: center; align-items: center; width: 100%; }
+.media-block img { max-width: 90%; max-height: 68vh; object-fit: contain; border-radius: var(--r-lg); display: block; margin: 0 auto; }
 .media-block audio, .media-block video { width: 100%; border-radius: var(--r-md); }
 
 /* ── Grid helpers ─────────────────────────────────────────────── */
@@ -1024,17 +1024,19 @@ body.screen-host #page-host {
 
 /* ── Admin quiz list – compact ── */
 .quiz-list-item {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 14px;
   background: rgba(255,255,255,.05); border: 1px solid var(--border);
-  border-radius: var(--r-md); padding: 10px 14px;
+  border-radius: var(--r-md); padding: 14px 18px; margin: 0 12px 8px;
   transition: background 0.14s, border-color 0.14s;
 }
 .quiz-list-item:hover { background: rgba(255,255,255,.08); border-color: var(--bdr2); }
 .quiz-list-item-info { flex: 1; min-width: 0; }
-.quiz-list-item-title { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.quiz-list-item-meta  { font-size: 0.75rem; color: var(--t2); margin-top: 2px; }
-.quiz-list-item-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+.quiz-list-item-title { font-weight: 700; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quiz-list-item-meta  { font-size: 0.8rem; color: var(--t2); margin-top: 3px; }
+.quiz-list-item-actions { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
 .quiz-list-item-actions button { white-space: nowrap; }
+/* Bouton lancer — large et visible */
+.quiz-list-item-actions .btn-success { padding: 10px 22px !important; font-size: 0.9rem !important; border-radius: var(--r-pill) !important; min-width: 110px; }
 
 .host-main-tabs { display:flex; background:rgba(0,0,0,.5); border-bottom:2px solid var(--bdr2); }
 .host-main-tab {
@@ -1050,7 +1052,7 @@ body.screen-host #page-host {
   background:rgba(124,58,237,.18);
   text-shadow: 0 0 14px var(--violet-g);
 }
-.host-tab-body { padding: 12px; }
+.host-tab-body { padding: 16px min(8%, 64px); }
 
 .host-section {
   background: var(--bg-1); border: 1px solid var(--bdr2);
@@ -1395,7 +1397,7 @@ body.screen-host #page-host {
   .round-end-title  { font-size: clamp(2rem,8vw,2.8rem); }
 
   /* Host */
-  .host-tab-body { padding: 10px 8px; }
+  .host-tab-body { padding: 10px 12px; }
   .host-main-tab { padding: 12px 4px; font-size: 0.85rem; }
   .ctrl-nav-grid  { grid-template-columns: 1fr 1fr; }
   .hbtn { padding: 13px 17px !important; font-size: 0.93rem !important; min-height: 48px !important; }
@@ -1431,4 +1433,52 @@ body.screen-host #page-host {
   .home-role-btn { min-height: 130px; padding: 22px 10px; }
   .home-role-icon{ font-size: 2.8rem; }
   .home-role-label{ font-size: 1rem; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   TV DISPLAY — Boutons réponse MCQ (answer-btn / answer-grid)
+   ════════════════════════════════════════════════════════════ */
+.answer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(14px,2vw,28px);
+  margin-top: 18px;
+}
+.answer-btn {
+  background: rgba(255,255,255,.09);
+  border: 3px solid rgba(255,255,255,.2);
+  border-radius: 24px;
+  padding: clamp(26px,4vw,50px) clamp(20px,3vw,38px);
+  font-size: clamp(1.8rem,3.5vw,3rem);
+  font-weight: 800;
+  color: #fff;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: clamp(14px,1.8vw,24px);
+  min-height: clamp(100px,14vh,180px);
+  text-align: left;
+  line-height: 1.2;
+  transition: background 0.2s;
+}
+
+/* ════════════════════════════════════════════════════════════
+   HOST — Boutons nav section (questions / manches) plus grands
+   ════════════════════════════════════════════════════════════ */
+.host-section-nav .hbtn-nav,
+.host-section-nav .hbtn-nav-fwd {
+  padding: 18px 28px !important;
+  font-size: 1.1rem !important;
+  min-height: 62px !important;
+}
+.host-nav-pair {
+  grid-template-columns: repeat(2, minmax(180px, 340px));
+}
+
+/* ════════════════════════════════════════════════════════════
+   PLAYER VOTE — Propositions (use your words)
+   ════════════════════════════════════════════════════════════ */
+.answer-tile-vote .answer-tile-text {
+  font-size: clamp(1.15rem, 5vw, 1.5rem);
+  font-weight: 800;
 }
