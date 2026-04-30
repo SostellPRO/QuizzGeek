@@ -1277,9 +1277,11 @@ function renderHostConnect() {
           <input id="host-key" value="${state.host.hostKey}" placeholder="ex: demo-host">
         </div>
       </div>
-      <button class="btn-success" style="width:100%;margin-top:16px;" onclick="connectHost()">
-        🎮 Se connecter en tant que Maître de jeu
-      </button>
+<button class="btn-success" 
+  style="width:50%; margin:16px auto 0; display:block;" 
+  onclick="connectHost()">
+  🎮 Se connecter en tant que Maître de jeu
+</button>
     </div>
   `);
 }
