@@ -46,7 +46,7 @@
   --shadow-lg: 0 8px 40px rgba(0,0,0,.7);
 
   /* Radii */
-  --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 28px; --r-pill: 999px;
+  --r-sm: 7px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px; --r-pill: 999px;
 
   /* Round type colors */
   --rt-qcm:        var(--sky);
@@ -827,7 +827,7 @@ body.screen-display .session-banner {
   100% { opacity:1; transform:translateY(0) scale(1); }
 }
 .display-question-card {
-  border-radius: 28px; padding: 40px 36px 32px;
+  border-radius: 18px; padding: 32px 28px 24px;
   background: rgba(10,12,24,.9); border: 1.5px solid rgba(255,255,255,.1);
   backdrop-filter: blur(14px); margin-bottom: 22px;
   box-shadow: 0 16px 60px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.06);
@@ -837,7 +837,7 @@ body.screen-display .session-banner {
 }
 .display-question-text {
   font-family: var(--font-display);
-  font-size: clamp(2.2rem,4.5vw,4.5rem); font-weight: 900; line-height: 1.25;
+  font-size: clamp(1.8rem,3.5vw,3.2rem); font-weight: 900; line-height: 1.25;
   margin-bottom: 28px; text-align: center;
   text-shadow: 0 2px 20px rgba(0,0,0,.9);
   color: #fff;
@@ -850,7 +850,7 @@ body.screen-display .session-banner {
 }
 .display-option {
   padding: clamp(28px,4vw,52px) clamp(22px,3vw,40px);
-  border-radius: 24px; border: 3px solid rgba(255,255,255,.15);
+  border-radius: 16px; border: 3px solid rgba(255,255,255,.15);
   font-size: clamp(2rem,4vw,3.5rem); font-weight: 800;
   display: flex; align-items: center; justify-content: flex-start;
   gap: clamp(16px,2vw,28px); color: #fff; text-align: left;
@@ -874,7 +874,7 @@ body.screen-display .session-banner {
 
 /* ── Buzzer winner TV ── */
 .buzzer-host-card {
-  border-radius: 18px; padding: 16px 20px;
+  border-radius: 12px; padding: 14px 18px;
   background: rgba(239,68,68,.07); border: 2px solid rgba(239,68,68,.3);
   transition: background 0.4s, border-color 0.4s;
 }
@@ -1537,8 +1537,8 @@ body.screen-host #page-host {
 .answer-btn {
   background: rgba(255,255,255,.09);
   border: 3px solid rgba(255,255,255,.2);
-  border-radius: 18px;
-  padding: clamp(16px,2.5vw,32px) clamp(14px,2vw,26px);
+  border-radius: 12px;
+  padding: clamp(14px,2vw,26px) clamp(12px,1.8vw,22px);
   font-size: clamp(1.3rem,2.5vw,2.2rem);
   font-weight: 800;
   color: #fff;
