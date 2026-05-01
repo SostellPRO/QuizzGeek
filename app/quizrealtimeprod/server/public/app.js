@@ -4280,16 +4280,16 @@ function renderQuizEditor() {
              ondrop="onRoundDrop(event,${ri})"
              ondragend="onRoundDragEnd(event)"
              onclick="switchRound(${ri})">
-          <div style="display:flex;align-items:center;gap:6px;">
+          <div style="display:flex;align-items:center;gap:8px;">
             <span class="drag-handle" title="Déplacer" onclick="event.stopPropagation()">⠿</span>
             <div style="min-width:0;">
-              <div style="font-size:.7rem;color:rgba(255,255,255,.4);margin-bottom:2px;">Manche ${ri+1}</div>
-              <div style="font-weight:${ari===ri?'700':'400'};font-size:.86rem;color:${ari===ri?'#79b8ff':'rgba(255,255,255,.8)'};
-                white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              <div style="font-size:.75rem;color:rgba(255,255,255,.45);margin-bottom:3px;letter-spacing:.04em;">Manche ${ri+1}</div>
+              <div style="font-weight:${ari===ri?'800':'500'};font-size:.95rem;color:${ari===ri?'#a78bfa':'rgba(255,255,255,.9)'};
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">
                 ${r.title || `Manche ${ri+1}`}
               </div>
-              <div style="font-size:.7rem;color:rgba(255,255,255,.35);margin-top:3px;">
-                ${(r.questions||[]).length} q · ${r.type||'qcm'}
+              <div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-top:4px;">
+                ${(r.questions||[]).length} question${(r.questions||[]).length>1?'s':''} · ${r.type||'qcm'}
               </div>
             </div>
           </div>
@@ -4297,11 +4297,11 @@ function renderQuizEditor() {
     : '<p class="muted" style="font-size:.8rem;text-align:center;">Aucune manche</p>';
 
   html('page-admin', `
-    <div class="row" style="justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
-      <h1 style="margin:0;">✏️ Éditeur de quiz</h1>
-      <div class="row" style="gap:8px;">
-        <button class="btn-success btn-sm"   onclick="saveQuiz()">💾 Enregistrer</button>
-        <button class="btn-secondary btn-sm" onclick="loadQuizList()">← Retour</button>
+    <div class="row" style="justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;align-items:center;">
+      <h1 style="margin:0;font-size:clamp(1.4rem,4vw,2rem);">✏️ Éditeur de quiz</h1>
+      <div class="row" style="gap:10px;">
+        <button class="btn-editor-save" onclick="saveQuiz()">💾 Enregistrer</button>
+        <button class="btn-editor-back" onclick="loadQuizList()">← Retour</button>
       </div>
     </div>
     <div id="admin-alert"></div>
@@ -4398,8 +4398,8 @@ function renderQuizEditor() {
             📋 Manches (${rounds.length})
           </div>
           ${sidebarItems}
-          <button class="btn-primary" style="width:100%;padding:9px;font-size:.82rem;margin-top:10px;" onclick="addRound()">
-            + Nouvelle manche
+          <button class="btn-add-round" onclick="addRound()">
+            ＋ Nouvelle manche
           </button>
         </div>
       </div>
@@ -4542,9 +4542,12 @@ function renderRoundBlock(round, ri) {
 
   return `
     <div class="round-panel" id="round-${round.id}">
-      <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-        <strong style="font-size:1rem;">📋 Manche ${ri+1}</strong>
-        <button class="btn-danger" style="padding:4px 10px;font-size:.8rem;" onclick="removeRound('${round.id}')">🗑️ Supprimer cette manche</button>
+      <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:center;">
+        <div>
+          <div style="font-size:.75rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">Manche ${ri+1}</div>
+          <strong style="font-size:1.2rem;color:var(--t1);">📋 ${round.title || `Manche ${ri+1}`}</strong>
+        </div>
+        <button class="btn-danger" style="padding:7px 14px;font-size:.85rem;border-radius:var(--r-pill);" onclick="removeRound('${round.id}')">🗑️ Supprimer</button>
       </div>
 
       <!-- Infos de base -->
@@ -4623,13 +4626,13 @@ function renderRoundBlock(round, ri) {
 
       <!-- Questions -->
       <div>
-        <div class="row" style="justify-content:space-between;margin-bottom:8px;">
-          <span style="font-size:.85rem;color:rgba(255,255,255,.6);">${qLabel} (${nbQ})</span>
-          <button class="btn-secondary" style="padding:4px 10px;font-size:.8rem;" onclick="addQuestion('${round.id}')">+ Question</button>
+        <div class="questions-section-header">
+          <span class="questions-section-count">📝 ${qLabel} <strong style="color:var(--t1);">(${nbQ})</strong></span>
         </div>
         <div id="questions-${round.id}">
           ${(round.questions || []).map((q, qi) => renderQuestionRow(q, qi, round.id, round.type || 'qcm')).join('')}
         </div>
+        <button class="btn-add-question" onclick="addQuestion('${round.id}')">＋ Ajouter une question</button>
       </div>
     </div>`;
 }

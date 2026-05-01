@@ -1192,13 +1192,40 @@ body.screen-host #page-host {
 /* ════════════════════════════════════════════════════════════
    ÉDITEUR DE QUIZ
    ════════════════════════════════════════════════════════════ */
-.editor-layout { display:grid; grid-template-columns:1fr minmax(180px,220px); gap:14px; align-items:start; }
+.editor-layout { display:grid; grid-template-columns:1fr minmax(220px,260px); gap:16px; align-items:start; }
 .editor-sidebar { position:sticky; top:72px; }
-/* Éditeur : labels et inputs plus lisibles */
-.editor-layout label { font-size: 0.85rem; font-weight: 700; color: var(--t2); margin-bottom: 5px; }
-.editor-layout input, .editor-layout select, .editor-layout textarea { font-size: 0.95rem; padding: 10px 13px; }
-.editor-layout h3 { font-size: 1rem; font-weight: 800; }
-.editor-sidebar-item { padding:10px 13px; border-radius:var(--r-md); cursor:pointer; border:1px solid var(--border); margin-bottom:6px; background:var(--bg-1); transition:background .14s,border-color .14s; user-select:none; }
+
+/* ── Labels globaux de l'éditeur ── */
+.editor-layout label,
+.round-panel label {
+  font-size: 0.92rem !important;
+  font-weight: 700;
+  color: var(--t2);
+  margin-bottom: 6px;
+  display: block;
+}
+.editor-layout h3 { font-size: 1.05rem; font-weight: 800; }
+
+/* ── Inputs / selects / textareas dans l'éditeur — overrides inline styles ── */
+.editor-layout input:not([type="radio"]):not([type="checkbox"]):not([type="range"]),
+.editor-layout select,
+.editor-layout textarea,
+.round-panel input:not([type="radio"]):not([type="checkbox"]),
+.round-panel select,
+.round-panel textarea,
+.question-row input:not([type="radio"]) {
+  font-size: 0.95rem !important;
+  padding: 10px 13px !important;
+  border-radius: var(--r-md) !important;
+  min-height: 42px;
+}
+
+/* ── Sidebar manches ── */
+.editor-sidebar-item {
+  padding: 13px 15px; border-radius: var(--r-md); cursor: pointer;
+  border: 1px solid var(--border); margin-bottom: 8px; background: var(--bg-1);
+  transition: background .14s, border-color .14s; user-select: none;
+}
 .editor-sidebar-item:hover  { background:var(--bg-2); border-color:var(--bdr2); }
 .editor-sidebar-item.active { background:rgba(124,58,237,.15); border-color:rgba(124,58,237,.45); }
 .drag-handle { cursor:grab; font-size:1rem; color:var(--t3); flex-shrink:0; padding:2px 3px; border-radius:4px; transition:color .14s; user-select:none; }
@@ -1209,10 +1236,73 @@ body.screen-host #page-host {
 .editor-sidebar-item.drag-over { border-color:var(--sky-l); background:rgba(56,189,248,.1); box-shadow:0 0 0 2px rgba(56,189,248,.3); }
 .question-row.drag-over { border-color:var(--green-l); background:rgba(74,222,128,.07); box-shadow:0 0 0 2px rgba(74,222,128,.25); }
 
-.round-panel { background:var(--bg-1); border-radius:var(--r-lg); padding:18px; margin-bottom:16px; border:1px solid var(--bdr2); }
-.question-row { display:flex; gap:10px; align-items:flex-start; background:var(--bg-2); border-radius:var(--r-md); padding:12px 14px; margin-bottom:10px; border:1px solid var(--bdr2); transition:border-color .15s,background .13s; cursor:default; }
-.question-row:hover { border-color:rgba(255,255,255,.25); background:var(--bg-3); }
-.question-row input { flex:1; margin:0; }
+/* ── Panneau de manche ── */
+.round-panel {
+  background: var(--bg-1); border-radius: var(--r-lg);
+  padding: 22px 20px; margin-bottom: 18px;
+  border: 1px solid var(--bdr2);
+  box-shadow: 0 4px 20px rgba(0,0,0,.3);
+}
+
+/* ── Ligne de question ── */
+.question-row {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--bg-2); border-radius: var(--r-md);
+  padding: 14px 16px; margin-bottom: 10px;
+  border: 1px solid var(--bdr2);
+  transition: border-color .15s, background .13s; cursor: default;
+}
+.question-row:hover { border-color: rgba(255,255,255,.25); background: var(--bg-3); }
+.question-row input { flex: 1; margin: 0; }
+
+/* ── Bouton Ajouter une question ── */
+.btn-add-question {
+  background: linear-gradient(135deg, rgba(56,189,248,.2), rgba(14,165,233,.12)) !important;
+  border: 2px dashed rgba(56,189,248,.5) !important;
+  color: var(--sky-l) !important;
+  border-radius: var(--r-md) !important;
+  padding: 14px 20px !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  width: 100%;
+  margin-top: 12px;
+  transition: background .18s, border-color .18s, transform .13s !important;
+  cursor: pointer;
+}
+.btn-add-question:hover {
+  background: linear-gradient(135deg, rgba(56,189,248,.32), rgba(14,165,233,.2)) !important;
+  border-color: var(--sky-l) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* ── Bouton Nouvelle manche ── */
+.btn-add-round {
+  background: linear-gradient(135deg, #7c3aed, #5b21b6) !important;
+  color: #fff !important;
+  border-radius: var(--r-md) !important;
+  padding: 12px 16px !important;
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  width: 100%;
+  margin-top: 12px;
+  box-shadow: 0 3px 14px var(--violet-g);
+}
+.btn-add-round:hover { box-shadow: 0 6px 22px rgba(124,58,237,.6) !important; }
+
+/* ── Boutons Enregistrer / Retour en haut de l'éditeur ── */
+.btn-editor-save {
+  background: linear-gradient(135deg, #10b981, #059669) !important;
+  color: #fff !important; border-radius: var(--r-pill) !important;
+  padding: 10px 24px !important; font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  box-shadow: 0 3px 14px var(--green-g);
+}
+.btn-editor-back {
+  background: var(--bg-2) !important; color: var(--t1) !important;
+  border: 1px solid var(--bdr2) !important; border-radius: var(--r-pill) !important;
+  padding: 10px 20px !important; font-size: 0.95rem !important;
+  font-weight: 600 !important;
+}
 
 .round-accordion { border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; margin-bottom:10px; }
 .round-acc-hdr { display:flex; align-items:center; gap:10px; padding:13px 16px; background:var(--bg-2); cursor:pointer; border:none; width:100%; color:var(--t1); font-family:inherit; text-align:left; transition:background .14s; }
@@ -1482,3 +1572,115 @@ body.screen-host #page-host {
   font-size: clamp(1.15rem, 5vw, 1.5rem);
   font-weight: 800;
 }
+
+/* ════════════════════════════════════════════════════════════
+   UX/UI — AMÉLIORATIONS GLOBALES
+   Bonne pratiques : espacement, typographie, accessibilité
+   ════════════════════════════════════════════════════════════ */
+
+/* Titres avec dégradé pour les sections importantes */
+.section-title-gradient {
+  background: linear-gradient(135deg, var(--violet-l), var(--cyan-l));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+/* Cards avec dégradé subtil en hover */
+.card { transition: border-color 0.18s, box-shadow 0.18s; }
+.card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.35); }
+
+/* Améliorations pour l'admin — en-tête de la liste */
+#quiz-list-card {
+  padding: 8px 0 12px;
+}
+#quiz-list-card > .muted {
+  padding: 0 16px;
+}
+
+/* Textarea dans l'éditeur — meilleure lisibilité */
+.round-panel textarea {
+  min-height: 80px !important;
+  line-height: 1.55 !important;
+}
+
+/* Section de personnalisation — fond plus distinct */
+.editor-customization-block {
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: var(--r-lg);
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.editor-customization-title {
+  font-size: 0.78rem; color: rgba(255,255,255,.5);
+  text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px;
+  font-weight: 700;
+}
+
+/* Options QCM dans l'éditeur — radio + label plus grands */
+.round-panel input[type="radio"] {
+  width: 18px !important;
+  height: 18px !important;
+  min-height: unset !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  cursor: pointer;
+}
+
+/* Boutons médias (🖼️) dans l'éditeur */
+.round-panel .btn-secondary,
+.question-row .btn-secondary {
+  font-size: 0.82rem !important;
+  padding: 7px 12px !important;
+  border-radius: var(--r-md) !important;
+  min-height: 36px !important;
+}
+.round-panel .btn-danger {
+  font-size: 0.82rem !important;
+  padding: 7px 10px !important;
+  border-radius: var(--r-md) !important;
+  min-height: 36px !important;
+}
+
+/* ── Éditeur — responsive mobile (grille 1 col) ── */
+@media (max-width: 860px) {
+  .editor-layout { grid-template-columns: 1fr; }
+  .editor-sidebar { position: static; }
+  .editor-sidebar .card { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap: 6px; }
+  .editor-sidebar .card > div:first-child { grid-column: 1 / -1; } /* titre "Manches" sur toute la largeur */
+  .btn-add-round { margin-top: 8px; }
+}
+
+/* ── Éditeur — inputs de la ligne question mieux ciblés ── */
+.question-row > div > input {
+  font-size: 1rem !important;
+  padding: 10px 14px !important;
+  min-height: 44px !important;
+}
+
+/* ── Section questions — compteur lisible ── */
+.questions-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.questions-section-count {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--t2);
+}
+
+/* ── Focus visible amélioré (accessibilité) ── */
+:focus-visible {
+  outline: 2px solid var(--violet-l);
+  outline-offset: 2px;
+}
+
+/* ── Scrollbars stylisées ── */
+* { scrollbar-width: thin; scrollbar-color: rgba(124,58,237,.3) transparent; }
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(124,58,237,.3); border-radius: 99px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(124,58,237,.55); }
