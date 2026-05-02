@@ -71,15 +71,17 @@ function LaunchModal({ quiz, onClose, socket, setHostSession, navigate }) {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 mt-2">
-          <div className="flex flex-col items-center gap-3 p-4 rounded-xl bg-emerald-500/8 border border-emerald-500/25">
-            <span className="text-3xl">🎮</span>
-            <p className="text-sm font-bold text-white/80 text-center">Partie réelle</p>
-            <${Btn} variant="success" wide onClick=${() => launch(false)}>▶️ Lancer<//>
+          <div className="flex flex-col items-center p-4 rounded-xl bg-emerald-500/8 border border-emerald-500/25" style=${{ minHeight:'150px' }}>
+            <span className="text-3xl mb-2">🎮</span>
+            <p className="text-sm font-bold text-white/80 text-center mb-auto">Partie réelle</p>
+            <div className="mt-3 w-full">
+              <${Btn} variant="success" wide onClick=${() => launch(false)}>▶️ Lancer<//>
+            </div>
           </div>
-          <div className="flex flex-col items-center gap-3 p-4 rounded-xl bg-amber-500/8 border border-amber-500/25">
-            <span className="text-3xl">🧪</span>
+          <div className="flex flex-col items-center p-4 rounded-xl bg-amber-500/8 border border-amber-500/25" style=${{ minHeight:'150px' }}>
+            <span className="text-3xl mb-2">🧪</span>
             <p className="text-sm font-bold text-white/80 text-center">Mode test</p>
-            <div className="flex items-center gap-2 w-full">
+            <div className="flex items-center gap-2 w-full mt-2">
               <label className="text-xs text-white/40">Bots :</label>
               <input
                 type="number"
@@ -89,7 +91,9 @@ function LaunchModal({ quiz, onClose, socket, setHostSession, navigate }) {
                 className="flex-1 bg-bg-input border border-white/10 rounded-lg px-2 py-1.5 text-white text-sm font-mono text-center focus:border-accent/60 outline-none"
               />
             </div>
-            <${Btn} variant="warning" wide onClick=${() => launch(true)}>🧪 Tester<//>
+            <div className="mt-3 w-full">
+              <${Btn} variant="warning" wide onClick=${() => launch(true)}>🧪 Tester<//>
+            </div>
           </div>
         </div>
       </div>

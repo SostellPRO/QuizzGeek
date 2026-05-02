@@ -272,15 +272,38 @@ export default function PilotageTab() {
       <!-- Navigation -->
       <div className="rounded-xl bg-bg-card border border-white/8 p-4">
         <div className="text-xs text-white/40 uppercase tracking-widest mb-3">🧭 Navigation</div>
-        <div className="grid grid-cols-2 gap-2 mb-2">
-          <${Btn} variant="nav" onClick=${() => ha('prev_question')}>◀ Question</${Btn}>
-          <${Btn} variant="nav" pulse=${nextPulse} onClick=${() => ha('next_question')}>Question ▶</${Btn}>
-        </div>
+        ${phase !== 'round_end' && phase !== 'end' && phase !== 'results' && html`
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <${Btn} variant="nav" onClick=${() => ha('prev_question')}>◀ Question</${Btn}>
+            <${Btn} variant="nav" pulse=${nextPulse} onClick=${() => ha('next_question')}>Question ▶</${Btn}>
+          </div>
+        `}
         <div className="grid grid-cols-2 gap-2">
           <${Btn} variant="nav" size="sm" onClick=${() => ha('prev_round')}>◀ Manche</${Btn}>
-          <${Btn} variant="nav" size="sm" onClick=${() => ha('next_round')}>Manche ▶</${Btn}>
+          <${Btn} variant="nav" size="sm" pulse=${['round_end','results'].includes(phase)} onClick=${() => ha('next_round')}>Manche ▶</${Btn}>
         </div>
       </div>
+
+      <!-- Cérémonie finale : basculer joueurs / équipes -->
+      ${phase === 'end' && html`
+        <div className="rounded-xl bg-accent/8 border border-accent/25 p-4">
+          <div className="text-xs text-white/40 uppercase tracking-widest mb-3">🏆 Cérémonie finale</div>
+          <div className="grid grid-cols-2 gap-2">
+            <${Btn}
+              variant=${!gs?.phaseMeta?.ceremonyView || gs?.phaseMeta?.ceremonyView === 'players' ? 'primary' : 'ghost'}
+              onClick=${() => ha('ceremony_view', { view: 'players' })}
+            >
+              👤 Joueurs
+            <//>
+            <${Btn}
+              variant=${gs?.phaseMeta?.ceremonyView === 'teams' ? 'primary' : 'ghost'}
+              onClick=${() => ha('ceremony_view', { view: 'teams' })}
+            >
+              👥 Équipes
+            <//>
+          </div>
+        </div>
+      `}
 
       <!-- End game -->
       ${['question','waiting','round_end','results','answer_reveal','manual_scoring'].includes(phase) && html`

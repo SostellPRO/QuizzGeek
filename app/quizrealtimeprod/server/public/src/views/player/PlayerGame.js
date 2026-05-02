@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { html, resolveMedia } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
 import { Btn, Badge, Alert, Dots, SessionBanner } from '../../components/ui.js';
@@ -15,6 +15,13 @@ export default function PlayerGame() {
   const draftRef = useRef('');
 
   const myPlayer = players.find(p => p.id === s?.playerId || p.playerId === s?.playerId);
+
+  // Reset answer state on each new question
+  useEffect(() => {
+    setLocked(false);
+    setVoteText('');
+  }, [gs?.currentQuestion?.id]); // eslint-disable-line
+
   const phase    = gs?.status || 'lobby';
   const roundType= gs?.currentRound?.type || 'qcm';
   const rtIcon   = ROUND_ICONS[roundType] || '🎯';
@@ -39,15 +46,27 @@ export default function PlayerGame() {
     });
   }, [socket, s, soundPlay]);
 
-  const sendVote = useCallback(() => {
+  // vote_input: player submits free-text answer via player:answer
+  const sendVoteText = useCallback(() => {
     const txt = voteText.trim();
-    if (!txt) return;
+    if (!txt || !socket || !s) return;
     soundPlay('answer');
-    socket.emit('player:vote', { sessionCode: s.sessionCode, playerId: s.playerId, vote: txt }, (res) => {
-      if (res?.ok) setVoteText('');
-      else setAlert({ type: 'error', message: res?.error || 'Erreur.' });
+    setLocked(true);
+    socket.emit('player:answer', { sessionCode: s.sessionCode, playerId: s.playerId, answer: txt }, (res) => {
+      if (res?.ok) { setVoteText(''); }
+      else { setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
     });
   }, [socket, s, voteText, soundPlay]);
+
+  // vote_voting: player chooses from displayed options by index via player:vote
+  const sendVoteChoice = useCallback((index) => {
+    if (!socket || !s || locked) return;
+    setLocked(true);
+    soundPlay('answer');
+    socket.emit('player:vote', { sessionCode: s.sessionCode, playerId: s.playerId, index }, (res) => {
+      if (!res?.ok) { setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
+    });
+  }, [socket, s, locked, soundPlay]);
 
   const disconnect = () => {
     setPlayerSession(null);
@@ -128,7 +147,12 @@ export default function PlayerGame() {
     }
 
     if (phase === 'answer_reveal') return renderReveal();
-    if (phase === 'manual_scoring') return renderManualScoring();
+    if (phase === 'manual_scoring') {
+      // For buzzer rounds, keep showing buzzer state so players know who buzzed
+      const am = gs?.phaseMeta?.answerMode;
+      if (am === 'buzzer' || roundType === 'rapidite' || roundType === 'speed') return renderQuestion();
+      return renderManualScoring();
+    }
     if (phase === 'round_end' || phase === 'results') return renderRoundEnd();
     if (phase === 'end') return renderEnd();
 
@@ -139,18 +163,68 @@ export default function PlayerGame() {
     const currentQ    = gs?.currentQuestion;
     const answerMode  = gs?.phaseMeta?.answerMode;
     const timer       = gs?.phaseMeta?.timer;
-    const isBuzzer    = answerMode === 'buzzer';
-    const isBurger    = gs?.currentRound?.type === 'burger' || currentQ?.type === 'burger';
-    const isVote      = answerMode === 'vote_input' || answerMode === 'vote_voting';
-    const myAnswers   = gs?.answers?.[currentQ?.id] || {};
+
+    // Detect question type — use answerMode first, fall back to round/question type
+    const isBuzzer    = answerMode === 'buzzer' || roundType === 'rapidite' || roundType === 'speed';
+    const isTrueFalse = answerMode === 'true_false' || roundType === 'true_false';
+    const isBurger    = answerMode === 'burger' || gs?.currentRound?.type === 'burger';
+    const isVoteInput = answerMode === 'vote_input';
+    const isVoteVoting= answerMode === 'vote_voting';
+    const isVoteReveal= ['vote_proposal_reveal','vote_revealed','vote_revealing'].includes(answerMode);
+    const isVC        = gs?.currentRound?.type === 'video_challenge';
+
+    const myAnswers       = gs?.answers?.[currentQ?.id] || {};
     const alreadyAnswered = !!myAnswers[s?.playerId];
 
-    // Burger: only selected player acts
+    // ── Video Challenge ──────────────────────────────────────────
+    if (isVC) {
+      const selId = gs?.videoState?.selectedPlayerId;
+      const isMe  = selId === s?.playerId;
+
+      if (!selId) return html`
+        <div className="rounded-2xl bg-rose-500/10 border border-rose-500/25 p-6 text-center">
+          <div className="text-4xl mb-3">🎬</div>
+          <h2 className="text-xl font-bold text-rose-400">Challenge Vidéo</h2>
+          <p className="text-white/50 text-sm mt-2">Le maître de jeu choisit un joueur…</p>
+          <${Dots} />
+        </div>
+      `;
+
+      if (isMe) return html`
+        <div className="flex flex-col items-center gap-4 py-8 text-center animate-bounce-in">
+          <div className="text-6xl animate-float">⭐</div>
+          <h2 className="text-2xl font-display font-black text-neon-green">C'est votre défi !</h2>
+          <p className="text-white/50 text-sm">Regardez l'écran TV et réalisez le défi !</p>
+        </div>
+      `;
+
+      const who = players.find(p => p.id === selId || p.playerId === selId);
+      return html`
+        <div className="rounded-2xl bg-bg-card border border-white/8 p-6 text-center">
+          <div className="text-4xl mb-3">🎬</div>
+          ${who && html`<p className="text-white/60 mb-1">C'est le tour de <strong className="text-white">${who.pseudo}</strong></p>`}
+          <p className="text-white/40 text-sm">Regardez l'écran TV !</p>
+          <${Dots} />
+        </div>
+      `;
+    }
+
+    // ── Burger de la Mort ────────────────────────────────────────
     if (isBurger) {
-      const sel = gs?.burgerSelectedPlayerId;
+      const sel     = gs?.burgerSelectedPlayerId;
       const selTeam = gs?.burgerSelectedTeamId;
-      const isMe = sel === s?.playerId || (selTeam && s?.teamId === selTeam);
-      if (!isMe && (sel || selTeam)) {
+      const isMe    = sel === s?.playerId || (selTeam && s?.teamId === selTeam);
+
+      if (!sel && !selTeam) return html`
+        <div className="rounded-2xl bg-amber-500/10 border border-amber-500/25 p-6 text-center">
+          <div className="text-4xl mb-3">🍔</div>
+          <h2 className="text-xl font-bold text-amber-400">Burger de la Mort</h2>
+          <p className="text-white/50 text-sm mt-2">Le maître de jeu choisit le joueur…</p>
+          <${Dots} />
+        </div>
+      `;
+
+      if (!isMe) {
         const selPlayer = players.find(p => p.id === sel || p.playerId === sel);
         return html`
           <div className="rounded-2xl bg-bg-card border border-white/8 p-6 text-center">
@@ -161,15 +235,34 @@ export default function PlayerGame() {
           </div>
         `;
       }
+
+      const items = currentQ?.items || gs?.burgerItems || [];
+      return html`
+        <div className="flex flex-col gap-4">
+          <div className="text-center">
+            <div className="text-4xl mb-2">🍔</div>
+            <h2 className="text-xl font-bold text-amber-400">C'est votre tour !</h2>
+            <p className="text-white/40 text-sm mt-1">Mémorisez les ingrédients dans l'ordre !</p>
+          </div>
+          <div className="flex flex-col gap-2">
+            ${items.map((item, i) => html`
+              <div key=${i} className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                <span className="font-mono text-amber-400 font-bold text-sm w-6">${i+1}.</span>
+                <span className="text-white font-semibold">${item}</span>
+              </div>
+            `)}
+          </div>
+        </div>
+      `;
     }
 
-    // Buzzer phase
+    // ── Buzzer ───────────────────────────────────────────────────
     if (isBuzzer) {
       const buzzerState = gs?.buzzerState;
-      const firstId = buzzerState?.firstPlayerId;
-      const iFirst = firstId === s?.playerId;
-      const cooldown = buzzerState?.cooldownPlayerId === s?.playerId;
-      const buzzerLocked = gs?.phaseMeta?.playerScreenLocked;
+      const firstId     = buzzerState?.firstPlayerId;
+      const iFirst      = firstId === s?.playerId;
+      const cooldown    = buzzerState?.cooldownPlayerId === s?.playerId;
+      const buzzerLocked= gs?.phaseMeta?.playerScreenLocked;
 
       if (iFirst) return html`
         <div className="flex flex-col items-center gap-4 py-6 text-center animate-bounce-in">
@@ -205,8 +298,53 @@ export default function PlayerGame() {
       `;
     }
 
-    // Vote input
-    if (isVote && answerMode === 'vote_input') {
+    // ── Vrai / Faux ──────────────────────────────────────────────
+    if (isTrueFalse) {
+      if (locked || alreadyAnswered) return html`
+        <div className="text-center py-6">
+          <div className="text-5xl mb-4">✅</div>
+          <h2 className="text-xl font-bold text-neon-green">Réponse envoyée !</h2>
+          <p className="text-white/40 text-sm mt-2">En attente des autres joueurs…</p>
+          <${Dots} />
+        </div>
+      `;
+      return html`
+        <div className="flex flex-col gap-4">
+          ${currentQ?.content && html`
+            <div className="rounded-xl bg-bg-input border border-white/8 p-4 text-center">
+              <p className="text-base font-semibold">${currentQ.content}</p>
+            </div>
+          `}
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick=${() => sendAnswer('vrai')}
+              className="flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-neon-green/40 bg-neon-green/8 font-display font-black text-xl text-neon-green active:scale-95 transition-all hover:bg-neon-green/15"
+            >
+              <span className="text-4xl">✅</span>
+              VRAI
+            </button>
+            <button
+              onClick=${() => sendAnswer('faux')}
+              className="flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-rose-500/40 bg-rose-500/8 font-display font-black text-xl text-rose-400 active:scale-95 transition-all hover:bg-rose-500/15"
+            >
+              <span className="text-4xl">❌</span>
+              FAUX
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    // ── Vote : saisie libre ──────────────────────────────────────
+    if (isVoteInput) {
+      if (locked) return html`
+        <div className="text-center py-6">
+          <div className="text-5xl mb-4">✅</div>
+          <h2 className="text-xl font-bold text-neon-green">Réponse envoyée !</h2>
+          <p className="text-white/40 text-sm mt-2">En attente du vote…</p>
+          <${Dots} />
+        </div>
+      `;
       return html`
         <div className="flex flex-col gap-4">
           ${currentQ?.content && html`<p className="text-center text-base font-bold">${currentQ.content}</p>`}
@@ -220,16 +358,56 @@ export default function PlayerGame() {
               className="bg-bg-input border border-white/10 rounded-xl px-4 py-3 text-white text-base placeholder-white/30 focus:border-accent/60 outline-none transition-colors resize-none"
             />
           </div>
-          <${Btn} variant="primary" wide onClick=${sendVote} disabled=${!voteText.trim()}>
+          <${Btn} variant="primary" wide onClick=${sendVoteText} disabled=${!voteText.trim()}>
             📤 Envoyer ma réponse
           <//>
         </div>
       `;
     }
 
-    // QCM options
+    // ── Vote : choix parmi les propositions ──────────────────────
+    if (isVoteVoting) {
+      const options = gs?.voteState?.options || [];
+      if (locked) return html`
+        <div className="text-center py-6">
+          <div className="text-5xl mb-4">✅</div>
+          <h2 className="text-xl font-bold text-neon-green">Vote envoyé !</h2>
+          <${Dots} />
+        </div>
+      `;
+      return html`
+        <div className="flex flex-col gap-3">
+          ${currentQ?.content && html`<p className="text-center font-bold text-base">${currentQ.content}</p>`}
+          <p className="text-xs text-white/50 text-center uppercase tracking-wider mb-1">Votez pour une réponse</p>
+          <div className="flex flex-col gap-2">
+            ${options.map((opt, i) => html`
+              <button
+                key=${i}
+                onClick=${() => sendVoteChoice(i)}
+                className="flex items-center gap-4 p-4 rounded-xl border font-semibold text-left transition-all active:scale-95 bg-bg-card border-white/10 hover:border-accent/50 hover:bg-accent/5"
+              >
+                <span className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center font-black text-sm bg-accent/15 border border-accent/30 text-accent">${i+1}</span>
+                <span className="text-white">${opt.text || opt}</span>
+              </button>
+            `)}
+          </div>
+        </div>
+      `;
+    }
+
+    // ── Vote révélation / résultats – juste attendre ─────────────
+    if (isVoteReveal) return html`
+      <div className="rounded-2xl bg-blue-500/10 border border-blue-500/25 p-6 text-center">
+        <div className="text-4xl mb-3">🗳️</div>
+        <h2 className="text-xl font-bold text-blue-400">Révélation des votes</h2>
+        <p className="text-white/40 text-sm mt-2">Regardez l'écran TV !</p>
+        <${Dots} />
+      </div>
+    `;
+
+    // ── QCM options ──────────────────────────────────────────────
     if (currentQ?.options?.length) {
-      if (alreadyAnswered) return html`
+      if (locked || alreadyAnswered) return html`
         <div className="text-center py-6">
           <div className="text-5xl mb-4">✅</div>
           <h2 className="text-xl font-bold text-neon-green">Réponse envoyée !</h2>
@@ -264,7 +442,10 @@ export default function PlayerGame() {
                 <span className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center font-black text-lg bg-accent/15 border border-accent/30 text-accent">
                   ${OPTION_LABELS[i]}
                 </span>
-                <span className="text-white text-base">${opt.text}</span>
+                <div className="flex flex-col gap-1 flex-1">
+                  <span className="text-white text-base">${opt.text}</span>
+                  ${opt.mediaUrl && html`<img src=${resolveMedia(opt.mediaUrl)} alt="" className="max-h-20 rounded-lg object-contain mt-1" />`}
+                </div>
               </button>
             `)}
           </div>
@@ -272,7 +453,7 @@ export default function PlayerGame() {
       `;
     }
 
-    // Free text answer
+    // ── Réponse libre ────────────────────────────────────────────
     return html`
       <div className="flex flex-col gap-3">
         ${currentQ?.content && html`<p className="text-center font-bold text-lg">${currentQ.content}</p>`}
@@ -282,7 +463,7 @@ export default function PlayerGame() {
           onInput=${e => setVoteText(e.target.value)}
           placeholder="Votre réponse…"
           className="bg-bg-input border border-white/10 rounded-xl px-4 py-3 text-white text-base placeholder-white/30 focus:border-accent/60 outline-none transition-colors min-h-[48px]"
-          onKeyDown=${e => e.key === 'Enter' && sendAnswer(voteText.trim())}
+          onKeyDown=${e => e.key === 'Enter' && !locked && sendAnswer(voteText.trim())}
           disabled=${locked}
         />
         <${Btn} variant="primary" wide onClick=${() => sendAnswer(voteText.trim())} disabled=${!voteText.trim() || locked}>

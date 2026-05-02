@@ -126,6 +126,38 @@ function VoteDisplay({ gs, players }) {
     `;
   }
 
+  // Vote voting – display all options for players to vote on
+  if (mode === 'vote_voting') {
+    const options = voteState?.options || proposals;
+    const votes   = voteState?.votes || {};
+    const conn    = players.filter(p => p.connected).length;
+    const totalVotes = Object.keys(votes).length;
+    return html`
+      <div className="flex flex-col gap-5 animate-fade-in">
+        <h2 className="gradient-text font-display font-black text-center" style=${{ fontSize: 'clamp(1.8rem,4vw,3rem)' }}>
+          🗳️ Votez pour une réponse !
+        </h2>
+        <div className="flex items-center justify-center gap-3 mb-2">
+          <span style=${{ fontSize: 'clamp(1rem,2vw,1.5rem)', color: 'rgba(255,255,255,.5)' }}>${totalVotes} / ${conn} votes</span>
+        </div>
+        <div className="flex flex-col gap-3">
+          ${options.map((opt, i) => html`
+            <div
+              key=${i}
+              className="flex items-center justify-between rounded-2xl border px-6 py-4"
+              style=${{ background: 'rgba(178,75,255,.1)', borderColor: 'rgba(178,75,255,.3)' }}
+            >
+              <div className="flex items-center gap-4">
+                <span className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-black bg-accent/20 text-accent" style=${{ fontSize: 'clamp(.9rem,1.8vw,1.3rem)' }}>${i+1}</span>
+                <span style=${{ fontSize: 'clamp(1.1rem,2.5vw,2rem)', fontWeight: '700' }}>${opt.text || opt}</span>
+              </div>
+            </div>
+          `)}
+        </div>
+      </div>
+    `;
+  }
+
   // Vote revealing / revealed
   const revealedProposals = proposals.slice(0, cursor + 1);
   return html`
@@ -373,10 +405,16 @@ export default function DisplayView() {
     }
 
     if (phase === 'results' || phase === 'end') {
-      const lb = lbPlayers.length ? lbPlayers : (gs?.leaderboardPlayers || []);
+      const ceremonyView = gs?.phaseMeta?.ceremonyView || 'players';
+      const lb = ceremonyView === 'teams'
+        ? (lbTeams.length ? lbTeams : (gs?.leaderboardTeams || []))
+        : (lbPlayers.length ? lbPlayers : (gs?.leaderboardPlayers || []));
+      const title = phase === 'end'
+        ? (ceremonyView === 'teams' ? '🏆 Classement par équipes' : '🏆 Classement Final')
+        : '📊 Résultats';
       return html`
         <div className="flex flex-col items-center justify-center min-h-[100dvh] px-8 py-10">
-          <${TVScoreboard} leaderboard=${lb} title=${phase === 'end' ? '🏆 Classement Final' : '📊 Résultats'} />
+          <${TVScoreboard} leaderboard=${lb} title=${title} />
           ${phase === 'end' && html`<audio id="reveal-audio-player" src="" style=${{display:'none'}} />`}
         </div>
       `;
@@ -477,6 +515,50 @@ export default function DisplayView() {
       </div>
     `;
 
+    // True / False – dedicated big-button display
+    const isTrueFalse = ansMode === 'true_false' || curRound?.type === 'true_false';
+    if (isTrueFalse) {
+      const tfVotes = gs?.phaseMeta?.trueFalseVotes || {};
+      const vraiCount = tfVotes['vrai'] || tfVotes['true'] || 0;
+      const fauxCount = tfVotes['faux'] || tfVotes['false'] || 0;
+      const total     = vraiCount + fauxCount;
+      return html`
+        <div className="flex flex-col min-h-[100dvh] px-[clamp(24px,4vw,64px)] py-[clamp(24px,3vh,48px)]">
+          ${curQ?.mediaUrl && html`
+            <div className="flex justify-center mb-5">
+              <img src=${resolveMedia(curQ.mediaUrl)} className="max-w-full rounded-2xl object-contain" style=${{ maxHeight:'25vh' }} alt="media" />
+            </div>
+          `}
+          ${curQ?.content && html`
+            <p className="font-display font-bold text-center mb-8"
+               style=${{ fontSize: 'clamp(1.8rem,3.5vw,3.2rem)', lineHeight: '1.2' }}>
+              ${curQ.content}
+            </p>
+          `}
+          <div className="grid grid-cols-2 gap-6 flex-1">
+            <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-neon-green/40 bg-neon-green/10 p-8" style=${{ minHeight:'30vh' }}>
+              <span style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>✅</span>
+              <span className="font-display font-black text-neon-green mt-4" style=${{ fontSize: 'clamp(2.5rem,6vw,5rem)' }}>VRAI</span>
+              ${total > 0 && html`
+                <span className="text-neon-green/60 mt-2" style=${{ fontSize: 'clamp(1rem,2.5vw,1.8rem)' }}>
+                  ${vraiCount} vote(s) · ${total > 0 ? Math.round(vraiCount/total*100) : 0}%
+                </span>
+              `}
+            </div>
+            <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-rose-500/40 bg-rose-500/10 p-8" style=${{ minHeight:'30vh' }}>
+              <span style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>❌</span>
+              <span className="font-display font-black text-rose-400 mt-4" style=${{ fontSize: 'clamp(2.5rem,6vw,5rem)' }}>FAUX</span>
+              ${total > 0 && html`
+                <span className="text-rose-400/60 mt-2" style=${{ fontSize: 'clamp(1rem,2.5vw,1.8rem)' }}>
+                  ${fauxCount} vote(s) · ${total > 0 ? Math.round(fauxCount/total*100) : 0}%
+                </span>
+              `}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     // Standard QCM / True-False
     return html`
       <div className="flex flex-col min-h-[100dvh] px-[clamp(24px,4vw,64px)] py-[clamp(24px,3vh,48px)]">
@@ -538,6 +620,38 @@ export default function DisplayView() {
   const renderReveal = () => {
     const curQ    = gs?.currentQuestion;
     const revealed= gs?.revealedAnswer;
+    const ansMode = gs?.phaseMeta?.answerMode;
+    const isTrueFalse = ansMode === 'true_false' || gs?.currentRound?.type === 'true_false';
+
+    if (isTrueFalse) {
+      const correct = (revealed?.answer || '').toLowerCase();
+      const isVrai  = correct === 'vrai' || correct === 'true';
+      return html`
+        <div className="flex flex-col min-h-[100dvh] px-[clamp(24px,4vw,64px)] py-[clamp(24px,3vh,48px)] animate-fade-in">
+          <div className="flex items-center justify-center gap-4 mb-6">
+            <span style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>📋</span>
+            <span className="font-display font-black gradient-text-green" style=${{ fontSize: 'clamp(1.8rem,4vw,3.5rem)' }}>La réponse !</span>
+          </div>
+          ${curQ?.content && html`
+            <p className="font-display font-bold text-center mb-6 text-white/70" style=${{ fontSize: 'clamp(1.4rem,2.8vw,2.4rem)' }}>
+              ${curQ.content}
+            </p>
+          `}
+          <div className="grid grid-cols-2 gap-6">
+            <div className=${'flex flex-col items-center justify-center rounded-3xl border-2 p-8 transition-all duration-500' + (isVrai ? ' border-neon-green/80 bg-neon-green/20 scale-105' : ' border-white/10 bg-white/3 opacity-40')} style=${{ minHeight:'25vh' }}>
+              <span style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>✅</span>
+              <span className=${'font-display font-black mt-3' + (isVrai ? ' text-neon-green' : ' text-white/30')} style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>VRAI</span>
+              ${isVrai && html`<span className="text-neon-green text-2xl mt-2">✓</span>`}
+            </div>
+            <div className=${'flex flex-col items-center justify-center rounded-3xl border-2 p-8 transition-all duration-500' + (!isVrai ? ' border-neon-green/80 bg-neon-green/20 scale-105' : ' border-white/10 bg-white/3 opacity-40')} style=${{ minHeight:'25vh' }}>
+              <span style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>❌</span>
+              <span className=${'font-display font-black mt-3' + (!isVrai ? ' text-neon-green' : ' text-white/30')} style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>FAUX</span>
+              ${!isVrai && html`<span className="text-neon-green text-2xl mt-2">✓</span>`}
+            </div>
+          </div>
+        </div>
+      `;
+    }
     return html`
       <div className="flex flex-col min-h-[100dvh] px-[clamp(24px,4vw,64px)] py-[clamp(24px,3vh,48px)] animate-fade-in">
 
@@ -599,12 +713,15 @@ export default function DisplayView() {
   return html`
     <div
       className="display-fullscreen bg-bg"
-      style=${bgUrl ? { backgroundImage:`url('${bgUrl}')`, backgroundSize:'cover', backgroundPosition:'center' } : {}}
+      style=${{
+        ...(bgUrl ? { backgroundImage:`url('${bgUrl}')`, backgroundSize:'cover', backgroundPosition:'center' } : {}),
+        zoom: 0.9,
+      }}
     >
       ${bgUrl && html`<div className="bg-overlay" />`}
 
-      <!-- Session banner (top right) -->
-      <div className="absolute top-3 right-4 z-20 flex items-center gap-2">
+      <!-- Session banner (top LEFT) -->
+      <div className="absolute top-3 left-4 z-20 flex items-center gap-2">
         <span className="font-mono text-white/30 text-xs">Session </span>
         <span className="font-mono font-bold text-accent/80 tracking-widest text-sm">${sc}</span>
         <button onClick=${toggleMute} className="ml-2 text-white/30 hover:text-white text-base">${musicMuted ? '🔇' : '🔊'}</button>
