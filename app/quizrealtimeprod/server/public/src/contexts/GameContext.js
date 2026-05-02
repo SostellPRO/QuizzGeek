@@ -37,6 +37,10 @@ export function GameProvider({ children }) {
   const { play, startCountdown, stopCountdown } = useSounds();
   const { muted, setUrl: setMusicUrl, toggleMute, ducking } = useMusic();
 
+  // Ref to track current page inside event handlers (avoids stale closure)
+  const pageRef = useRef(page);
+  useEffect(() => { pageRef.current = page; }, [page]);
+
   // Refs for change detection
   const lastPhaseRef      = useRef(null);
   const lastTimerActive   = useRef(false);
@@ -61,6 +65,14 @@ export function GameProvider({ children }) {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
+  // Stop music & sounds when leaving the display screen
+  useEffect(() => {
+    if (page !== 'display') {
+      setMusicUrl('');
+      stopCountdown();
+    }
+  }, [page]); // eslint-disable-line
+
   // ── Socket init ──────────────────────────────────────────────
   useEffect(() => {
     const s = window.io();
@@ -84,9 +96,11 @@ export function GameProvider({ children }) {
       setLbP(payload?.leaderboardPlayers || []);
       setLbT(payload?.leaderboardTeams   || []);
 
-      // ── Phase music ─────────────────────────────────────────
+      // ── Sound & music : only on the display (TV) screen ────────
       const phase = gs?.status;
       const round = gs?.currentRound;
+      const isDisplay = pageRef.current === 'display';
+
       const getPhaseMusic = () => {
         if (!gs) return '';
         if (phase === 'lobby')  return resolveMedia(gs.quizWelcomeMusicUrl || '');
@@ -97,73 +111,76 @@ export function GameProvider({ children }) {
         if (['round_end','results'].includes(phase)) return resolveMedia(round?.endMusicUrl || '');
         return '';
       };
-      setMusicUrl(getPhaseMusic());
+      setMusicUrl(isDisplay ? getPhaseMusic() : '');
 
-      // ── Sound effects on phase change ───────────────────────
-      if (phase !== lastPhaseRef.current) {
-        if (phase === 'round_intro') play('bell');
-        else if (phase === 'get_ready') play('answer');
-        else if (phase === 'round_end' || phase === 'results' || phase === 'end') play('fanfare');
-        if (phase === 'answer_reveal') {
-          const revAudio = gs?.revealedAnswer?.revealAudio;
-          if (revAudio) {
-            setTimeout(() => {
-              const el = document.getElementById('reveal-audio-player');
-              if (el) el.play().catch(() => {});
-            }, 400);
+      if (isDisplay) {
+        // ── Sound effects on phase change ───────────────────────
+        if (phase !== lastPhaseRef.current) {
+          if (phase === 'round_intro') play('bell');
+          else if (phase === 'get_ready') play('answer');
+          else if (phase === 'round_end' || phase === 'results' || phase === 'end') play('fanfare');
+          if (phase === 'answer_reveal') {
+            const revAudio = gs?.revealedAnswer?.revealAudio;
+            if (revAudio) {
+              setTimeout(() => {
+                const el = document.getElementById('reveal-audio-player');
+                if (el) el.play().catch(() => {});
+              }, 400);
+            }
           }
         }
-        lastPhaseRef.current = phase;
+
+        // ── Buzzer sound ─────────────────────────────────────────
+        const buzzerFirstId = gs?.buzzerState?.firstPlayerId;
+        if (buzzerFirstId && buzzerFirstId !== lastBuzzerFirst.current) {
+          lastBuzzerFirst.current = buzzerFirstId;
+          play('buzzer');
+        } else if (!buzzerFirstId) {
+          lastBuzzerFirst.current = null;
+        }
+
+        // ── Buzzer result sound ──────────────────────────────────
+        const blr = gs?.buzzerLastResult;
+        if (blr?.at && blr.at !== lastBuzzerResult.current) {
+          lastBuzzerResult.current = blr.at;
+          play(blr.result === 'correct' ? 'correct' : 'wrong');
+        }
+
+        // ── Vote reveal sound ────────────────────────────────────
+        const vrc = gs?.voteState?.revealCursor;
+        const am  = gs?.phaseMeta?.answerMode;
+        if ((am === 'vote_revealing' || am === 'vote_revealed') &&
+            vrc != null && vrc !== lastVoteReveal.current) {
+          const justRevealed = lastVoteReveal.current != null;
+          lastVoteReveal.current = vrc;
+          if (justRevealed) play('cashRegister');
+        } else if (am !== 'vote_revealing' && am !== 'vote_revealed') {
+          lastVoteReveal.current = null;
+        }
+
+        // ── Countdown timer ──────────────────────────────────────
+        const timer   = gs?.phaseMeta?.timer;
+        const timerOn = !!(timer?.remainingSec > 0);
+        if (timerOn && !lastTimerActive.current) {
+          startCountdown(timer.remainingSec);
+          ducking(true);
+        } else if (!timerOn && lastTimerActive.current) {
+          stopCountdown();
+          ducking(false);
+          play('wrong');
+        }
+        lastTimerActive.current = timerOn;
+
+        // ── New player in lobby sound ────────────────────────────
+        const connCount = pls.filter(p => p.connected).length;
+        if (phase === 'lobby' && connCount > lastPlayerCount.current && lastPlayerCount.current > 0) {
+          play('answer');
+        }
+        lastPlayerCount.current = connCount;
       }
 
-      // ── Buzzer sound ─────────────────────────────────────────
-      const buzzerFirstId = gs?.buzzerState?.firstPlayerId;
-      if (buzzerFirstId && buzzerFirstId !== lastBuzzerFirst.current) {
-        lastBuzzerFirst.current = buzzerFirstId;
-        play('buzzer');
-      } else if (!buzzerFirstId) {
-        lastBuzzerFirst.current = null;
-      }
-
-      // ── Buzzer result sound ──────────────────────────────────
-      const blr = gs?.buzzerLastResult;
-      if (blr?.at && blr.at !== lastBuzzerResult.current) {
-        lastBuzzerResult.current = blr.at;
-        play(blr.result === 'correct' ? 'correct' : 'wrong');
-      }
-
-      // ── Vote reveal sound ────────────────────────────────────
-      const vrc = gs?.voteState?.revealCursor;
-      const am  = gs?.phaseMeta?.answerMode;
-      if ((am === 'vote_revealing' || am === 'vote_revealed') &&
-          vrc != null && vrc !== lastVoteReveal.current) {
-        const justRevealed = lastVoteReveal.current != null;
-        lastVoteReveal.current = vrc;
-        if (justRevealed) play('cashRegister');
-      } else if (am !== 'vote_revealing' && am !== 'vote_revealed') {
-        lastVoteReveal.current = null;
-      }
-
-      // ── Countdown timer ──────────────────────────────────────
-      const timer      = gs?.phaseMeta?.timer;
-      const timerOn    = !!(timer?.remainingSec > 0);
-      const wasTimerOn = lastTimerActive.current;
-      if (timerOn && !wasTimerOn) {
-        startCountdown(timer.remainingSec);
-        ducking(true);
-      } else if (!timerOn && wasTimerOn) {
-        stopCountdown();
-        ducking(false);
-        play('wrong');
-      }
-      lastTimerActive.current = timerOn;
-
-      // ── New player in lobby sound ────────────────────────────
-      const connCount = pls.filter(p => p.connected).length;
-      if (phase === 'lobby' && connCount > lastPlayerCount.current && lastPlayerCount.current > 0) {
-        play('answer');
-      }
-      lastPlayerCount.current = connCount;
+      // Always update phase ref (used for next comparison)
+      lastPhaseRef.current = phase;
     });
 
     return () => s.disconnect();

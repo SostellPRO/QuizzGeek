@@ -8,9 +8,9 @@ import AdminView   from './views/admin/AdminView.js';
 
 // Top navigation bar (only shown on non-display, non-player pages)
 function NavBar() {
-  const { page, navigate, soundPlay } = useGame();
+  const { page, navigate } = useGame();
 
-  const go = (p) => { soundPlay('answer'); navigate(p); };
+  const go = (p) => { navigate(p); };
 
   const LINKS = [
     { id: 'player',  icon: '📱', label: 'Jouer' },

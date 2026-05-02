@@ -18,12 +18,9 @@ const ROUND_TYPES = [
 ];
 
 export default function Home() {
-  const { navigate, soundPlay } = useGame();
+  const { navigate } = useGame();
 
-  const go = (id) => {
-    soundPlay('answer');
-    navigate(id);
-  };
+  const go = (id) => { navigate(id); };
 
   return html`
     <div className="flex flex-col items-center min-h-[100dvh] bg-bg px-4 py-8">

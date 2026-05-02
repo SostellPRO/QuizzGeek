@@ -8,7 +8,7 @@ const ROUND_LABELS= { qcm:'QCM', rapidite:'Rapidité', speed:'Rapidité', true_f
 const OPTION_LABELS = ['A','B','C','D','E','F'];
 
 export default function PlayerGame() {
-  const { socket, gameState: gs, players, teams, playerSession: s, setPlayerSession, navigate, soundPlay } = useGame();
+  const { socket, gameState: gs, players, teams, playerSession: s, setPlayerSession, navigate } = useGame();
   const [alert, setAlert]     = useState(null);
   const [locked, setLocked]   = useState(false);
   const [voteText, setVoteText]= useState('');
@@ -29,44 +29,40 @@ export default function PlayerGame() {
   const sendAnswer = useCallback((answer) => {
     if (!socket || !s) return;
     setLocked(true);
-    soundPlay('answer');
     socket.emit('player:answer', { sessionCode: s.sessionCode, playerId: s.playerId, answer }, (res) => {
       if (!res?.ok) {
         setAlert({ type: 'error', message: res?.error || 'Erreur.' });
         setLocked(false);
       }
     });
-  }, [socket, s, soundPlay]);
+  }, [socket, s]);
 
   const sendBuzzer = useCallback(() => {
     if (!socket || !s) return;
-    soundPlay('buzzer');
     socket.emit('player:buzzer', { sessionCode: s.sessionCode, playerId: s.playerId }, (res) => {
       if (!res?.ok) setAlert({ type: 'error', message: res?.error || 'Buzzer refusé.' });
     });
-  }, [socket, s, soundPlay]);
+  }, [socket, s]);
 
   // vote_input: player submits free-text answer via player:answer
   const sendVoteText = useCallback(() => {
     const txt = voteText.trim();
     if (!txt || !socket || !s) return;
-    soundPlay('answer');
     setLocked(true);
     socket.emit('player:answer', { sessionCode: s.sessionCode, playerId: s.playerId, answer: txt }, (res) => {
       if (res?.ok) { setVoteText(''); }
       else { setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
     });
-  }, [socket, s, voteText, soundPlay]);
+  }, [socket, s, voteText]);
 
   // vote_voting: player chooses from displayed options by index via player:vote
   const sendVoteChoice = useCallback((index) => {
     if (!socket || !s || locked) return;
     setLocked(true);
-    soundPlay('answer');
     socket.emit('player:vote', { sessionCode: s.sessionCode, playerId: s.playerId, index }, (res) => {
       if (!res?.ok) { setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
     });
-  }, [socket, s, locked, soundPlay]);
+  }, [socket, s, locked]);
 
   const disconnect = () => {
     setPlayerSession(null);
