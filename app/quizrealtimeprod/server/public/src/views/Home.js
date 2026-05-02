@@ -41,11 +41,11 @@ export default function Home() {
           <button
             key=${r.id}
             onClick=${() => go(r.id)}
-            className=${'relative flex flex-col items-center gap-2 p-6 rounded-2xl border border-white/8 bg-bg-card hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-200 group overflow-hidden text-left'}
+            className=${'relative flex flex-col items-center gap-2 p-6 rounded-2xl border border-white/8 bg-bg-card hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-200 group overflow-hidden text-center'}
           >
             <div className=${'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br ' + r.color + ' opacity-10'} />
             <span className="text-4xl">${r.icon}</span>
-            <div>
+            <div className="text-center">
               <div className="font-bold text-white text-base">${r.label}</div>
               <div className="text-xs text-white/45 mt-0.5">${r.sub}</div>
             </div>

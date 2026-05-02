@@ -7,7 +7,7 @@ const GameContext = createContext(null);
 export const useGame = () => useContext(GameContext);
 
 export function GameProvider({ children }) {
-  const [page, setPage]       = useState(() => window.location.hash.slice(1) || 'home');
+  const [page, setPage]       = useState(() => (window.location.hash.slice(1).split('?')[0]) || 'home');
   const [socket, setSocket]   = useState(null);
   const [gameState, setGs]    = useState(null);
   const [players, setPlayers] = useState([]);
@@ -51,10 +51,10 @@ export function GameProvider({ children }) {
     window.location.hash = p;
   }, []);
 
-  // Hash change → navigate
+  // Hash change → navigate (strip ?params so #display?code=XYZ → page 'display')
   useEffect(() => {
     const onHash = () => {
-      const h = window.location.hash.slice(1);
+      const h = window.location.hash.slice(1).split('?')[0];
       if (h) setPage(h);
     };
     window.addEventListener('hashchange', onHash);

@@ -11,7 +11,7 @@ const TABS = [
 ];
 
 export default function HostGame() {
-  const { gameState: gs, players, hostSession, hostAction, navigate, musicMuted, toggleMute } = useGame();
+  const { gameState: gs, players, hostSession, hostAction, navigate } = useGame();
   const [tab, setTab] = useState('pilotage');
 
   const phase    = gs?.status || 'lobby';
@@ -41,13 +41,7 @@ export default function HostGame() {
               </div>
             </div>
           </div>
-          <button
-            onClick=${toggleMute}
-            className="text-xl w-9 h-9 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
-            title=${musicMuted ? 'Activer la musique' : 'Couper la musique'}
-          >
-            ${musicMuted ? '🔇' : '🔊'}
-          </button>
+          <!-- Son : uniquement sur l'écran TV -->
         </div>
 
         <!-- Tabs -->

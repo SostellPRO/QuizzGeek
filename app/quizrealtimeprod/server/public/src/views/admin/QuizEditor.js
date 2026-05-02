@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { html, uid, emptyRound, emptyQuestion, ROUND_TYPES } from '../../utils.js';
+import { html, uid, emptyRound, emptyQuestion, ROUND_TYPES, resolveMedia } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
 import { Btn, Alert, Badge } from '../../components/ui.js';
 
@@ -17,9 +17,9 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
   const [open, setOpen] = useState(false);
 
   const upd = (key, val) => onUpdate({ ...q, [key]: val });
-  const updOpt = (oi, val) => {
+  const updOpt = (oi, key, val) => {
     const opts = [...(q.options || [])];
-    opts[oi] = { ...opts[oi], text: val };
+    opts[oi] = { ...opts[oi], [key]: val };
     onUpdate({ ...q, options: opts });
   };
 
@@ -60,16 +60,26 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
             />
           </div>
 
-          <!-- Media URL -->
+          <!-- Media URL + preview -->
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">Image / Vidéo (URL)</label>
-            <input
-              type="text"
-              value=${q.mediaUrl || ''}
-              onInput=${e => upd('mediaUrl', e.target.value)}
-              placeholder="https://… ou /pictures/…"
-              className="bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
-            />
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                value=${q.mediaUrl || ''}
+                onInput=${e => upd('mediaUrl', e.target.value)}
+                placeholder="https://… ou /pictures/…"
+                className="flex-1 bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
+              />
+              ${q.mediaUrl && html`
+                <img
+                  src=${resolveMedia(q.mediaUrl)}
+                  alt="aperçu"
+                  className="w-14 h-14 rounded-xl object-cover flex-shrink-0 border border-white/15"
+                  onError=${e => { e.target.style.display='none'; }}
+                />
+              `}
+            </div>
           </div>
 
           <!-- Type + Timer -->
@@ -104,20 +114,39 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
                 <span className="text-white/25 font-normal ml-1">(cliquer pour marquer la bonne réponse)</span>
               </label>
               ${(q.options || []).map((opt, oi) => html`
-                <div key=${oi} className="flex items-center gap-3">
-                  <button
-                    onClick=${() => upd('correctOptionIndex', oi)}
-                    className=${`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black transition-all ${q.correctOptionIndex === oi ? 'bg-neon-green/20 border-2 border-neon-green/60 text-neon-green' : 'bg-white/5 border-2 border-transparent text-white/30 hover:border-white/20'}`}
-                  >
-                    ${LABELS[oi] || oi+1}
-                  </button>
-                  <input
-                    type="text"
-                    value=${opt.text || ''}
-                    onInput=${e => updOpt(oi, e.target.value)}
-                    placeholder=${`Option ${LABELS[oi] || oi+1}…`}
-                    className="flex-1 bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
-                  />
+                <div key=${oi} className="flex flex-col gap-1.5 bg-white/3 rounded-xl p-3 border border-white/5">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick=${() => upd('correctOptionIndex', oi)}
+                      className=${`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black transition-all ${q.correctOptionIndex === oi ? 'bg-neon-green/20 border-2 border-neon-green/60 text-neon-green' : 'bg-white/5 border-2 border-transparent text-white/30 hover:border-white/20'}`}
+                    >
+                      ${LABELS[oi] || oi+1}
+                    </button>
+                    <input
+                      type="text"
+                      value=${opt.text || ''}
+                      onInput=${e => updOpt(oi, 'text', e.target.value)}
+                      placeholder=${`Option ${LABELS[oi] || oi+1}…`}
+                      className="flex-1 bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pl-12">
+                    <input
+                      type="text"
+                      value=${opt.mediaUrl || ''}
+                      onInput=${e => updOpt(oi, 'mediaUrl', e.target.value)}
+                      placeholder="Image de l'option (URL ou /pictures/…)"
+                      className="flex-1 bg-bg-input border border-white/8 rounded-lg px-3 py-1.5 text-white text-xs placeholder-white/20 focus:border-accent/50 outline-none transition-colors"
+                    />
+                    ${opt.mediaUrl && html`
+                      <img
+                        src=${resolveMedia(opt.mediaUrl)}
+                        alt=""
+                        className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-white/10"
+                        onError=${e => { e.target.style.display='none'; }}
+                      />
+                    `}
+                  </div>
                 </div>
               `)}
             </div>

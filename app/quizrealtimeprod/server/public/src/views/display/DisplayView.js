@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { html, resolveMedia, ROUND_TYPES } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
 import { Btn, Alert, Dots } from '../../components/ui.js';
@@ -8,6 +8,19 @@ function DisplayConnect() {
   const { socket, setDisplaySession, navigate } = useGame();
   const [code,  setCode]  = useState('');
   const [alert, setAlert] = useState(null);
+
+  // Auto-connect when code is provided via URL: #display?code=XXXX
+  useEffect(() => {
+    const hash  = window.location.hash.slice(1);
+    const match = hash.match(/[?&]code=([^&]+)/i);
+    if (!match || !socket) return;
+    const autoCode = decodeURIComponent(match[1]).toUpperCase();
+    setCode(autoCode);
+    socket.emit('join:display', { sessionCode: autoCode }, (res) => {
+      if (res?.ok) setDisplaySession({ sessionCode: autoCode, connected: true });
+      else setAlert({ type: 'error', message: res?.error || 'Connexion automatique échouée.' });
+    });
+  }, [socket]); // eslint-disable-line
 
   const connect = () => {
     const sessionCode = code.trim().toUpperCase();
@@ -27,17 +40,20 @@ function DisplayConnect() {
         <p className="text-white/40 mt-2">Projeter sur le grand écran</p>
       </div>
       ${alert && html`<div className="mb-4 w-full max-w-sm"><${Alert} type=${alert.type} message=${alert.message} /></div>`}
-      <div className="flex gap-3 w-full max-w-sm">
-        <input
-          type="text"
-          value=${code}
-          onInput=${e => setCode(e.target.value.toUpperCase())}
-          placeholder="Code de session"
-          maxLength="6"
-          className="flex-1 bg-bg-input border border-white/10 rounded-xl px-5 py-4 text-white text-2xl font-mono font-bold tracking-[0.3em] text-center placeholder-white/20 focus:border-accent/60 outline-none transition-colors"
-          onKeyDown=${e => e.key === 'Enter' && connect()}
-        />
-        <${Btn} variant="primary" onClick=${connect} size="lg">→<//>
+      <div className="flex flex-col gap-2 w-full max-w-sm">
+        <label className="text-sm font-semibold text-white/50 text-center uppercase tracking-wider">Code de session</label>
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value=${code}
+            onInput=${e => setCode(e.target.value.toUpperCase())}
+            placeholder="1234"
+            maxLength="6"
+            className="flex-1 bg-bg-input border border-white/10 rounded-xl px-5 py-4 text-white text-2xl font-mono font-bold tracking-[0.3em] text-center placeholder-white/20 focus:border-accent/60 outline-none transition-colors"
+            onKeyDown=${e => e.key === 'Enter' && connect()}
+          />
+          <${Btn} variant="primary" onClick=${connect} size="lg">→<//>
+        </div>
       </div>
     </div>
   `;
