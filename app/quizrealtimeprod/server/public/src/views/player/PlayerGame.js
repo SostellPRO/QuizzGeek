@@ -1,0 +1,396 @@
+import { useState, useRef, useCallback } from 'react';
+import { html, resolveMedia } from '../../utils.js';
+import { useGame } from '../../contexts/GameContext.js';
+import { Btn, Badge, Alert, Dots, SessionBanner } from '../../components/ui.js';
+
+const ROUND_ICONS = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', burger:'🍔', vote:'🗳️', video_challenge:'🎬' };
+const ROUND_LABELS= { qcm:'QCM', rapidite:'Rapidité', speed:'Rapidité', true_false:'Vrai / Faux', burger:'Burger', vote:'Vote', video_challenge:'Challenge Vidéo' };
+const OPTION_LABELS = ['A','B','C','D','E','F'];
+
+export default function PlayerGame() {
+  const { socket, gameState: gs, players, teams, playerSession: s, setPlayerSession, navigate, soundPlay } = useGame();
+  const [alert, setAlert]     = useState(null);
+  const [locked, setLocked]   = useState(false);
+  const [voteText, setVoteText]= useState('');
+  const draftRef = useRef('');
+
+  const myPlayer = players.find(p => p.id === s?.playerId || p.playerId === s?.playerId);
+  const phase    = gs?.status || 'lobby';
+  const roundType= gs?.currentRound?.type || 'qcm';
+  const rtIcon   = ROUND_ICONS[roundType] || '🎯';
+
+  const sendAnswer = useCallback((answer) => {
+    if (!socket || !s) return;
+    setLocked(true);
+    soundPlay('answer');
+    socket.emit('player:answer', { sessionCode: s.sessionCode, playerId: s.playerId, answer }, (res) => {
+      if (!res?.ok) {
+        setAlert({ type: 'error', message: res?.error || 'Erreur.' });
+        setLocked(false);
+      }
+    });
+  }, [socket, s, soundPlay]);
+
+  const sendBuzzer = useCallback(() => {
+    if (!socket || !s) return;
+    soundPlay('buzzer');
+    socket.emit('player:buzzer', { sessionCode: s.sessionCode, playerId: s.playerId }, (res) => {
+      if (!res?.ok) setAlert({ type: 'error', message: res?.error || 'Buzzer refusé.' });
+    });
+  }, [socket, s, soundPlay]);
+
+  const sendVote = useCallback(() => {
+    const txt = voteText.trim();
+    if (!txt) return;
+    soundPlay('answer');
+    socket.emit('player:vote', { sessionCode: s.sessionCode, playerId: s.playerId, vote: txt }, (res) => {
+      if (res?.ok) setVoteText('');
+      else setAlert({ type: 'error', message: res?.error || 'Erreur.' });
+    });
+  }, [socket, s, voteText, soundPlay]);
+
+  const disconnect = () => {
+    setPlayerSession(null);
+    localStorage.removeItem('quiz_player_session');
+    navigate('home');
+  };
+
+  // ── Phase rendering ──────────────────────────────────────────
+  const isPaused = gs?.phaseMeta?.paused === true;
+
+  const renderPhase = () => {
+    if (isPaused) return html`
+      <div className="flex flex-col items-center justify-center py-16 gap-4">
+        <div className="text-6xl">⏸️</div>
+        <h2 className="text-2xl font-bold">Pause</h2>
+        <p className="text-white/40 text-center">Le maître de jeu a mis la partie en pause…</p>
+        <${Dots} />
+      </div>
+    `;
+
+    if (phase === 'lobby') {
+      const connPlayers = players.filter(p => p.connected);
+      return html`
+        <div className="rounded-2xl bg-bg-card border border-white/8 p-6 text-center">
+          <div className="text-5xl mb-4">⏳</div>
+          <h2 className="text-xl font-bold mb-2">Salle d'attente</h2>
+          <p className="text-white/45 text-sm mb-5">En attente du maître de jeu…</p>
+          <div className="text-xs text-white/30 uppercase tracking-widest font-semibold mb-3">
+            ${connPlayers.length} joueur(s) connecté(s)
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            ${connPlayers.map(p => html`
+              <div key=${p.id || p.playerId} className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-white/5 border border-white/8 min-w-[60px]">
+                <span className="text-2xl">${p.avatar || '🎮'}</span>
+                <span className="text-xs font-bold text-white/80 max-w-[64px] truncate">${p.pseudo || '?'}</span>
+              </div>
+            `)}
+          </div>
+        </div>
+      `;
+    }
+
+    if (phase === 'training_video') return html`
+      <div className="rounded-2xl bg-amber-500/10 border border-amber-500/25 p-8 text-center">
+        <div className="text-5xl mb-4">🏋️</div>
+        <h2 className="text-2xl font-bold text-amber-400">Vidéo d'entraînement</h2>
+        <p className="text-white/45 mt-3">Regardez l'écran TV !</p>
+        <${Dots} />
+      </div>
+    `;
+
+    if (phase === 'round_intro') {
+      const round = gs?.currentRound;
+      return html`
+        <div className="flex flex-col items-center gap-5 py-8 text-center animate-fade-in">
+          <div className="text-6xl">${rtIcon}</div>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/15 border border-accent/30 text-sm font-semibold text-accent">
+            ${rtIcon} ${ROUND_LABELS[round?.type] || round?.type}
+          </div>
+          <h2 className="text-2xl font-bold">${round?.title || 'Nouvelle manche'}</h2>
+          ${round?.shortRules && html`<p className="text-white/45 text-sm">${round.shortRules}</p>`}
+          <${Dots} />
+        </div>
+      `;
+    }
+
+    if (phase === 'get_ready') return html`
+      <div className="flex flex-col items-center gap-4 py-10 text-center animate-bounce-in">
+        <div className="text-6xl">${rtIcon}</div>
+        <h2 className="text-3xl font-display font-black">Tenez-vous prêts !</h2>
+        <p className="text-white/45">Le maître de jeu va lancer la question…</p>
+        <${Dots} />
+      </div>
+    `;
+
+    if (phase === 'question' || phase === 'waiting') {
+      return renderQuestion();
+    }
+
+    if (phase === 'answer_reveal') return renderReveal();
+    if (phase === 'manual_scoring') return renderManualScoring();
+    if (phase === 'round_end' || phase === 'results') return renderRoundEnd();
+    if (phase === 'end') return renderEnd();
+
+    return html`<div className="text-center py-10 text-white/40"><${Dots} /></div>`;
+  };
+
+  const renderQuestion = () => {
+    const currentQ    = gs?.currentQuestion;
+    const answerMode  = gs?.phaseMeta?.answerMode;
+    const timer       = gs?.phaseMeta?.timer;
+    const isBuzzer    = answerMode === 'buzzer';
+    const isBurger    = gs?.currentRound?.type === 'burger' || currentQ?.type === 'burger';
+    const isVote      = answerMode === 'vote_input' || answerMode === 'vote_voting';
+    const myAnswers   = gs?.answers?.[currentQ?.id] || {};
+    const alreadyAnswered = !!myAnswers[s?.playerId];
+
+    // Burger: only selected player acts
+    if (isBurger) {
+      const sel = gs?.burgerSelectedPlayerId;
+      const selTeam = gs?.burgerSelectedTeamId;
+      const isMe = sel === s?.playerId || (selTeam && s?.teamId === selTeam);
+      if (!isMe && (sel || selTeam)) {
+        const selPlayer = players.find(p => p.id === sel || p.playerId === sel);
+        return html`
+          <div className="rounded-2xl bg-bg-card border border-white/8 p-6 text-center">
+            <div className="text-4xl mb-3">🍔</div>
+            <p className="text-white/50">C'est le tour de <strong className="text-amber-400">${selPlayer?.pseudo || 'quelqu\'un'}</strong></p>
+            <p className="text-white/30 text-sm mt-2">Regardez l'écran TV !</p>
+            <${Dots} />
+          </div>
+        `;
+      }
+    }
+
+    // Buzzer phase
+    if (isBuzzer) {
+      const buzzerState = gs?.buzzerState;
+      const firstId = buzzerState?.firstPlayerId;
+      const iFirst = firstId === s?.playerId;
+      const cooldown = buzzerState?.cooldownPlayerId === s?.playerId;
+      const buzzerLocked = gs?.phaseMeta?.playerScreenLocked;
+
+      if (iFirst) return html`
+        <div className="flex flex-col items-center gap-4 py-6 text-center animate-bounce-in">
+          <div className="text-6xl animate-float">🎉</div>
+          <h2 className="text-2xl font-display font-black text-neon-green">Vous avez buzzé en premier !</h2>
+          <p className="text-white/50 text-sm">Le maître de jeu va valider…</p>
+        </div>
+      `;
+
+      if (firstId && !iFirst) {
+        const who = players.find(p => p.id === firstId || p.playerId === firstId);
+        return html`
+          <div className="rounded-2xl bg-rose-500/10 border border-rose-500/25 p-6 text-center">
+            <div className="text-4xl mb-3">❌</div>
+            <p className="text-white/60"><strong className="text-rose-400">${who?.pseudo || 'Quelqu\'un'}</strong> a buzzé en premier.</p>
+            <p className="text-white/30 text-sm mt-1">Attendez la prochaine opportunité…</p>
+          </div>
+        `;
+      }
+
+      return html`
+        <div className="flex flex-col items-center gap-6 py-8">
+          <div className="text-white/60 text-sm uppercase tracking-widest font-semibold">Buzzer</div>
+          ${currentQ?.content && html`<p className="text-center text-base font-medium text-white/80 px-2">${currentQ.content}</p>`}
+          <button
+            onClick=${sendBuzzer}
+            disabled=${!!buzzerLocked || !!cooldown}
+            className="w-48 h-48 rounded-full font-display font-black text-2xl text-white bg-gradient-to-br from-accent to-violet-900 border-4 border-accent ring-pulse shadow-accent active:scale-90 transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+          >
+            ${cooldown ? '⏳' : '🔔 BUZZ !'}
+          </button>
+        </div>
+      `;
+    }
+
+    // Vote input
+    if (isVote && answerMode === 'vote_input') {
+      return html`
+        <div className="flex flex-col gap-4">
+          ${currentQ?.content && html`<p className="text-center text-base font-bold">${currentQ.content}</p>`}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-white/60">Votre réponse</label>
+            <textarea
+              value=${voteText}
+              onInput=${e => { setVoteText(e.target.value); draftRef.current = e.target.value; }}
+              placeholder="Écrivez votre réponse…"
+              rows="3"
+              className="bg-bg-input border border-white/10 rounded-xl px-4 py-3 text-white text-base placeholder-white/30 focus:border-accent/60 outline-none transition-colors resize-none"
+            />
+          </div>
+          <${Btn} variant="primary" wide onClick=${sendVote} disabled=${!voteText.trim()}>
+            📤 Envoyer ma réponse
+          <//>
+        </div>
+      `;
+    }
+
+    // QCM options
+    if (currentQ?.options?.length) {
+      if (alreadyAnswered) return html`
+        <div className="text-center py-6">
+          <div className="text-5xl mb-4">✅</div>
+          <h2 className="text-xl font-bold text-neon-green">Réponse envoyée !</h2>
+          <p className="text-white/40 text-sm mt-2">En attente des autres joueurs…</p>
+          <${Dots} />
+        </div>
+      `;
+
+      return html`
+        <div className="flex flex-col gap-3">
+          ${currentQ?.content && html`
+            <div className="rounded-xl bg-bg-input border border-white/8 p-4 text-center">
+              <p className="text-base font-semibold">${currentQ.content}</p>
+            </div>
+          `}
+          ${timer?.remainingSec > 0 && html`
+            <div className="flex items-center justify-between text-sm mb-1">
+              <span className="text-white/40">Temps restant</span>
+              <span className=${`font-mono font-bold ${timer.remainingSec <= 5 ? 'text-rose-400' : 'text-neon-green'}`}>
+                ${timer.remainingSec}s
+              </span>
+            </div>
+          `}
+          <div className="grid grid-cols-1 gap-3">
+            ${currentQ.options.map((opt, i) => html`
+              <button
+                key=${opt.id || i}
+                onClick=${() => sendAnswer(opt.text)}
+                disabled=${locked}
+                className="flex items-center gap-4 p-4 rounded-xl border font-semibold text-left transition-all duration-150 active:scale-95 bg-bg-card border-white/10 hover:border-accent/50 hover:bg-accent/5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <span className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center font-black text-lg bg-accent/15 border border-accent/30 text-accent">
+                  ${OPTION_LABELS[i]}
+                </span>
+                <span className="text-white text-base">${opt.text}</span>
+              </button>
+            `)}
+          </div>
+        </div>
+      `;
+    }
+
+    // Free text answer
+    return html`
+      <div className="flex flex-col gap-3">
+        ${currentQ?.content && html`<p className="text-center font-bold text-lg">${currentQ.content}</p>`}
+        <input
+          type="text"
+          value=${voteText}
+          onInput=${e => setVoteText(e.target.value)}
+          placeholder="Votre réponse…"
+          className="bg-bg-input border border-white/10 rounded-xl px-4 py-3 text-white text-base placeholder-white/30 focus:border-accent/60 outline-none transition-colors min-h-[48px]"
+          onKeyDown=${e => e.key === 'Enter' && sendAnswer(voteText.trim())}
+          disabled=${locked}
+        />
+        <${Btn} variant="primary" wide onClick=${() => sendAnswer(voteText.trim())} disabled=${!voteText.trim() || locked}>
+          Envoyer
+        <//>
+      </div>
+    `;
+  };
+
+  const renderReveal = () => {
+    const revealed = gs?.revealedAnswer;
+    return html`
+      <div className="flex flex-col items-center gap-4 py-4 text-center animate-fade-in">
+        <div className="text-5xl">${revealed?.correct ? '🎉' : '📋'}</div>
+        <h2 className="text-xl font-bold">Solution</h2>
+        ${revealed?.answer && html`
+          <div className="rounded-xl bg-neon-green/10 border border-neon-green/30 px-5 py-3 font-bold text-neon-green text-lg">
+            ✓ ${revealed.answer}
+          </div>
+        `}
+        ${revealed?.explanation && html`
+          <p className="text-white/50 text-sm">${revealed.explanation}</p>`}
+        ${revealed?.mediaUrl && html`
+          <img src=${resolveMedia(revealed.mediaUrl)} className="max-h-48 rounded-xl object-contain" alt="media" />
+        `}
+        <${Dots} />
+      </div>
+    `;
+  };
+
+  const renderManualScoring = () => html`
+    <div className="rounded-2xl bg-amber-500/10 border border-amber-500/25 p-6 text-center">
+      <div className="text-4xl mb-3">⚖️</div>
+      <h2 className="text-xl font-bold text-amber-400">Arbitrage en cours</h2>
+      <p className="text-white/45 text-sm mt-2">Le maître de jeu évalue les réponses…</p>
+      <${Dots} />
+    </div>
+  `;
+
+  const renderRoundEnd = () => {
+    const roundScore = myPlayer?.scoreRound ?? myPlayer?.scoreTotal ?? 0;
+    return html`
+      <div className="flex flex-col items-center gap-4 py-6 text-center animate-bounce-in">
+        <div className="text-5xl">🏁</div>
+        <h2 className="text-2xl font-display font-black">Fin de la manche</h2>
+        <div className="rounded-2xl bg-accent/10 border border-accent/30 px-8 py-4">
+          <div className="text-4xl font-display font-black gradient-text">${roundScore}</div>
+          <div className="text-xs text-white/40 mt-1 uppercase tracking-widest">points</div>
+        </div>
+        <${Dots} />
+      </div>
+    `;
+  };
+
+  const renderEnd = () => {
+    const total = myPlayer?.scoreTotal ?? 0;
+    const rank  = (lbSort = []) => {
+      const sorted = [...(gs?.leaderboard || [])].sort((a,b)=>b.score-a.score);
+      const pos    = sorted.findIndex(p => p.playerId === s?.playerId || p.id === s?.playerId);
+      return pos >= 0 ? pos + 1 : '?';
+    };
+    return html`
+      <div className="flex flex-col items-center gap-5 py-6 text-center animate-bounce-in">
+        <div className="text-6xl animate-float">🏆</div>
+        <h2 className="text-3xl font-display font-black gradient-text">Fin du quiz !</h2>
+        <div className="rounded-2xl bg-accent/10 border border-accent/30 px-8 py-5">
+          <div className="text-5xl font-display font-black gradient-text-green">${total}</div>
+          <div className="text-sm text-white/40 mt-1 uppercase tracking-widest">points au total</div>
+        </div>
+        <p className="text-white/40 text-sm">Regardez le classement sur l'écran TV !</p>
+        <${Btn} variant="secondary" onClick=${disconnect}>← Quitter<//>
+      </div>
+    `;
+  };
+
+  // ── Main render ──────────────────────────────────────────────
+  return html`
+    <div className="flex flex-col min-h-[100dvh] bg-bg">
+
+      <!-- Banner -->
+      <${SessionBanner}
+        code=${s?.sessionCode}
+        label=${html`<span className="flex items-center gap-1.5">${s?.avatar || '🎮'} <strong>${s?.pseudo}</strong>${s?.teamName ? html` · <span className="text-white/40">${s.teamName}</span>` : ''}</span>`}
+        right=${html`<span className="text-neon-green font-bold font-mono">${myPlayer?.scoreTotal ?? 0} pts</span>`}
+      />
+
+      <!-- Alert -->
+      ${alert && html`
+        <div className="px-4 pt-3">
+          <${Alert} type=${alert.type} message=${alert.message} />
+        </div>
+      `}
+
+      <!-- Content -->
+      <div className="flex-1 px-4 py-5 max-w-md mx-auto w-full">
+        ${renderPhase()}
+      </div>
+
+      <!-- Disconnect button -->
+      <div className="px-4 pb-5 text-center">
+        <button
+          onClick=${disconnect}
+          className="text-xs text-white/20 hover:text-white/50 transition-colors"
+        >
+          Se déconnecter
+        </button>
+      </div>
+
+    </div>
+  `;
+}

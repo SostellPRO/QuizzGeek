@@ -1,0 +1,620 @@
+import { useState } from 'react';
+import { html, resolveMedia, ROUND_TYPES } from '../../utils.js';
+import { useGame } from '../../contexts/GameContext.js';
+import { Btn, Alert, Dots } from '../../components/ui.js';
+
+// ── Display Connect Screen ────────────────────────────────────
+function DisplayConnect() {
+  const { socket, setDisplaySession, navigate } = useGame();
+  const [code,  setCode]  = useState('');
+  const [alert, setAlert] = useState(null);
+
+  const connect = () => {
+    const sessionCode = code.trim().toUpperCase();
+    if (!sessionCode) { setAlert({ type: 'error', message: 'Code requis.' }); return; }
+    socket.emit('join:display', { sessionCode }, (res) => {
+      if (!res?.ok) { setAlert({ type: 'error', message: res?.error || 'Erreur.' }); return; }
+      setDisplaySession({ sessionCode, connected: true });
+    });
+  };
+
+  return html`
+    <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-bg px-6">
+      <button onClick=${() => navigate('home')} className="absolute top-6 left-6 text-white/30 hover:text-white text-sm">← Accueil</button>
+      <div className="text-center mb-8">
+        <div className="text-6xl mb-4">🖥️</div>
+        <h1 className="font-display text-4xl font-black gradient-text">Écran TV</h1>
+        <p className="text-white/40 mt-2">Projeter sur le grand écran</p>
+      </div>
+      ${alert && html`<div className="mb-4 w-full max-w-sm"><${Alert} type=${alert.type} message=${alert.message} /></div>`}
+      <div className="flex gap-3 w-full max-w-sm">
+        <input
+          type="text"
+          value=${code}
+          onInput=${e => setCode(e.target.value.toUpperCase())}
+          placeholder="Code de session"
+          maxLength="6"
+          className="flex-1 bg-bg-input border border-white/10 rounded-xl px-5 py-4 text-white text-2xl font-mono font-bold tracking-[0.3em] text-center placeholder-white/20 focus:border-accent/60 outline-none transition-colors"
+          onKeyDown=${e => e.key === 'Enter' && connect()}
+        />
+        <${Btn} variant="primary" onClick=${connect} size="lg">→<//>
+      </div>
+    </div>
+  `;
+}
+
+// ── Answer grid for QCM ───────────────────────────────────────
+const LABELS  = ['A','B','C','D','E','F'];
+const COLORS  = ['#b24bff','#38ef7d','#4facfe','#f7971e','#ff4e6a','#a78bfa'];
+const BGCOLORS= ['rgba(178,75,255,.15)','rgba(56,239,125,.15)','rgba(79,172,254,.15)','rgba(247,151,30,.15)','rgba(255,78,106,.15)','rgba(167,139,250,.15)'];
+
+function AnswerGrid({ options, revealed, correctIdx }) {
+  if (!options?.length) return null;
+  const isTrueFalse = options.length === 2 && ['vrai','faux','true','false'].includes(options[0]?.text?.toLowerCase());
+
+  return html`
+    <div className=${`grid gap-4 mt-6 ${isTrueFalse ? 'grid-cols-2' : 'grid-cols-2'}`}>
+      ${options.map((opt, i) => {
+        const isCorrect = revealed && i === correctIdx;
+        const isWrong   = revealed && i !== correctIdx;
+        return html`
+          <div
+            key=${opt.id || i}
+            className="flex items-center gap-4 rounded-2xl border-2 transition-all duration-500"
+            style=${{
+              borderColor: isCorrect ? '#38ef7d' : isWrong ? 'rgba(255,255,255,.08)' : COLORS[i % COLORS.length],
+              background: isCorrect ? 'rgba(56,239,125,.15)' : isWrong ? 'rgba(255,255,255,.03)' : BGCOLORS[i % BGCOLORS.length],
+              padding: 'clamp(12px,2vw,24px)',
+              opacity: isWrong ? 0.45 : 1,
+              transform: isCorrect ? 'scale(1.03)' : 'scale(1)',
+            }}
+          >
+            <span
+              className="flex-shrink-0 flex items-center justify-center rounded-xl font-black"
+              style=${{
+                width:     'clamp(42px,5vw,68px)',
+                height:    'clamp(42px,5vw,68px)',
+                background:'rgba(255,255,255,.12)',
+                color:      isCorrect ? '#38ef7d' : COLORS[i % COLORS.length],
+                fontSize:  'clamp(1.3rem,2.5vw,2rem)',
+              }}
+            >
+              ${isCorrect ? '✓' : LABELS[i]}
+            </span>
+            <span
+              className="font-bold flex-1"
+              style=${{ fontSize: 'clamp(1.1rem,2.2vw,1.9rem)', lineHeight: '1.25' }}
+            >
+              ${opt.text}
+            </span>
+          </div>
+        `;
+      })}
+    </div>
+  `;
+}
+
+// ── Vote display ──────────────────────────────────────────────
+function VoteDisplay({ gs, players }) {
+  const mode     = gs?.phaseMeta?.answerMode;
+  const voteState= gs?.voteState;
+  const proposals= voteState?.proposals || [];
+  const revealed = voteState?.revealed  || {};
+  const cursor   = voteState?.revealCursor ?? -1;
+
+  if (mode === 'vote_input') {
+    const conn    = players.filter(p => p.connected).length;
+    const voted   = Object.keys(gs?.answers?.[gs?.currentQuestion?.id] || {}).length;
+    return html`
+      <div className="flex flex-col items-center gap-8 py-12 animate-fade-in">
+        <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🗳️</div>
+        <h2 className="gradient-text-fire font-display font-black text-center"
+            style=${{ fontSize: 'clamp(2.5rem,7vw,5rem)' }}>
+          Répondez maintenant !
+        </h2>
+        <div className="flex items-center gap-3">
+          <span style=${{ fontSize: 'clamp(1.1rem,2.5vw,1.8rem)', color: 'rgba(255,255,255,.6)' }}>${voted}</span>
+          <div className="h-2 rounded-full overflow-hidden" style=${{ width: 'clamp(120px,20vw,280px)', background: 'rgba(255,255,255,.1)' }}>
+            <div
+              className="h-full bg-gradient-to-r from-accent to-neon-green rounded-full transition-all duration-500"
+              style=${{ width: conn > 0 ? (voted/conn*100)+'%' : '0%' }}
+            />
+          </div>
+          <span style=${{ fontSize: 'clamp(1.1rem,2.5vw,1.8rem)', color: 'rgba(255,255,255,.6)' }}>${conn}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  // Vote revealing / revealed
+  const revealedProposals = proposals.slice(0, cursor + 1);
+  return html`
+    <div className="flex flex-col gap-5 animate-fade-in">
+      <h2 className="gradient-text font-display font-black text-center" style=${{ fontSize: 'clamp(1.8rem,4vw,3rem)' }}>
+        Les réponses
+      </h2>
+      <div className="flex flex-col gap-3">
+        ${revealedProposals.map((prop, i) => html`
+          <div
+            key=${i}
+            className="flex items-center justify-between rounded-2xl border px-6 py-4 animate-fade-in"
+            style=${{
+              background: 'rgba(79,172,254,.12)',
+              borderColor: 'rgba(79,172,254,.3)',
+            }}
+          >
+            <span style=${{ fontSize: 'clamp(1.2rem,2.5vw,2rem)', fontWeight: '700' }}>${prop.text}</span>
+            <span
+              className="font-display font-black text-neon-green"
+              style=${{ fontSize: 'clamp(1.5rem,3.5vw,2.5rem)' }}
+            >
+              ${prop.count}
+            </span>
+          </div>
+        `)}
+      </div>
+    </div>
+  `;
+}
+
+// ── Buzzer display ────────────────────────────────────────────
+function BuzzerDisplay({ gs, players }) {
+  const buzzerState = gs?.buzzerState;
+  const firstId     = buzzerState?.firstPlayerId;
+  const firstPlayer = players.find(p => p.id === firstId || p.playerId === firstId);
+  const blr         = gs?.buzzerLastResult;
+
+  if (blr?.at) {
+    const who = players.find(p => p.id === blr.playerId || p.playerId === blr.playerId);
+    const isCorrect = blr.result === 'correct';
+    return html`
+      <div className="flex flex-col items-center gap-6 animate-bounce-in">
+        <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>${isCorrect ? '✅' : '❌'}</div>
+        <div className="text-center">
+          <div style=${{ fontSize: 'clamp(1.2rem,3vw,2.2rem)', fontWeight:'700', color: isCorrect ? '#38ef7d' : '#ff4e6a' }}>
+            ${isCorrect ? 'CORRECT !' : 'FAUX !'}
+          </div>
+          ${who && html`<div style=${{ fontSize: 'clamp(1rem,2.5vw,1.8rem)', color: 'rgba(255,255,255,.6)', marginTop:'6px' }}>${who.avatar || '🎮'} ${who.pseudo}</div>`}
+        </div>
+      </div>
+    `;
+  }
+
+  if (!firstId) {
+    return html`
+      <div className="flex flex-col items-center gap-5 animate-fade-in">
+        <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🔔</div>
+        <h2 className="font-display font-black gradient-text text-center"
+            style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>
+          Buzzers actifs
+        </h2>
+        <p className="text-white/50 text-center" style=${{ fontSize: 'clamp(1.2rem,2.8vw,2rem)' }}>
+          Soyez prêts à répondre !
+        </p>
+      </div>
+    `;
+  }
+
+  return html`
+    <div className="flex flex-col items-center gap-6 animate-bounce-in">
+      <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🎉</div>
+      <div style=${{ fontSize: 'clamp(2.5rem,6vw,4.5rem)' }} className="flex items-center gap-4">
+        <span>${firstPlayer?.avatar || '🎮'}</span>
+        <span className="font-display font-black text-neon-green">${firstPlayer?.pseudo || '?'}</span>
+      </div>
+      <p className="text-white/50" style=${{ fontSize: 'clamp(1rem,2vw,1.5rem)' }}>a buzzé en premier !</p>
+    </div>
+  `;
+}
+
+// ── Scoreboard component ──────────────────────────────────────
+function TVScoreboard({ leaderboard, title = 'Classement' }) {
+  const top10 = leaderboard.slice(0, 10);
+  return html`
+    <div className="w-full max-w-3xl mx-auto animate-fade-in">
+      <h2 className="font-display font-black gradient-text text-center mb-6"
+          style=${{ fontSize: 'clamp(2rem,4.5vw,3.5rem)' }}>
+        🏆 ${title}
+      </h2>
+      <div className="flex flex-col gap-3">
+        ${top10.map((p, i) => html`
+          <div
+            key=${p.playerId || p.id || i}
+            className=${`flex items-center gap-5 rounded-2xl border px-6 py-4 transition-all ${i === 0 ? 'border-amber-400/50 bg-amber-400/10' : i === 1 ? 'border-white/20 bg-white/5' : i === 2 ? 'border-amber-600/30 bg-amber-600/5' : 'border-white/8 bg-white/3'}`}
+          >
+            <span
+              className="font-display font-black flex-shrink-0 text-center"
+              style=${{ fontSize: 'clamp(1.5rem,3vw,2.5rem)', color: i===0?'#fbbf24':i===1?'#e5e7eb':i===2?'#d97706':'rgba(255,255,255,.3)', minWidth:'2.5rem' }}
+            >
+              ${i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`}
+            </span>
+            <span style=${{ fontSize: 'clamp(1.5rem,3.5vw,2.8rem)' }}>${p.avatar || '🎮'}</span>
+            <span className="flex-1 font-bold truncate" style=${{ fontSize: 'clamp(1rem,2.5vw,1.8rem)' }}>${p.pseudo || p.name}</span>
+            ${p.teamName && html`<span style=${{ fontSize:'clamp(.8rem,1.5vw,1.1rem)',color:'rgba(255,255,255,.4)' }}>${p.teamName}</span>`}
+            <span className="font-display font-black font-mono text-neon-green flex-shrink-0"
+                  style=${{ fontSize: 'clamp(1.5rem,3.5vw,2.8rem)' }}>
+              ${p.score ?? p.scoreTotal ?? 0}
+            </span>
+          </div>
+        `)}
+      </div>
+    </div>
+  `;
+}
+
+// ── Main Display view ─────────────────────────────────────────
+export default function DisplayView() {
+  const { socket, displaySession, setDisplaySession, gameState: gs, players, lbPlayers, lbTeams, navigate, musicMuted, toggleMute } = useGame();
+
+  if (!displaySession?.connected) return html`<${DisplayConnect} />`;
+
+  const phase     = gs?.status || 'lobby';
+  const sc        = displaySession.sessionCode;
+  const isPaused  = gs?.phaseMeta?.paused === true;
+  const roundBg   = gs?.currentRound?.backgroundUrl ? resolveMedia(gs.currentRound.backgroundUrl) : '';
+  const ceremony  = phase === 'end';
+  const bgUrl     = ceremony && gs?.ceremonyBackgroundUrl
+    ? resolveMedia(gs.ceremonyBackgroundUrl) : roundBg;
+
+  // ── Phase content ─────────────────────────────────────────
+  const renderContent = () => {
+    if (isPaused) return html`
+      <div className="flex flex-col items-center justify-center flex-1 gap-5">
+        <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>⏸️</div>
+        <h1 className="font-display font-black" style=${{ fontSize: 'clamp(3rem,7vw,6rem)' }}>Pause</h1>
+        <${Dots} />
+      </div>
+    `;
+
+    if (phase === 'lobby') {
+      const connP = players.filter(p => p.connected);
+      const welcomeImg = gs?.quizWelcomeImageUrl ? resolveMedia(gs.quizWelcomeImageUrl) : '';
+      return html`
+        <div className="relative flex flex-col min-h-[100dvh]"
+             style=${welcomeImg ? { backgroundImage:`url('${welcomeImg}')`, backgroundSize:'cover', backgroundPosition:'center' } : {}}>
+          ${welcomeImg && html`<div className="bg-overlay" />`}
+          <div className="relative z-10 flex flex-col items-center justify-center flex-1 gap-6 px-8 py-12">
+            <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🎮</div>
+            <h1 className="font-display font-black gradient-text text-center"
+                style=${{ fontSize: 'clamp(2.5rem,7vw,6rem)' }}>
+              ${gs?.quizTitle || 'Quiz Live'}
+            </h1>
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-white/50 text-center" style=${{ fontSize: 'clamp(1rem,2vw,1.5rem)' }}>Code de session</p>
+              <div className="font-mono font-black tracking-[.4em] text-accent"
+                   style=${{ fontSize: 'clamp(3rem,8vw,7rem)' }}>
+                ${sc}
+              </div>
+            </div>
+          </div>
+          <div className="relative z-10 pb-8 px-8">
+            <p className="text-white/30 text-center mb-4"
+               style=${{ fontSize: 'clamp(.9rem,1.5vw,1.2rem)' }}>
+              ${connP.length} joueur(s) connecté(s)
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              ${connP.map(p => html`
+                <div key=${p.id || p.playerId} className="flex flex-col items-center gap-1 px-4 py-3 rounded-2xl bg-white/8 border border-white/10 animate-fade-in">
+                  <span style=${{ fontSize: 'clamp(1.5rem,3.5vw,2.8rem)' }}>${p.avatar || '🎮'}</span>
+                  <span className="font-bold text-white/80" style=${{ fontSize: 'clamp(.7rem,1.3vw,1rem)' }}>${p.pseudo || '?'}</span>
+                </div>
+              `)}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (phase === 'round_intro') {
+      const round   = gs?.currentRound;
+      const rt      = ROUND_TYPES[round?.type];
+      const hasBg   = !!round?.backgroundUrl;
+      const rBgStyle= hasBg ? { backgroundImage:`url('${resolveMedia(round.backgroundUrl)}')`, backgroundSize:'cover', backgroundPosition:'center' } : {};
+      return html`
+        <div className="relative flex flex-col items-center justify-center min-h-[100dvh] p-8 text-center" style=${rBgStyle}>
+          ${hasBg && html`<div className="bg-overlay" />`}
+          <div className="relative z-10 flex flex-col items-center gap-6 animate-fade-in">
+            ${rt && html`
+              <div className="inline-flex items-center gap-3 px-6 py-2 rounded-full border text-sm font-bold"
+                   style=${{ background:`${rt.color}20`, borderColor:`${rt.color}50`, color: rt.color }}>
+                ${rt.icon} ${rt.label}
+              </div>
+            `}
+            <div style=${{ fontSize: 'clamp(4rem,12vw,9rem)' }}>${rt?.icon || '🎯'}</div>
+            <h1 className="font-display font-black" style=${{ fontSize: 'clamp(2.5rem,6vw,5.5rem)' }}>
+              ${round?.title || 'Nouvelle manche'}
+            </h1>
+            ${round?.shortRules && html`
+              <p className="text-white/50" style=${{ fontSize: 'clamp(1rem,2vw,1.6rem)', maxWidth:'60vw' }}>
+                ${round.shortRules}
+              </p>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    if (phase === 'training_video') return html`
+      <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-6 animate-fade-in">
+        <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🏋️</div>
+        <h1 className="font-display font-black text-amber-400" style=${{ fontSize: 'clamp(2.5rem,6vw,5rem)' }}>
+          Vidéo d'entraînement
+        </h1>
+        <${Dots} />
+      </div>
+    `;
+
+    if (phase === 'get_ready') return html`
+      <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-6 animate-bounce-in">
+        <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🎯</div>
+        <h1 className="font-display font-black gradient-text" style=${{ fontSize: 'clamp(2.5rem,7vw,6rem)' }}>
+          Tenez-vous prêts !
+        </h1>
+        <${Dots} />
+      </div>
+    `;
+
+    if (phase === 'question' || phase === 'waiting' || phase === 'manual_scoring') {
+      return renderQuestion();
+    }
+
+    if (phase === 'answer_reveal') return renderReveal();
+
+    if (phase === 'round_end') {
+      const lb = lbPlayers.length ? lbPlayers : (gs?.leaderboardPlayers || []);
+      return html`
+        <div className="flex flex-col items-center justify-center min-h-[100dvh] px-8 py-10">
+          <h1 className="font-display font-black mb-8 gradient-text" style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>
+            🏁 Fin de la manche
+          </h1>
+          <${TVScoreboard} leaderboard=${lb} title="Classement" />
+        </div>
+      `;
+    }
+
+    if (phase === 'results' || phase === 'end') {
+      const lb = lbPlayers.length ? lbPlayers : (gs?.leaderboardPlayers || []);
+      return html`
+        <div className="flex flex-col items-center justify-center min-h-[100dvh] px-8 py-10">
+          <${TVScoreboard} leaderboard=${lb} title=${phase === 'end' ? '🏆 Classement Final' : '📊 Résultats'} />
+          ${phase === 'end' && html`<audio id="reveal-audio-player" src="" style=${{display:'none'}} />`}
+        </div>
+      `;
+    }
+
+    return html`<div className="flex items-center justify-center min-h-[100dvh]"><${Dots} /></div>`;
+  };
+
+  const renderQuestion = () => {
+    const curQ    = gs?.currentQuestion;
+    const ansMode = gs?.phaseMeta?.answerMode;
+    const timer   = gs?.phaseMeta?.timer;
+    const isBuzzer= ansMode === 'buzzer';
+    const isVote  = ansMode === 'vote_input' || ansMode === 'vote_voting' || ansMode === 'vote_revealing' || ansMode === 'vote_revealed';
+    const isBurger= gs?.currentRound?.type === 'burger';
+    const isVC    = gs?.currentRound?.type === 'video_challenge';
+    const conn    = players.filter(p => p.connected).length;
+    const answered= Object.keys(gs?.answers?.[curQ?.id] || {}).length;
+    const curRound= gs?.currentRound;
+
+    // Burger
+    if (isBurger) {
+      const items = gs?.burgerItems || [];
+      const selId = gs?.burgerSelectedPlayerId || gs?.burgerSelectedTeamId;
+      const who   = selId ? players.find(p => (p.id === selId || p.playerId === selId)) : null;
+      return html`
+        <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-8 px-8 animate-fade-in">
+          <div style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>🍔</div>
+          <h1 className="font-display font-black gradient-text-fire text-center"
+              style=${{ fontSize: 'clamp(2.5rem,7vw,5rem)' }}>
+            Burger de la Mort
+          </h1>
+          ${who && html`
+            <p className="text-white/60 text-center" style=${{ fontSize: 'clamp(1.2rem,3vw,2.2rem)' }}>
+              C'est le tour de <strong className="text-amber-400">${who.pseudo}</strong> !
+            </p>
+          `}
+          <div className="flex flex-col gap-3 w-full max-w-2xl">
+            ${items.map((item, i) => html`
+              <div key=${i} className="flex items-center gap-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-6 py-4">
+                <span className="font-mono text-amber-400 font-bold" style=${{ fontSize: 'clamp(1rem,2vw,1.5rem)' }}>${i+1}.</span>
+                <span className="font-bold" style=${{ fontSize: 'clamp(1.1rem,2.5vw,2rem)' }}>${item}</span>
+              </div>
+            `)}
+          </div>
+        </div>
+      `;
+    }
+
+    // Video Challenge
+    if (isVC) {
+      const vcPhase = gs?.videoState?.phase;
+      const selId   = gs?.videoState?.selectedPlayerId;
+      const who     = selId ? players.find(p => (p.id===selId||p.playerId===selId)) : null;
+      const score   = gs?.videoState?.score;
+      return html`
+        <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-8 px-8 animate-fade-in">
+          <div style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>🎬</div>
+          <h1 className="font-display font-black gradient-text-fire text-center"
+              style=${{ fontSize: 'clamp(2.5rem,7vw,5rem)' }}>
+            Challenge Vidéo
+          </h1>
+          ${who && html`
+            <p className="text-white/60 text-center" style=${{ fontSize: 'clamp(1.2rem,3vw,2.2rem)', fontWeight:'600' }}>
+              ${who.avatar || '🎮'} <strong className="text-white">${who.pseudo}</strong> passe à l'action !
+            </p>
+          `}
+          ${score != null && html`
+            <div className="font-display font-black text-neon-green"
+                 style=${{ fontSize: 'clamp(5rem,18vw,10rem)' }}>
+              ${score}
+            </div>
+          `}
+          ${curQ?.content && html`<p className="text-white/50 text-center" style=${{ fontSize: 'clamp(1rem,2vw,1.5rem)', maxWidth:'70vw' }}>${curQ.content}</p>`}
+        </div>
+      `;
+    }
+
+    // Vote
+    if (isVote) return html`
+      <div className="flex flex-col items-center justify-center min-h-[100dvh] px-8 py-10">
+        ${curQ?.content && html`
+          <p className="font-bold text-center mb-8" style=${{ fontSize: 'clamp(1.5rem,3.5vw,2.8rem)' }}>${curQ.content}</p>
+        `}
+        <${VoteDisplay} gs=${gs} players=${players} />
+      </div>
+    `;
+
+    // Buzzer
+    if (isBuzzer) return html`
+      <div className="flex flex-col items-center justify-center min-h-[100dvh] px-8 py-10">
+        ${curQ?.content && html`
+          <p className="font-bold text-center mb-8 max-w-4xl" style=${{ fontSize: 'clamp(1.5rem,3.5vw,2.8rem)' }}>
+            ${curQ.content}
+          </p>
+        `}
+        <${BuzzerDisplay} gs=${gs} players=${players} />
+      </div>
+    `;
+
+    // Standard QCM / True-False
+    return html`
+      <div className="flex flex-col min-h-[100dvh] px-[clamp(24px,4vw,64px)] py-[clamp(24px,3vh,48px)]">
+
+        <!-- Question counter + timer -->
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="text-white/30 font-mono text-sm">
+            ${curRound?.title ? html`<span>${curRound.title}</span>` : ''}
+            ${curQ ? html`<span> · Q${(gs?.currentQuestionIndex ?? 0)+1}</span>` : ''}
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-white/40 text-sm">${answered}/${conn} réponses</span>
+            ${timer?.remainingSec > 0 && html`
+              <span
+                className="font-mono font-black rounded-full w-12 h-12 flex items-center justify-center border-2"
+                style=${{
+                  fontSize: '1.2rem',
+                  borderColor: timer.remainingSec <= 5 ? '#ff4e6a' : '#38ef7d',
+                  color:       timer.remainingSec <= 5 ? '#ff4e6a' : '#38ef7d',
+                  background:  timer.remainingSec <= 5 ? 'rgba(255,78,106,.1)' : 'rgba(56,239,125,.1)',
+                }}
+              >
+                ${timer.remainingSec}
+              </span>
+            `}
+          </div>
+        </div>
+
+        <!-- Media -->
+        ${curQ?.mediaUrl && html`
+          <div className="flex justify-center mb-5">
+            <img
+              src=${resolveMedia(curQ.mediaUrl)}
+              className="max-w-full rounded-2xl object-contain"
+              style=${{ maxHeight: '35vh' }}
+              alt="media"
+            />
+          </div>
+        `}
+
+        <!-- Question text -->
+        ${curQ?.content && html`
+          <p className="font-display font-bold text-center mb-6"
+             style=${{ fontSize: 'clamp(1.8rem,3.5vw,3.2rem)', lineHeight: '1.2' }}>
+            ${curQ.content}
+          </p>
+        `}
+
+        <!-- Answer grid -->
+        <${AnswerGrid}
+          options=${curQ?.options || []}
+          revealed=${false}
+          correctIdx=${curQ?.correctOptionIndex ?? 0}
+        />
+      </div>
+    `;
+  };
+
+  const renderReveal = () => {
+    const curQ    = gs?.currentQuestion;
+    const revealed= gs?.revealedAnswer;
+    return html`
+      <div className="flex flex-col min-h-[100dvh] px-[clamp(24px,4vw,64px)] py-[clamp(24px,3vh,48px)] animate-fade-in">
+
+        <!-- Answer reveal banner -->
+        <div className="flex items-center justify-center gap-4 mb-6">
+          <span style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>📋</span>
+          <span className="font-display font-black gradient-text-green"
+                style=${{ fontSize: 'clamp(1.8rem,4vw,3.5rem)' }}>
+            La réponse !
+          </span>
+        </div>
+
+        <!-- Correct answer highlight -->
+        ${revealed?.answer && html`
+          <div className="flex justify-center mb-6">
+            <div className="rounded-2xl border-2 border-neon-green/60 bg-neon-green/10 px-8 py-4">
+              <span className="font-display font-black text-neon-green"
+                    style=${{ fontSize: 'clamp(1.5rem,3.5vw,3rem)' }}>
+                ✓ ${revealed.answer}
+              </span>
+            </div>
+          </div>
+        `}
+
+        <!-- Question text -->
+        ${curQ?.content && html`
+          <p className="font-display font-bold text-center mb-5 text-white/70"
+             style=${{ fontSize: 'clamp(1.4rem,2.8vw,2.4rem)' }}>
+            ${curQ.content}
+          </p>
+        `}
+
+        <!-- Options with correct highlighted -->
+        <${AnswerGrid}
+          options=${curQ?.options || []}
+          revealed=${true}
+          correctIdx=${curQ?.correctOptionIndex ?? revealed?.optionIndex ?? 0}
+        />
+
+        <!-- Reveal media -->
+        ${revealed?.mediaUrl && html`
+          <div className="flex justify-center mt-6">
+            <img
+              src=${resolveMedia(revealed.mediaUrl)}
+              className="max-w-full rounded-2xl object-contain"
+              style=${{ maxHeight: '30vh' }}
+              alt="reveal media"
+            />
+          </div>
+        `}
+
+        <!-- Reveal audio -->
+        ${revealed?.revealAudio && html`<audio id="reveal-audio-player" src=${resolveMedia(revealed.revealAudio)} style=${{display:'none'}} />`}
+
+      </div>
+    `;
+  };
+
+  return html`
+    <div
+      className="display-fullscreen bg-bg"
+      style=${bgUrl ? { backgroundImage:`url('${bgUrl}')`, backgroundSize:'cover', backgroundPosition:'center' } : {}}
+    >
+      ${bgUrl && html`<div className="bg-overlay" />`}
+
+      <!-- Session banner (top right) -->
+      <div className="absolute top-3 right-4 z-20 flex items-center gap-2">
+        <span className="font-mono text-white/30 text-xs">Session </span>
+        <span className="font-mono font-bold text-accent/80 tracking-widest text-sm">${sc}</span>
+        <button onClick=${toggleMute} className="ml-2 text-white/30 hover:text-white text-base">${musicMuted ? '🔇' : '🔊'}</button>
+      </div>
+
+      <!-- Main content -->
+      <div className="relative z-10">
+        ${renderContent()}
+      </div>
+
+    </div>
+  `;
+}
