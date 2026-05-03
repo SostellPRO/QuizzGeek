@@ -249,23 +249,24 @@ export default function PilotageTab() {
       <!-- Video challenge controls -->
       ${isVC && html`
         <div className="rounded-xl bg-rose-500/8 border border-rose-500/25 p-4">
-          <div className="text-xs text-white/40 uppercase tracking-widest mb-3">Challenge video</div>
-          <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-2">
-              ${answerablePlayers.map(p => html`
-                <${Btn}
-                  key=${p.id || p.playerId}
-                  variant=${gs?.videoState?.selectedPlayerId === (p.id || p.playerId) ? 'primary' : 'ghost'}
-                  size="sm"
-                  onClick=${() => ha('video_select_player', { playerId: p.id || p.playerId })}
-                >
-                  ${p.avatar || '🎮'} ${p.pseudo}
-                <//>
-              `)}
-            </div>
-            ${teams?.length > 0 && html`
-              <div className="grid grid-cols-2 gap-2">
-                ${teams.map(t => html`
+          <div className="text-xs text-white/40 uppercase tracking-widest mb-3">🎬 Challenge vidéo</div>
+          <div className="flex flex-col gap-4">
+
+            <!-- Candidat -->
+            <div>
+              <div className="text-xs text-white/30 mb-1.5">Candidat</div>
+              <div className="flex flex-wrap gap-1.5">
+                ${answerablePlayers.map(p => html`
+                  <${Btn}
+                    key=${p.id || p.playerId}
+                    variant=${gs?.videoState?.selectedPlayerId === (p.id || p.playerId) ? 'primary' : 'ghost'}
+                    size="sm"
+                    onClick=${() => ha('video_select_player', { playerId: p.id || p.playerId })}
+                  >
+                    ${p.avatar || '🎮'} ${p.pseudo}
+                  <//>
+                `)}
+                ${teams?.length > 0 && teams.map(t => html`
                   <${Btn}
                     key=${t.id}
                     variant=${gs?.videoState?.selectedTeamId === t.id ? 'primary' : 'ghost'}
@@ -276,30 +277,90 @@ export default function PilotageTab() {
                   <//>
                 `)}
               </div>
+            </div>
+
+            <!-- Entraînement (optionnel) -->
+            ${curQ?.trainingVideoUrl && html`
+              <div className="rounded-lg border border-white/8 bg-white/3 p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-bold text-amber-400/80 uppercase tracking-wider">🏋️ Vidéo d'entraînement</span>
+                  <span className="text-xs text-white/25 italic">— optionnelle</span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <${Btn} variant="ghost" size="sm"
+                    onClick=${() => ha('video_start_training_ready')}>
+                    Afficher
+                  <//>
+                  <${Btn} variant="ghost" size="sm"
+                    disabled=${videoPhase !== 'training_ready' && videoPhase !== 'training_playing'}
+                    onClick=${() => ha('video_start_training_playing')}>
+                    ▶ Lire
+                  <//>
+                  <${Btn} variant="ghost" size="sm"
+                    disabled=${videoPhase !== 'training_playing'}
+                    onClick=${() => ha('video_training_control', { ctrl: 'pause' })}>
+                    ⏸
+                  <//>
+                  <${Btn} variant="ghost" size="sm"
+                    onClick=${() => ha('video_training_control', { ctrl: 'rewind' })}>
+                    ⏮ Début
+                  <//>
+                </div>
+              </div>
             `}
-            <div className="grid grid-cols-2 gap-2">
-              <${Btn} variant="secondary" size="sm" disabled=${!curQ?.trainingVideoUrl} onClick=${() => ha('video_start_training_ready')}>Entrainement<//>
-              <${Btn} variant="secondary" size="sm" disabled=${videoPhase !== 'training_ready'} onClick=${() => ha('video_start_training_playing')}>Lire entr.<//>
-              <${Btn} variant="ghost" size="sm" onClick=${() => ha('video_training_control', { ctrl: 'pause' })}>Pause entr.<//>
-              <${Btn} variant="ghost" size="sm" onClick=${() => ha('video_training_control', { ctrl: 'rewind' })}>Debut entr.<//>
-              <${Btn} variant="secondary" size="sm" onClick=${() => ha('video_mark_ready')}>Pret<//>
-              <${Btn} variant="primary" size="sm" disabled=${!gs?.videoState?.selectedPlayerId && !gs?.videoState?.selectedTeamId} onClick=${() => ha('video_start_playing')}>Lancer<//>
-              <${Btn} variant="ghost" size="sm" onClick=${() => ha('video_control', { ctrl: 'pause' })}>Pause<//>
-              <${Btn} variant="ghost" size="sm" onClick=${() => ha('video_control', { ctrl: 'play' })}>Lire<//>
-              <${Btn} variant="ghost" size="sm" onClick=${() => ha('video_control', { ctrl: 'rewind' })}>Debut<//>
-              <${Btn} variant="secondary" size="sm" disabled=${videoPhase !== 'playing'} onClick=${() => ha('video_start_eval')}>Evaluer<//>
+
+            <!-- Challenge (principal) -->
+            <div className="rounded-lg border border-rose-500/25 bg-rose-500/5 p-3">
+              <div className="text-xs font-bold text-rose-300/80 uppercase tracking-wider mb-2">🎯 Vidéo du challenge</div>
+
+              <!-- Lancement -->
+              <div className="flex items-center gap-2 flex-wrap mb-2">
+                <${Btn} variant="secondary" size="sm"
+                  onClick=${() => ha('video_mark_ready')}>
+                  Prêt
+                <//>
+                <${Btn} variant="primary" size="sm"
+                  pulse=${!!gs?.videoState?.selectedPlayerId || !!gs?.videoState?.selectedTeamId}
+                  disabled=${!gs?.videoState?.selectedPlayerId && !gs?.videoState?.selectedTeamId}
+                  onClick=${() => ha('video_start_playing')}>
+                  ▶ Lancer
+                <//>
+                <${Btn} variant="ghost" size="sm"
+                  disabled=${videoPhase !== 'playing'}
+                  onClick=${() => ha('video_control', { ctrl: 'pause' })}>
+                  ⏸ Pause
+                <//>
+                <${Btn} variant="ghost" size="sm"
+                  disabled=${videoPhase !== 'playing'}
+                  onClick=${() => ha('video_control', { ctrl: 'play' })}>
+                  ▶ Reprendre
+                <//>
+                <${Btn} variant="ghost" size="sm"
+                  onClick=${() => ha('video_control', { ctrl: 'rewind' })}>
+                  ⏮ Début
+                <//>
+              </div>
+
+              <!-- Score -->
+              <div className="flex items-center gap-2 pt-2 border-t border-white/8">
+                <${Btn} variant="secondary" size="sm"
+                  disabled=${videoPhase !== 'playing'}
+                  onClick=${() => ha('video_start_eval')}>
+                  Évaluer
+                <//>
+                <input
+                  type="number"
+                  value=${videoScore}
+                  onInput=${e => setVideoScore(parseInt(e.target.value) || 0)}
+                  className="w-20 bg-bg-input border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-mono text-center focus:border-accent/60 outline-none"
+                />
+                <${Btn} variant="success" size="sm"
+                  onClick=${() => ha('video_set_score', { score: videoScore })}>
+                  ✅ Valider
+                <//>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                value=${videoScore}
-                onInput=${e => setVideoScore(parseInt(e.target.value) || 0)}
-                className="w-24 bg-bg-input border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-mono text-center focus:border-accent/60 outline-none"
-              />
-              <${Btn} variant="success" onClick=${() => ha('video_set_score', { score: videoScore })}>
-                Valider ${videoScore} pts
-              <//>
-            </div>
+
           </div>
         </div>
       `}
