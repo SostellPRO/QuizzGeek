@@ -389,12 +389,20 @@ export default function DisplayView() {
           ${hasBg && html`<div className="bg-overlay" />`}
           <div className="relative z-10 flex flex-col items-center gap-6 animate-fade-in">
             ${rt && html`
-              <div className="inline-flex items-center gap-3 px-6 py-2 rounded-full border text-sm font-bold"
-                   style=${{ background:`${rt.color}20`, borderColor:`${rt.color}50`, color: rt.color }}>
-                ${rt.icon} ${rt.label}
+              <div className="inline-flex items-center gap-3 rounded-full border font-black tracking-wide"
+                   style=${{
+                     background: `${rt.color}22`,
+                     borderColor: `${rt.color}60`,
+                     color: rt.color,
+                     fontSize: 'clamp(1.3rem, 2.8vw, 2.4rem)',
+                     padding: 'clamp(10px, 1.4vw, 22px) clamp(24px, 3.5vw, 52px)',
+                     letterSpacing: '0.06em',
+                   }}>
+                <span style=${{ fontSize: 'clamp(1.5rem, 3vw, 2.6rem)' }}>${rt.icon}</span>
+                ${rt.label}
               </div>
             `}
-            <div style=${{ fontSize: 'clamp(4rem,12vw,9rem)' }}>${rt?.icon || '🎯'}</div>
+            <div style=${{ fontSize: 'clamp(4rem,12vw,9rem)', marginTop: '0.5rem' }}>${rt?.icon || '🎯'}</div>
             <h1 className="font-display font-black" style=${{ fontSize: 'clamp(2.5rem,6vw,5.5rem)' }}>
               ${round?.title || 'Nouvelle manche'}
             </h1>
@@ -755,7 +763,6 @@ export default function DisplayView() {
       className="display-fullscreen bg-bg"
       style=${{
         ...(bgUrl ? { backgroundImage:`url('${bgUrl}')`, backgroundSize:'cover', backgroundPosition:'center' } : {}),
-        zoom: 0.9,
       }}
     >
       ${bgUrl && html`<div className="bg-overlay" />`}
