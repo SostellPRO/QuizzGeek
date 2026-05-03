@@ -241,10 +241,10 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
             </div>
           `}
 
-          <!-- Correct answer (free text) -->
-          ${(q.type === 'free' || q.type === 'burger') && html`
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">Reponse attendue</label>
+          <!-- Correct answer (free text / buzzer / burger) -->
+          ${(q.type === 'free' || q.type === 'burger' || q.type === 'rapidite') && html`
+            <div className="flex flex-col gap-2 rounded-lg p-3 border border-neon-green/20 bg-neon-green/[0.04]">
+              <label className="text-xs font-semibold text-neon-green/70 uppercase tracking-wider">Reponse attendue</label>
               <input
                 type="text"
                 value=${q.correctAnswer || ''}
@@ -252,6 +252,15 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
                 placeholder="Reponse correcte..."
                 className="bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
               />
+              ${q.type === 'rapidite' && html`
+                <${MediaField}
+                  label="Media de la reponse (image, son ou video)"
+                  value=${q.correctAnswerMediaUrl || ''}
+                  onChange=${v => upd('correctAnswerMediaUrl', v)}
+                  accept="image/*,audio/*,video/*"
+                  placeholder="Image, son ou video a afficher lors de la revelation"
+                />
+              `}
             </div>
           `}
 
