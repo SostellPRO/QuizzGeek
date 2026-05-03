@@ -298,7 +298,18 @@ function BuzzerDisplay({ gs, players }) {
   const firstPlayer = players.find(p => p.id === firstId || p.playerId === firstId);
   const blr         = gs?.buzzerLastResult;
 
-  if (blr?.at) {
+  // Client-side safety: auto-masquer le résultat après 2.5s même si le serveur
+  // ne renvoie pas de mise à jour (ex. réseau lent, double marquage rapide).
+  const [hiddenAt, setHiddenAt] = useState(null);
+  useEffect(() => {
+    if (!blr?.at) return;
+    const t = setTimeout(() => setHiddenAt(blr.at), 2500);
+    return () => clearTimeout(t);
+  }, [blr?.at]); // eslint-disable-line
+
+  const showBlr = blr?.at && blr.at !== hiddenAt;
+
+  if (showBlr) {
     const who = players.find(p => p.id === blr.playerId || p.playerId === blr.playerId);
     const isCorrect = blr.result === 'correct';
     return html`

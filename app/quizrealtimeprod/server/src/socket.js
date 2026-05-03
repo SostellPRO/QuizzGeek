@@ -861,18 +861,20 @@ export function setupSocketHandlers(io) {
             } else {
               // Autre buzzer : comportement classique (file d'attente)
               // Afficher brièvement "FAUX" puis effacer pour retourner sur la question
+              const _wrongAt = new Date().toISOString();
               session.gameState.buzzerLastResult = {
                 result: "wrong",
                 playerId: buzzerWrongId || null,
                 pseudo: session.gameState.buzzerState?.firstPseudo || null,
-                at: new Date().toISOString(),
+                at: _wrongAt,
               };
               res = buzzerNextPlayer(session);
               // Effacer le résultat après 2s pour que l'écran TV revienne sur la question+loader
+              // On compare l'horodatage exact pour ne pas effacer un résultat plus récent
               const _sc = session.sessionCode;
               setTimeout(() => {
                 const s = getSession(_sc);
-                if (s && s.gameState.buzzerLastResult?.result === "wrong") {
+                if (s && s.gameState.buzzerLastResult?.at === _wrongAt) {
                   s.gameState.buzzerLastResult = null;
                   s.gameState.updatedAt = new Date().toISOString();
                   emitSessionState(io, s);
