@@ -54,6 +54,9 @@ export function createInitialGameState({ quiz = null, sessionCode } = {}) {
     // { [questionId]: { [playerId]: { answer, answerType, answeredAt } } }
     answers: {},
 
+    // Idempotence du scoring : questions déjà scorées (auto-scoring)
+    scoredQuestions: {},
+
     // arrays de pseudos pour affichage display
     trueFalseVotes: { yes: [], no: [] },
 

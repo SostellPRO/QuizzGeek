@@ -370,6 +370,12 @@ function autoScoreCurrentQuestion(session) {
   if (!round || !q) return { ok: false, error: "Aucune question active" };
   if (!isAutoScoringRound(round)) return { ok: true, skipped: true };
 
+  // Protection contre le double-scoring : une question ne se score qu'une seule fois
+  if (!session.gameState.scoredQuestions) session.gameState.scoredQuestions = {};
+  if (session.gameState.scoredQuestions[q.id]) {
+    return { ok: true, skipped: true, reason: "already_scored" };
+  }
+
   const bucket = getQuestionAnswersMap(session, q.id);
   const answers = Object.values(bucket);
 
@@ -388,11 +394,11 @@ function autoScoreCurrentQuestion(session) {
       const res = awardPointsToPlayer(session, winner.playerId, 1);
       if (res.ok) applied += 1;
     }
-
+    session.gameState.scoredQuestions[q.id] = true;
     return { ok: true, applied };
   }
 
-  // auto classique: 1 point par bonne réponse
+  // auto classique: 1 point par bonne réponse (qcm, true_false, free, etc.)
   for (const a of answers) {
     if (detectCorrectAnswer(q, a.answer)) {
       const res = awardPointsToPlayer(session, a.playerId, 1);
@@ -400,6 +406,7 @@ function autoScoreCurrentQuestion(session) {
     }
   }
 
+  session.gameState.scoredQuestions[q.id] = true;
   return { ok: true, applied };
 }
 
@@ -1874,17 +1881,23 @@ export function videoSetScore(session, score) {
   ensureSessionRuntime(session);
   const vs = session.gameState.videoState;
   if (!vs) return { ok: false, error: "Pas de challenge vidéo actif" };
+
+  // Protection contre le double-scoring
+  if (vs.scored) return { ok: false, error: "Score déjà attribué pour ce challenge" };
+
   const s = Number(score);
   if (!Number.isFinite(s) || s < 0 || s > 10) return { ok: false, error: "Score invalide (0–10)" };
 
   vs.score = s;
   vs.phase = "scored";
+  vs.scored = true;
   setPhaseMeta(session, { ...session.gameState.phaseMeta, answerMode: "video_scored" });
 
-  // Attribuer les points comme pour burger
+  // Équipe sélectionnée : chaque membre reçoit les points individuellement
+  // (syncTeamScoresFromPlayers recalcule le total équipe depuis les scores joueurs)
   if (vs.selectedTeamId) {
     const teamMembers = (session.players || []).filter(
-      (p) => p.teamId === vs.selectedTeamId && p.connected
+      (p) => p.teamId === vs.selectedTeamId
     );
     for (const member of teamMembers) {
       awardPointsToPlayer(session, member.id, s);
@@ -2008,6 +2021,11 @@ export function setBurgerScore(session, score) {
     return { ok: false, error: "Le score doit être entre 0 et 10" };
   }
 
+  // Protection contre le double-scoring
+  if (session.gameState.burgerFinalScore?.scored) {
+    return { ok: false, error: "Score déjà attribué pour ce burger" };
+  }
+
   const selectedId = session.gameState.burgerSelectedPlayerId;
   const selectedTeamId = session.gameState.burgerSelectedTeamId;
   const selectedPseudo = session.gameState.burgerSelectedPseudo || selectedId || selectedTeamId;
@@ -2017,8 +2035,8 @@ export function setBurgerScore(session, score) {
   }
 
   if (selectedTeamId) {
-    // Attribuer les points à chaque membre de l'équipe
-    // NOTE: awardPointsToPlayer appelle syncTeamScoresFromPlayers → ne pas modifier team.scoreTotal manuellement
+    // Équipe : chaque membre reçoit les points individuellement
+    // syncTeamScoresFromPlayers (appelée par awardPointsToPlayer) recalcule le total équipe
     for (const p of (session.players || [])) {
       if (p.teamId === selectedTeamId) {
         awardPointsToPlayer(session, p.id, n);
@@ -2033,6 +2051,7 @@ export function setBurgerScore(session, score) {
     teamId: selectedTeamId || null,
     pseudo: selectedPseudo,
     score: n,
+    scored: true, // flag idempotence
   };
 
   // Basculer en scoring manuel pour validation de l'hôte
