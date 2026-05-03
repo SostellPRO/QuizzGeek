@@ -60,7 +60,7 @@ export default function GestionTab() {
           <div className="rounded-lg app-panel py-10 text-center text-sm text-white/38">Aucun joueur connecte</div>
         `}
         ${connPlayers.map(p => html`
-          <div key=${p.id || p.playerId} className="flex items-center gap-3 rounded-lg app-panel px-4 py-3 transition-colors hover:border-sky-300/28">
+          <div key=${p.id || p.playerId} className="flex items-center gap-3 rounded-lg app-panel px-4 py-3 transition-colors hover:border-sky-300/40">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/7 text-2xl">${p.avatar || '🎮'}</span>
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-extrabold text-white">${p.pseudo || '?'}</div>

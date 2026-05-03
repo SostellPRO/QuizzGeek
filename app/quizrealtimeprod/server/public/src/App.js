@@ -14,9 +14,12 @@ function NavBar() {
   const links = [
     { id: 'player', icon: '📱', label: 'Jouer' },
     { id: 'host', icon: '🎮', label: 'Host' },
-    { id: 'display', icon: '📺', label: 'Ecran' },
     { id: 'admin', icon: '⚙️', label: 'Studio' },
   ];
+
+  const openDisplay = () => {
+    window.open(window.location.origin + window.location.pathname + '#display', '_blank');
+  };
 
   return html`
     <nav className="sticky top-0 z-30 border-b border-white/8 bg-bg-alt/78 px-3 py-2.5 backdrop-blur-xl sm:px-4">
@@ -43,6 +46,15 @@ function NavBar() {
               <span>${l.label}</span>
             </button>
           `)}
+          <button
+            onClick=${openDisplay}
+            className="flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-extrabold transition-all text-white/48 hover:bg-white/8 hover:text-white"
+            title="Ouvrir l'écran TV dans un nouvel onglet"
+          >
+            <span className="hidden sm:inline">📺</span>
+            <span>Ecran</span>
+            <span className="text-[10px] text-white/30">↗</span>
+          </button>
         </div>
       </div>
     </nav>

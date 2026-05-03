@@ -9,6 +9,9 @@ function getOrCreateAudio() {
     _audioEl.id = 'bg-round-music';
     _audioEl.loop = true;
     _audioEl.style.display = 'none';
+  }
+  // Re-append if detached from DOM (happens on navigation/page transitions)
+  if (!document.body.contains(_audioEl)) {
     document.body.appendChild(_audioEl);
   }
   return _audioEl;

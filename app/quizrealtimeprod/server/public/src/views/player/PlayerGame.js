@@ -35,11 +35,14 @@ export default function PlayerGame() {
   // Backup: also reset when the phase enters a new question cycle
   useEffect(() => {
     const s = gs?.status;
-    if (s === 'get_ready' || s === 'question' || s === 'round_intro') {
+    if (s === 'question' || s === 'round_intro') {
       setLocked(false);
       setVoteText('');
     }
   }, [gs?.status]); // eslint-disable-line
+
+  // ── Haptic feedback helper (no-op on desktop/unsupported) ────
+  const vibrate = (pattern = 50) => navigator.vibrate?.(pattern);
 
   const phase    = gs?.status || 'lobby';
   const roundType= gs?.currentRound?.type || 'qcm';
@@ -47,6 +50,7 @@ export default function PlayerGame() {
 
   const sendAnswer = useCallback((answer) => {
     if (!socket || !s) return;
+    vibrate(50);
     setLocked(true);
     socket.emit('player:answer', { sessionCode: s.sessionCode, playerId: s.playerId, answer }, (res) => {
       if (!res?.ok) {
@@ -54,34 +58,37 @@ export default function PlayerGame() {
         setLocked(false);
       }
     });
-  }, [socket, s]);
+  }, [socket, s]); // eslint-disable-line
 
   const sendBuzzer = useCallback(() => {
     if (!socket || !s) return;
+    vibrate([30, 50, 80]); // triple pulse pour le buzz
     socket.emit('player:buzzer', { sessionCode: s.sessionCode, playerId: s.playerId }, (res) => {
       if (!res?.ok) setAlert({ type: 'error', message: res?.error || 'Buzzer refusé.' });
     });
-  }, [socket, s]);
+  }, [socket, s]); // eslint-disable-line
 
   // vote_input: player submits free-text answer via player:answer
   const sendVoteText = useCallback(() => {
     const txt = voteText.trim();
     if (!txt || !socket || !s) return;
+    vibrate(50);
     setLocked(true);
     socket.emit('player:answer', { sessionCode: s.sessionCode, playerId: s.playerId, answer: txt }, (res) => {
       if (res?.ok) { setVoteText(''); }
       else { setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
     });
-  }, [socket, s, voteText]);
+  }, [socket, s, voteText]); // eslint-disable-line
 
   // vote_voting: player chooses from displayed options by index via player:vote
   const sendVoteChoice = useCallback((index) => {
     if (!socket || !s || locked) return;
+    vibrate(50);
     setLocked(true);
     socket.emit('player:vote', { sessionCode: s.sessionCode, playerId: s.playerId, index }, (res) => {
       if (!res?.ok) { setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
     });
-  }, [socket, s, locked]);
+  }, [socket, s, locked]); // eslint-disable-line
 
   const disconnect = () => {
     setPlayerSession(null);
@@ -147,15 +154,6 @@ export default function PlayerGame() {
         </div>
       `;
     }
-
-    if (phase === 'get_ready') return html`
-      <div className="flex flex-col items-center gap-4 py-10 text-center animate-bounce-in">
-        <div className="text-6xl">${rtIcon}</div>
-        <h2 className="text-3xl font-display font-black">Tenez-vous prêts !</h2>
-        <p className="text-white/45">Le maître de jeu va lancer la question…</p>
-        <${Dots} />
-      </div>
-    `;
 
     if (phase === 'question' || phase === 'waiting') {
       return renderQuestion();
@@ -597,6 +595,16 @@ export default function PlayerGame() {
       <!-- Page content -->
       <div className="flex-1 px-4 py-4">
         ${renderPhase()}
+      </div>
+
+      <!-- Quitter -->
+      <div className="px-4 pb-4 text-center">
+        <button
+          onClick=${disconnect}
+          className="text-xs text-white/22 hover:text-white/50 transition-colors underline underline-offset-2"
+        >
+          Quitter la partie
+        </button>
       </div>
     </div>
   `;

@@ -150,8 +150,20 @@ function emitSessionState(io, session) {
     session.gameState.ceremonyMusicUrl = session.quiz.closingCeremony?.musicUrl || session.quiz.ceremonyMusicUrl || '';
   }
   const { leaderboardPlayers, leaderboardTeams } = buildLeaderboards(session);
+
+  // Sanitize gameState for public broadcast: hide correctOptionIndex until answer_reveal
+  const revealPhases = new Set(['answer_reveal', 'results', 'end']);
+  const publicGameState = { ...session.gameState };
+  if (
+    publicGameState.currentQuestion &&
+    !revealPhases.has(session.gameState.status)
+  ) {
+    const { correctOptionIndex, correctAnswer, ...safeQuestion } = publicGameState.currentQuestion;
+    publicGameState.currentQuestion = safeQuestion;
+  }
+
   io.to(sessionRoom(session.sessionCode)).emit("game:state", {
-    gameState: session.gameState,
+    gameState: publicGameState,
     players: getPublicPlayers(session),
     teams: getPublicTeams(session),
     leaderboardPlayers,
@@ -176,7 +188,7 @@ function persistAndEmit(io, session) {
   emitSessionState(io, session);
 }
 
-function handleFinalCeremonyAction(session, action) {
+function handleFinalCeremonyAction(session, action, payload = {}) {
   const gs = session.gameState;
   if (!gs.phaseMeta)
     gs.phaseMeta = {
@@ -224,6 +236,11 @@ function handleFinalCeremonyAction(session, action) {
   }
   if (action === "final_ceremony_reset") {
     pm.finalCeremony = null;
+    gs.updatedAt = new Date().toISOString();
+    return { ok: true };
+  }
+  if (action === "ceremony_set_view") {
+    pm.ceremonyView = payload.view || "players";
     gs.updatedAt = new Date().toISOString();
     return { ok: true };
   }
@@ -489,39 +506,6 @@ export function setupSocketHandlers(io) {
             break;
           case "next_question": {
             res = nextQuestion(session);
-            // Pour QCM, Buzzer, Vrai/Faux, Vote : passer en phase "get_ready" (joueurs verrouillés)
-            // L'admin choisit quand lancer la question via l'action "start_question"
-            if (res.ok && session.gameState?.status === 'question') {
-              const _rt = session.gameState?.currentRound?.type;
-              const _needsGetReady = ['qcm', 'rapidite', 'speed', 'true_false', 'vote'].includes(_rt);
-              if (_needsGetReady) {
-                session.gameState.status = 'get_ready';
-                session.gameState.phaseMeta = {
-                  ...session.gameState.phaseMeta,
-                  playerScreenLocked: true,
-                  allowAnswer: false,
-                  getReadyAt: new Date().toISOString(),
-                };
-              }
-            }
-            break;
-          }
-
-          case "start_question": {
-            // Passage manuel de get_ready → question (déclenché par l'admin)
-            if (session.gameState?.status !== 'get_ready') {
-              res = { ok: false, error: 'La partie n\'est pas en phase d\'attente' };
-              break;
-            }
-            session.gameState.status = 'question';
-            session.gameState.phaseMeta = {
-              ...session.gameState.phaseMeta,
-              playerScreenLocked: false,
-              allowAnswer: true,
-              getReadyAt: null,
-            };
-            session.gameState.updatedAt = new Date().toISOString();
-            res = { ok: true };
             break;
           }
 
@@ -724,7 +708,8 @@ export function setupSocketHandlers(io) {
           case "final_ceremony_reveal_next_team":
           case "final_ceremony_show_team_winner":
           case "final_ceremony_reset":
-            res = handleFinalCeremonyAction(session, action);
+          case "ceremony_set_view":
+            res = handleFinalCeremonyAction(session, action, payload || {});
             break;
 
           // --- TEST / ADMIN ACTIONS ---
@@ -838,7 +823,7 @@ export function setupSocketHandlers(io) {
               res = { ok: false, error: "Aucun joueur n'a buzzé" };
               break;
             }
-            awardManualPoints(session, { playerId: buzzerCorrectId, points: 1, reason: "buzzer_correct" });
+            awardManualPoints(session, { playerId: buzzerCorrectId, points: 10, reason: "buzzer_correct" });
             session.gameState.buzzerLastResult = {
               result: "correct",
               playerId: buzzerCorrectId,
@@ -875,6 +860,7 @@ export function setupSocketHandlers(io) {
               }
             } else {
               // Autre buzzer : comportement classique (file d'attente)
+              // Afficher brièvement "FAUX" puis effacer pour retourner sur la question
               session.gameState.buzzerLastResult = {
                 result: "wrong",
                 playerId: buzzerWrongId || null,
@@ -882,12 +868,34 @@ export function setupSocketHandlers(io) {
                 at: new Date().toISOString(),
               };
               res = buzzerNextPlayer(session);
+              // Effacer le résultat après 2s pour que l'écran TV revienne sur la question+loader
+              const _sc = session.sessionCode;
+              setTimeout(() => {
+                const s = getSession(_sc);
+                if (s && s.gameState.buzzerLastResult?.result === "wrong") {
+                  s.gameState.buzzerLastResult = null;
+                  s.gameState.updatedAt = new Date().toISOString();
+                  emitSessionState(io, s);
+                }
+              }, 2000);
             }
             break;
           }
 
           case "burger_set_score": {
             res = setBurgerScore(session, payload?.score);
+            if (res.ok) {
+              // Afficher le score 3s sur TV puis passer à la question suivante automatiquement
+              persistAndEmit(io, session);
+              const _sc = session.sessionCode;
+              setTimeout(() => {
+                const s = getSession(_sc);
+                if (s) {
+                  nextQuestion(s);
+                  persistAndEmit(io, s);
+                }
+              }, 3000);
+            }
             break;
           }
 

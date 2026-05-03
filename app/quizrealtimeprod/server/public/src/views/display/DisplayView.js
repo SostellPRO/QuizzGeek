@@ -182,15 +182,16 @@ function VoteDisplay({ gs, players }) {
             style=${{ fontSize: 'clamp(2.5rem,7vw,5rem)' }}>
           Répondez maintenant !
         </h2>
-        <div className="flex items-center gap-3">
-          <span style=${{ fontSize: 'clamp(1.1rem,2.5vw,1.8rem)', color: 'rgba(255,255,255,.6)' }}>${voted}</span>
-          <div className="h-2 rounded-full overflow-hidden" style=${{ width: 'clamp(120px,20vw,280px)', background: 'rgba(255,255,255,.1)' }}>
+        <div className="flex flex-col items-center gap-3">
+          <span className="font-display font-black" style=${{ fontSize: 'clamp(1.6rem,4vw,3rem)', color: 'rgba(255,255,255,.8)' }}>
+            ${voted} <span style=${{ color: 'rgba(255,255,255,.3)' }}>sur</span> ${conn} <span style=${{ fontSize: '60%', color: 'rgba(255,255,255,.4)', fontWeight: '600' }}>ont répondu</span>
+          </span>
+          <div className="h-2 rounded-full overflow-hidden" style=${{ width: 'clamp(180px,28vw,380px)', background: 'rgba(255,255,255,.1)' }}>
             <div
               className="h-full bg-gradient-to-r from-accent to-neon-green rounded-full transition-all duration-500"
               style=${{ width: conn > 0 ? (voted/conn*100)+'%' : '0%' }}
             />
           </div>
-          <span style=${{ fontSize: 'clamp(1.1rem,2.5vw,1.8rem)', color: 'rgba(255,255,255,.6)' }}>${conn}</span>
         </div>
       </div>
     `;
@@ -377,7 +378,15 @@ function TVScoreboard({ leaderboard, title = 'Classement' }) {
 
 // ── Main Display view ─────────────────────────────────────────
 export default function DisplayView() {
-  const { socket, displaySession, setDisplaySession, gameState: gs, players, lbPlayers, lbTeams, navigate, musicMuted, toggleMute } = useGame();
+  const { socket, displaySession, setDisplaySession, gameState: gs, players, lbPlayers, lbTeams, navigate, musicMuted, toggleMute, ducking } = useGame();
+
+  // Duck background music while challenge video is playing
+  useEffect(() => {
+    if (!ducking) return;
+    const videoCtrl = gs?.videoState?.videoControl;
+    const isPlaying = videoCtrl?.action === 'play';
+    ducking(isPlaying);
+  }, [gs?.videoState?.videoControl?.action, gs?.videoState?.videoControl?.at]); // eslint-disable-line
 
   if (!displaySession?.connected) return html`<${DisplayConnect} />`;
 
@@ -486,40 +495,6 @@ export default function DisplayView() {
       </div>
     `;
 
-    if (phase === 'get_ready') {
-      const q = gs?.currentQuestion;
-      const round = gs?.currentRound;
-      return html`
-        <div key=${`ready_${q?.id || gs?.currentQuestionIndex || 0}`} className="flex flex-col items-center justify-center min-h-[100dvh] gap-6 animate-bounce-in px-8 text-center">
-          <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🎯</div>
-          <h1 className="font-display font-black gradient-text" style=${{ fontSize: 'clamp(2.5rem,7vw,6rem)' }}>
-            Tenez-vous prets !
-          </h1>
-          <div className="text-white/38 font-mono text-sm tracking-[0.18em] uppercase">
-            ${round?.title ? html`<span>${round.title}</span>` : ''}
-            ${q ? html`<span> · Q${(gs?.currentQuestionIndex ?? 0)+1}</span>` : ''}
-          </div>
-          ${q?.content && html`
-            <p className="font-display font-bold text-white/78 max-w-5xl" style=${{ fontSize: 'clamp(1.4rem,3vw,2.8rem)', lineHeight: '1.2' }}>
-              ${q.content}
-            </p>
-          `}
-          ${q?.mediaUrl && html`<${MediaStage} url=${q.mediaUrl} maxHeight="28vh" autoPlay=${false} />`}
-          <${Dots} />
-        </div>
-      `;
-    }
-
-    if (false) return html`
-      <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-6 animate-bounce-in">
-        <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🎯</div>
-        <h1 className="font-display font-black gradient-text" style=${{ fontSize: 'clamp(2.5rem,7vw,6rem)' }}>
-          Tenez-vous prêts !
-        </h1>
-        <${Dots} />
-      </div>
-    `;
-
     if (phase === 'question' || phase === 'waiting' || phase === 'manual_scoring') {
       return renderQuestion();
     }
@@ -541,6 +516,23 @@ export default function DisplayView() {
     if (phase === 'results' || phase === 'end') {
       const ceremonyView = gs?.phaseMeta?.ceremonyView || 'players';
       const finalCeremony = gs?.phaseMeta?.finalCeremony || null;
+      // End phase without ceremony → waiting screen
+      if (phase === 'end' && !finalCeremony) {
+        return html`
+          <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-8 px-8 animate-fade-in">
+            <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🏆</div>
+            <h1 className="font-display font-black gradient-text text-center"
+                style=${{ fontSize: 'clamp(2.5rem,6vw,5rem)' }}>
+              Quiz terminé !
+            </h1>
+            <p className="text-white/40 text-center" style=${{ fontSize: 'clamp(1rem,2vw,1.6rem)' }}>
+              La cérémonie de remise des prix commence dans un instant…
+            </p>
+            <${Dots} />
+          </div>
+        `;
+      }
+
       if (phase === 'end' && finalCeremony) {
         const revealOrder = ceremonyView === 'teams'
           ? (finalCeremony.teamsRevealOrder || [])
@@ -552,11 +544,64 @@ export default function DisplayView() {
           pseudo: x.pseudo || x.name,
           scoreTotal: x.scoreTotal || 0,
         }));
+        // Show podium when top-3 are all revealed (rank 1-3 visible)
+        const top3Visible = lb.filter(x => x.rank <= 3);
+        const allTop3Revealed = top3Visible.length >= Math.min(3, revealOrder.filter(x => x.rank <= 3).length);
+        const MEDAL = ['🥇','🥈','🥉'];
+        if (allTop3Revealed && pending === 0 && top3Visible.length > 0) {
+          const podium = lb.filter(x => x.rank <= 3).sort((a, b) => a.rank - b.rank);
+          const rest   = lb.filter(x => x.rank > 3);
+          return html`
+            <div className="flex flex-col items-center min-h-[100dvh] px-8 py-10 gap-8 animate-fade-in">
+              <h1 className="font-display font-black gradient-text" style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>
+                ${ceremonyView === 'teams' ? '🏆 Classement par équipes' : '🏆 Classement Final'}
+              </h1>
+              <!-- Podium top 3 -->
+              <div className="flex items-end justify-center gap-4" style=${{ minHeight:'18vh' }}>
+                ${[1, 0, 2].map(relIdx => {
+                  const p = podium[relIdx];
+                  if (!p) return null;
+                  const heights = ['16vh','22vh','12vh'];
+                  const scales  = ['text-3xl','text-4xl','text-2xl'];
+                  return html`
+                    <div key=${p.rank} className="flex flex-col items-center gap-2 animate-bounce-in"
+                         style=${{ animationDelay: relIdx === 1 ? '0ms' : relIdx === 0 ? '200ms' : '400ms' }}>
+                      <span style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>${MEDAL[p.rank - 1]}</span>
+                      <span className="font-display font-black text-center" style=${{ fontSize: 'clamp(1.1rem,2.5vw,2rem)', maxWidth:'20vw' }}>${p.pseudo || p.name}</span>
+                      <span className="font-mono font-black text-neon-green" style=${{ fontSize: 'clamp(1rem,2vw,1.6rem)' }}>${p.scoreTotal} pts</span>
+                      <div className="rounded-t-xl w-full" style=${{
+                        height: heights[relIdx],
+                        minWidth: 'clamp(80px,12vw,160px)',
+                        background: relIdx === 0 ? 'rgba(255,215,0,.2)' : relIdx === 1 ? 'rgba(45,212,191,.15)' : 'rgba(205,127,50,.15)',
+                        border: `2px solid ${relIdx === 0 ? 'rgba(255,215,0,.5)' : relIdx === 1 ? 'rgba(45,212,191,.4)' : 'rgba(205,127,50,.4)'}`,
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        fontSize:'clamp(1.5rem,4vw,3rem)',
+                      }}>${p.rank}</div>
+                    </div>
+                  `;
+                })}
+              </div>
+              <!-- Others -->
+              ${rest.length > 0 && html`
+                <div className="flex flex-col gap-2 w-full max-w-2xl">
+                  ${rest.slice(0,5).map(p => html`
+                    <div key=${p.playerId || p.teamId} className="flex items-center gap-3 rounded-xl bg-white/5 px-5 py-2.5">
+                      <span className="font-mono text-white/30 w-8">${p.rank}.</span>
+                      <span className="flex-1 font-semibold truncate">${p.pseudo || p.name}</span>
+                      <span className="font-mono font-bold text-neon-green">${p.scoreTotal} pts</span>
+                    </div>
+                  `)}
+                </div>
+              `}
+            </div>
+          `;
+        }
+
         return html`
           <div className="flex flex-col items-center justify-center min-h-[100dvh] px-8 py-10">
             <${TVScoreboard} leaderboard=${lb} title=${ceremonyView === 'teams' ? '🏆 Classement par équipes' : '🏆 Classement Final'} />
             ${pending > 0 && html`
-              <p className="mt-6 text-white/38 font-bold tracking-[0.18em] uppercase">${pending} resultat(s) masque(s)</p>
+              <p className="mt-6 text-white/38 font-bold tracking-[0.18em] uppercase">${pending} résultat(s) masqué(s)</p>
             `}
           </div>
         `;
@@ -594,7 +639,8 @@ export default function DisplayView() {
     if (isBurger) {
       const allItems = curQ?.items || [];
       const currentIdx = gs?.burgerState?.currentItemIndex ?? -1;
-      const items = currentIdx >= 0 ? allItems.slice(0, currentIdx + 1) : [];
+      const currentItem = currentIdx >= 0 ? allItems[currentIdx] : null;
+      const totalItems = allItems.length;
       const selectedPseudo = gs?.burgerSelectedPseudo || '';
       const answering = phase === 'manual_scoring' || gs?.burgerState?.answering;
       return html`
@@ -606,27 +652,28 @@ export default function DisplayView() {
           </h1>
           ${!selectedPseudo && html`
             <p className="text-white/50 text-center" style=${{ fontSize: 'clamp(1.2rem,3vw,2.2rem)' }}>
-              Le maitre de jeu choisit un candidat.
+              Le maître de jeu choisit un candidat.
             </p>
           `}
-          ${selectedPseudo && !answering && html`
+          ${selectedPseudo && !answering && !currentItem && html`
             <p className="text-white/60 text-center" style=${{ fontSize: 'clamp(1.2rem,3vw,2.2rem)' }}>
-              <strong className="text-amber-400">${selectedPseudo}</strong>, preparez-vous.
+              <strong className="text-amber-400">${selectedPseudo}</strong>, préparez-vous !
             </p>
           `}
           ${selectedPseudo && answering && html`
-            <p className="text-white/70 text-center font-display font-black" style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>
-              ${selectedPseudo} repond.
+            <p className="text-white/70 text-center font-display font-black" style=${{ fontSize: 'clamp(2.5rem,6vw,5rem)' }}>
+              🎤 <span className="text-amber-400">${selectedPseudo}</span> répond
             </p>
           `}
-          <div className="flex flex-col gap-3 w-full max-w-2xl">
-            ${items.map((item, i) => html`
-              <div key=${i} className="flex items-center gap-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-6 py-4">
-                <span className="font-mono text-amber-400 font-bold" style=${{ fontSize: 'clamp(1rem,2vw,1.5rem)' }}>${i+1}.</span>
-                <span className="font-bold" style=${{ fontSize: 'clamp(1.1rem,2.5vw,2rem)' }}>${item?.text || item}</span>
-              </div>
-            `)}
-          </div>
+          ${currentItem && !answering && html`
+            <div className="text-center mb-2">
+              <span className="font-mono text-amber-400/50 text-sm">${currentIdx + 1} / ${totalItems}</span>
+            </div>
+            <div key=${currentIdx} className="flex items-center justify-center gap-5 rounded-3xl border-2 border-amber-500/40 bg-amber-500/12 px-10 py-8 animate-fade-in" style=${{ maxWidth:'70vw' }}>
+              <span className="font-mono text-amber-400 font-black" style=${{ fontSize: 'clamp(1.5rem,3.5vw,3rem)' }}>${currentIdx + 1}.</span>
+              <span className="font-display font-black text-white" style=${{ fontSize: 'clamp(1.8rem,4.5vw,4rem)', textAlign:'center' }}>${currentItem?.text || currentItem}</span>
+            </div>
+          `}
         </div>
       `;
     }
@@ -699,9 +746,6 @@ export default function DisplayView() {
     // True / False – dedicated big-button display
       const isTrueFalse = ansMode === 'true_false' || curRound?.type === 'true_false';
       if (isTrueFalse) {
-      const vraiCount = gs?.trueFalseVotes?.yes?.length ?? 0;
-      const fauxCount = gs?.trueFalseVotes?.no?.length ?? 0;
-      const total = vraiCount + fauxCount;
       return html`
         <div className="flex flex-col min-h-[100dvh] px-[clamp(24px,4vw,64px)] py-[clamp(24px,3vh,48px)]">
           ${curQ?.mediaUrl && html`
@@ -715,24 +759,14 @@ export default function DisplayView() {
               ${curQ.content}
             </p>
           `}
-          <div className="grid grid-cols-2 gap-5 flex-1 max-h-[42vh]">
-            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-neon-green/40 bg-neon-green/10 p-5" style=${{ minHeight:'18vh' }}>
-              <span style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>✅</span>
-              <span className="font-display font-black text-neon-green mt-4" style=${{ fontSize: 'clamp(2.5rem,6vw,5rem)' }}>VRAI</span>
-              ${total > 0 && html`
-                <span className="text-neon-green/60 mt-2" style=${{ fontSize: 'clamp(1rem,2.5vw,1.8rem)' }}>
-                  ${vraiCount} vote(s) · ${total > 0 ? Math.round(vraiCount/total*100) : 0}%
-                </span>
-              `}
+          <div className="flex justify-center gap-8 mt-4">
+            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-neon-green/40 bg-neon-green/10 px-12 py-8">
+              <span style=${{ fontSize: 'clamp(3rem,7vw,5rem)' }}>✅</span>
+              <span className="font-display font-black text-neon-green mt-3" style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>VRAI</span>
             </div>
-            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-rose-500/40 bg-rose-500/10 p-5" style=${{ minHeight:'18vh' }}>
-              <span style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>❌</span>
-              <span className="font-display font-black text-rose-400 mt-4" style=${{ fontSize: 'clamp(2.5rem,6vw,5rem)' }}>FAUX</span>
-              ${total > 0 && html`
-                <span className="text-rose-400/60 mt-2" style=${{ fontSize: 'clamp(1rem,2.5vw,1.8rem)' }}>
-                  ${fauxCount} vote(s) · ${total > 0 ? Math.round(fauxCount/total*100) : 0}%
-                </span>
-              `}
+            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-rose-500/40 bg-rose-500/10 px-12 py-8">
+              <span style=${{ fontSize: 'clamp(3rem,7vw,5rem)' }}>❌</span>
+              <span className="font-display font-black text-rose-400 mt-3" style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>FAUX</span>
             </div>
           </div>
         </div>

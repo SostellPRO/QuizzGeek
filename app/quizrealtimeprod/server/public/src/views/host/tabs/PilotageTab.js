@@ -7,7 +7,6 @@ const PHASE_BADGE = {
   lobby:          'blue',
   round_intro:    'orange',
   training_video: 'orange',
-  get_ready:      'green',
   question:       'orange',
   waiting:        'orange',
   answer_reveal:  'green',
@@ -44,7 +43,11 @@ export default function PilotageTab() {
   const answerablePlayers = players.filter(p => p.connected && !p.isBot);
   const conn    = answerablePlayers.length;
   const answered= Object.keys(gs?.answers?.[curQ?.id] || {}).length;
-  const allAnswered = conn > 0 && answered >= conn && ['question','waiting'].includes(phase) && !isBuzzer && !isBurger && !isVC;
+  // Pour vote_voting, les votes sont dans voteState.votes, pas dans gs.answers
+  const voteCount = Object.keys(gs?.voteState?.votes || {}).length;
+  const allAnswered = conn > 0 && ['question','waiting'].includes(phase) && !isBuzzer && !isBurger && !isVC && (
+    isVoteVoting ? voteCount >= conn : answered >= conn
+  );
 
   const ha = (action, extra = {}) => hostAction(action, extra);
 
@@ -82,7 +85,6 @@ export default function PilotageTab() {
           <${Badge} color=${PHASE_BADGE[phase] || 'gray'}>
             ${phase === 'lobby' ? '🎪 Lobby' :
               phase === 'round_intro' ? '📢 Présentation' :
-              phase === 'get_ready' ? '🎯 Prêts' :
               phase === 'question' ? (isPaused ? '⏸️ Pause' : '❓ Question') :
               phase === 'answer_reveal' ? '📋 Révélation' :
               phase === 'manual_scoring' ? '⚖️ Arbitrage' :
@@ -118,7 +120,7 @@ export default function PilotageTab() {
 
       <!-- Current question info -->
       ${curRound && curQ && html`
-        <div className="rounded-xl bg-bg-card border border-white/8 p-4">
+        <div className="rounded-xl app-surface p-4">
           <div className="text-xs text-white/30 uppercase tracking-wider mb-1.5">
             Manche ${curRIdx+1} · Q${curQIdx+1} · ${(curRound.type||'').toUpperCase()}
           </div>
@@ -143,7 +145,7 @@ export default function PilotageTab() {
             ${peekScores ? '▼' : '▶'} Classement actuel
           </button>
           ${peekScores && html`
-            <div className="rounded-xl bg-bg-card border border-white/8 p-3 flex flex-col gap-1.5">
+            <div className="rounded-xl app-surface p-3 flex flex-col gap-1.5">
               ${topPlayers.map((p, i) => html`
                 <div key=${p.playerId || p.id} className="flex items-center gap-2 text-sm">
                   <span className="text-white/30 font-mono w-5">${i+1}.</span>
@@ -168,20 +170,9 @@ export default function PilotageTab() {
         </div>
       `}
 
-      ${phase === 'get_ready' && html`
-        <div className="rounded-xl bg-neon-green/8 border border-neon-green/25 p-5 text-center">
-          <p className="text-white/60 text-sm mb-4">
-            Q${curQIdx+1}${curRound?.questions?.length ? `/${curRound.questions.length}` : ''} —
-            ${curQ?.content ? html`<em className="text-white/40 text-xs"> "${curQ.content.substring(0,50)}…"</em>` : ''}
-          </p>
-          <${Btn} variant="success" wide pulse size="lg" onClick=${() => ha('start_question')}>
-            ▶ Lancer la question
-          <//>
-        </div>
-      `}
 
       ${['question','waiting','answer_reveal','manual_scoring'].includes(phase) && html`
-        <div className="rounded-xl bg-bg-card border border-white/8 p-4">
+        <div className="rounded-xl app-surface p-4">
           <div className="text-xs text-white/40 uppercase tracking-widest mb-3">⚡ Contrôles</div>
           <div className="grid grid-cols-2 gap-2">
             ${isPaused
@@ -202,7 +193,7 @@ export default function PilotageTab() {
 
       <!-- Buzzer controls -->
       ${isBuzzer && phase === 'manual_scoring' && html`
-        <div className="rounded-xl bg-bg-card border border-white/8 p-4">
+        <div className="rounded-xl app-surface p-4">
           <div className="text-xs text-white/40 uppercase tracking-widest mb-3">🎯 Buzzer</div>
           ${gs?.buzzerState?.firstPlayerId ? html`
             <div className="text-sm text-center mb-3 font-semibold">
@@ -222,27 +213,44 @@ export default function PilotageTab() {
       `}
 
       <!-- Vote controls -->
-      ${isVote && html`
+      ${(isVote || voteRevealing) && html`
         <div className="rounded-xl bg-blue-500/8 border border-blue-500/25 p-4">
-          <div className="text-xs text-white/40 uppercase tracking-widest mb-3">Vote</div>
-          ${isVoteInput && html`
-            <${Btn} variant="primary" wide pulse=${allAnswered} onClick=${() => ha('vote_close')}>Afficher les propositions<//>
-          `}
-          ${isVoteProposal && html`
-            <div className="grid grid-cols-2 gap-2">
-              <${Btn} variant="secondary" onClick=${() => ha('vote_proposal_reveal_next')}>Proposition suivante<//>
-              <${Btn} variant="primary" pulse onClick=${() => ha('vote_start_voting')}>Lancer le vote<//>
-            </div>
-          `}
-          ${isVoteVoting && html`
-            <${Btn} variant="primary" wide pulse=${allAnswered} onClick=${() => ha('vote_reveal')}>Reveler les resultats<//>
-          `}
-        </div>
-      `}
-      ${voteRevealing && html`
-        <div className="flex gap-2">
-          <${Btn} variant="secondary" pulse onClick=${() => ha('vote_reveal_next')}>Suivant<//>
-          <${Btn} variant="ghost" size="sm" onClick=${() => ha('vote_end')}>Terminer<//>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs text-white/40 uppercase tracking-widest">🗳️ Vote</span>
+            <span className="text-xs text-blue-300/60 font-mono">
+              ${isVoteInput ? '① Saisie' : isVoteProposal ? '② Révélation propositions' : isVoteVoting ? '③ Vote' : '④ Révélation résultats'}
+            </span>
+          </div>
+          <div className="flex flex-col gap-2">
+            ${isVoteInput && html`
+              <div className="text-xs text-white/35 mb-1">${answered}/${conn} réponse(s) reçue(s)</div>
+              <${Btn} variant="primary" wide pulse=${allAnswered} onClick=${() => ha('vote_close')}>
+                ▶ Afficher les propositions
+              <//>
+            `}
+            ${isVoteProposal && html`
+              <div className="grid grid-cols-2 gap-2">
+                <${Btn} variant="secondary" onClick=${() => ha('vote_proposal_reveal_next')}>
+                  Proposition suivante ▶
+                <//>
+                <${Btn} variant="primary" pulse onClick=${() => ha('vote_start_voting')}>
+                  🗳️ Lancer le vote
+                <//>
+              </div>
+            `}
+            ${isVoteVoting && html`
+              <div className="text-xs text-white/35 mb-1">${answered}/${conn} vote(s) reçu(s)</div>
+              <${Btn} variant="primary" wide pulse=${allAnswered} onClick=${() => ha('vote_reveal')}>
+                📊 Révéler les résultats
+              <//>
+            `}
+            ${voteRevealing && html`
+              <div className="flex gap-2">
+                <${Btn} variant="secondary" wide pulse onClick=${() => ha('vote_reveal_next')}>Suivant ▶<//>
+                <${Btn} variant="ghost" size="sm" onClick=${() => ha('vote_end')}>✓ Terminer<//>
+              </div>
+            `}
+          </div>
         </div>
       `}
 
@@ -281,7 +289,7 @@ export default function PilotageTab() {
 
             <!-- Entraînement (optionnel) -->
             ${curQ?.trainingVideoUrl && html`
-              <div className="rounded-lg border border-white/8 bg-white/3 p-3">
+              <div className="rounded-lg app-panel p-3">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-xs font-bold text-amber-400/80 uppercase tracking-wider">🏋️ Vidéo d'entraînement</span>
                   <span className="text-xs text-white/25 italic">— optionnelle</span>
@@ -342,7 +350,7 @@ export default function PilotageTab() {
               </div>
 
               <!-- Score -->
-              <div className="flex items-center gap-2 pt-2 border-t border-white/8">
+              <div className="flex items-center gap-2 pt-2 border-t border-white/14">
                 <${Btn} variant="secondary" size="sm"
                   disabled=${videoPhase !== 'playing'}
                   onClick=${() => ha('video_start_eval')}>
@@ -396,12 +404,14 @@ export default function PilotageTab() {
                 `)}
               </div>
             `}
-            <div className="grid grid-cols-3 gap-2">
-              <${Btn} variant="secondary" size="sm" onClick=${() => ha('burger_prev_item')}>Item precedent<//>
+            <div className="flex items-center gap-2">
+              <div className="text-xs text-white/35 flex-1">
+                Item ${(gs?.burgerState?.currentItemIndex ?? -1) + 1} / ${curQ?.items?.length || '?'}
+              </div>
+              <${Btn} variant="secondary" size="sm" onClick=${() => ha('burger_prev_item')}>◀ Préc.<//>
               <${Btn} variant="primary" size="sm" pulse onClick=${() => ha('burger_next_item')}>
-                ${(gs?.burgerState?.currentItemIndex ?? -1) >= ((curQ?.items?.length || 0) - 1) ? 'Reponse candidat' : 'Item suivant'}
+                ${(gs?.burgerState?.currentItemIndex ?? -1) >= ((curQ?.items?.length || 0) - 1) ? '🎤 Candidat répond' : 'Suivant ▶'}
               <//>
-              <${Btn} variant="warning" size="sm" onClick=${() => ha('burger_pass')}>Passer<//>
             </div>
             <div className="flex items-center gap-2">
               <input
@@ -418,8 +428,8 @@ export default function PilotageTab() {
         </div>
       `}
       <!-- Timer controls -->
-      ${['question','waiting','answer_reveal','manual_scoring','get_ready'].includes(phase) && html`
-        <div className="rounded-xl bg-bg-card border border-white/8 p-4">
+      ${['question','waiting','answer_reveal','manual_scoring'].includes(phase) && html`
+        <div className="rounded-xl app-surface p-4">
           <div className="text-xs text-white/40 uppercase tracking-widest mb-3">⏱ Chronomètre</div>
           <div className="flex items-center gap-2">
             <input
@@ -449,7 +459,7 @@ export default function PilotageTab() {
       `}
 
       <!-- Navigation -->
-      <div className="rounded-xl bg-bg-card border border-white/8 p-4">
+      <div className="rounded-xl app-surface p-4">
         <div className="text-xs text-white/40 uppercase tracking-widest mb-3">🧭 Navigation</div>
         ${phase !== 'round_end' && phase !== 'end' && phase !== 'results' && html`
           <div className="grid grid-cols-2 gap-2 mb-2">
@@ -468,6 +478,80 @@ export default function PilotageTab() {
           }}>🏁 Fin de partie</${Btn}>
         </div>
       </div>
+
+      <!-- Cérémonie finale -->
+      ${(phase === 'results' || phase === 'end') && html`
+        <div className="rounded-xl bg-yellow-500/8 border border-yellow-500/25 p-4">
+          <div className="text-xs text-white/40 uppercase tracking-widest mb-3">🏆 Cérémonie finale</div>
+
+          ${!gs?.phaseMeta?.finalCeremony && html`
+            <div className="flex flex-col gap-3">
+              <p className="text-xs text-white/40">Choisissez le mode de classement :</p>
+              <div className="flex gap-2">
+                <${Btn}
+                  variant=${gs?.phaseMeta?.ceremonyView !== 'teams' ? 'primary' : 'ghost'}
+                  size="sm" wide
+                  onClick=${() => ha('ceremony_set_view', { view: 'players' })}
+                >👤 Individuel<//>
+                ${teams?.length > 0 && html`
+                  <${Btn}
+                    variant=${gs?.phaseMeta?.ceremonyView === 'teams' ? 'primary' : 'ghost'}
+                    size="sm" wide
+                    onClick=${() => ha('ceremony_set_view', { view: 'teams' })}
+                  >👥 Équipes<//>
+                `}
+              </div>
+              <${Btn} variant="success" wide pulse size="lg"
+                onClick=${() => ha('final_ceremony_init')}
+              >
+                🎬 Lancer la cérémonie
+              <//>
+            </div>
+          `}
+
+          ${gs?.phaseMeta?.finalCeremony && html`
+            ${() => {
+              const fc = gs.phaseMeta.finalCeremony;
+              const view = gs.phaseMeta.ceremonyView || 'players';
+              const isTeams = view === 'teams';
+              const order = isTeams ? (fc.teamsRevealOrder || []) : (fc.revealOrder || []);
+              const cursor = isTeams ? (fc.teamsRevealCursor || 0) : (fc.revealCursor || 0);
+              const remaining = order.length - cursor;
+              return html`
+                <div className="flex flex-col gap-2">
+                  <div className="text-xs text-white/35 mb-1">
+                    ${remaining > 0 ? html`${remaining} joueur(s) encore masqué(s)` : html`Tous révélés`}
+                  </div>
+                  <div className="flex gap-2">
+                    <${Btn}
+                      variant=${!isTeams ? 'primary' : 'ghost'}
+                      size="sm"
+                      onClick=${() => ha('ceremony_set_view', { view: 'players' })}
+                    >👤 Ind.</${Btn}>
+                    ${teams?.length > 0 && html`
+                      <${Btn}
+                        variant=${isTeams ? 'primary' : 'ghost'}
+                        size="sm"
+                        onClick=${() => ha('ceremony_set_view', { view: 'teams' })}
+                      >👥 Éq.</${Btn}>
+                    `}
+                    <${Btn}
+                      variant="secondary" wide pulse=${remaining > 0}
+                      onClick=${() => ha(isTeams ? 'final_ceremony_reveal_next_team' : 'final_ceremony_reveal_next')}
+                      disabled=${remaining === 0}
+                    >
+                      ${remaining > 0 ? '▶ Révéler suivant' : '✅ Tous révélés'}
+                    <//>
+                  </div>
+                  <${Btn} variant="ghost" size="sm"
+                    onClick=${() => ha('final_ceremony_reset')}
+                  >↺ Recommencer<//>
+                </div>
+              `;
+            }}()
+          `}
+        </div>
+      `}
 
     </div>
   `;

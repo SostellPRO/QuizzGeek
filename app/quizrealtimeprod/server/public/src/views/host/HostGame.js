@@ -14,7 +14,6 @@ const PHASE_LABELS = {
   lobby: 'Lobby',
   round_intro: 'Presentation',
   training_video: 'Entrainement',
-  get_ready: 'Prets',
   question: 'Question',
   waiting: 'Attente',
   answer_reveal: 'Solution',

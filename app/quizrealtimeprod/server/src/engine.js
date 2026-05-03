@@ -383,7 +383,7 @@ function autoScoreCurrentQuestion(session) {
 
   let applied = 0;
 
-  // rapidité: seul le premier bon répondant marque 1 point
+  // rapidité: seul le premier bon répondant marque 10 points
   if (round.type === "rapidite" || round.type === "speed") {
     const sorted = answers
       .filter((a) => detectCorrectAnswer(q, a.answer))
@@ -391,17 +391,17 @@ function autoScoreCurrentQuestion(session) {
 
     const winner = sorted[0];
     if (winner) {
-      const res = awardPointsToPlayer(session, winner.playerId, 1);
+      const res = awardPointsToPlayer(session, winner.playerId, 10);
       if (res.ok) applied += 1;
     }
     session.gameState.scoredQuestions[q.id] = true;
     return { ok: true, applied };
   }
 
-  // auto classique: 1 point par bonne réponse (qcm, true_false, free, etc.)
+  // auto classique: 10 points par bonne réponse (qcm, true_false, free, etc.)
   for (const a of answers) {
     if (detectCorrectAnswer(q, a.answer)) {
-      const res = awardPointsToPlayer(session, a.playerId, 1);
+      const res = awardPointsToPlayer(session, a.playerId, 10);
       if (res.ok) applied += 1;
     }
   }
@@ -989,7 +989,7 @@ export function awardManualPoints(session, { playerId, points, reason } = {}) {
 
   const n = Number(points);
   if (!Number.isFinite(n)) return { ok: false, error: "Points invalides" };
-  if (n < -100 || n > 100) return { ok: false, error: "Points hors limite" };
+  if (n < -1000 || n > 1000) return { ok: false, error: "Points hors limite" };
 
   const res = awardPointsToPlayer(session, playerId, n);
   if (!res.ok) return res;
@@ -1663,14 +1663,14 @@ export function voteRevealNext(session) {
       for (const [playerId, voteIdx] of Object.entries(vs.votes)) {
         const chosenOption = vs.options[voteIdx];
         if (chosenOption?.isDecoy) {
-          awardPointsToPlayer(session, playerId, -1);
+          awardPointsToPlayer(session, playerId, -10);
         }
       }
-      // Points aux auteurs des réponses selon les votes reçus
+      // Points aux auteurs des réponses selon les votes reçus (10 pts par vote)
       for (let idx = 0; idx < vs.options.length; idx++) {
         const option = vs.options[idx];
         if (!option.isDecoy && option.playerId && (option.voteCount || 0) > 0) {
-          awardPointsToPlayer(session, option.playerId, option.voteCount);
+          awardPointsToPlayer(session, option.playerId, option.voteCount * 10);
         }
       }
     }
@@ -1808,15 +1808,16 @@ export function videoMarkReady(session) {
   return { ok: true };
 }
 
-// Affiche l'écran "Attention entraînement !" avant la vidéo d'entraînement
+// Lance directement la vidéo d'entraînement (auto-play, pas d'étape intermédiaire)
 export function videoStartTrainingReady(session) {
   ensureSessionRuntime(session);
   const vs = session.gameState.videoState;
   if (!vs) return { ok: false, error: "Pas de challenge vidéo actif" };
   const q = getCurrentQuestion(session);
   if (!q?.trainingVideoUrl) return { ok: false, error: "Pas de vidéo d'entraînement sur cette question" };
-  vs.phase = "training_ready";
-  setPhaseMeta(session, { ...session.gameState.phaseMeta, answerMode: "video_training_ready" });
+  vs.phase = "training_playing";
+  vs.trainingVideoControl = { action: "play", at: new Date().toISOString() };
+  setPhaseMeta(session, { ...session.gameState.phaseMeta, answerMode: "video_training_playing" });
   touch(session);
   return { ok: true };
 }
@@ -1886,7 +1887,7 @@ export function videoSetScore(session, score) {
   if (vs.scored) return { ok: false, error: "Score déjà attribué pour ce challenge" };
 
   const s = Number(score);
-  if (!Number.isFinite(s) || s < 0 || s > 10) return { ok: false, error: "Score invalide (0–10)" };
+  if (!Number.isFinite(s) || s < 0 || s > 100) return { ok: false, error: "Score invalide (0–100)" };
 
   vs.score = s;
   vs.phase = "scored";
@@ -2017,8 +2018,8 @@ export function burgerPass(session) {
 export function setBurgerScore(session, score) {
   ensureSessionRuntime(session);
   const n = Number(score);
-  if (!Number.isFinite(n) || n < 0 || n > 10) {
-    return { ok: false, error: "Le score doit être entre 0 et 10" };
+  if (!Number.isFinite(n) || n < 0 || n > 100) {
+    return { ok: false, error: "Le score doit être entre 0 et 100" };
   }
 
   // Protection contre le double-scoring
