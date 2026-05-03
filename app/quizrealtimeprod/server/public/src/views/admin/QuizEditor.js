@@ -206,14 +206,16 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
             <div className="flex flex-col gap-2">
               <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">
                 Options
-                <span className="text-white/25 font-normal ml-1">(cliquer pour marquer la bonne reponse)</span>
+                <span className="text-white/25 font-normal ml-1">(clic sur la lettre = bonne reponse)</span>
               </label>
               ${(q.options || []).map((opt, oi) => html`
-                <div key=${oi} className="flex flex-col gap-1.5 bg-white/3 rounded-lg p-3 border border-white/5">
+                <div key=${oi} className=${`flex flex-col gap-2 rounded-lg p-3 border transition-colors ${q.correctOptionIndex === oi ? 'border-neon-green/30 bg-neon-green/5' : 'border-white/6 bg-white/[0.025]'}`}>
+                  <!-- Texte de l'option -->
                   <div className="flex items-center gap-3">
                     <button
                       onClick=${() => upd('correctOptionIndex', oi)}
-                      className=${`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black transition-all ${q.correctOptionIndex === oi ? 'bg-neon-green/20 border-2 border-neon-green/60 text-neon-green' : 'bg-white/5 border-2 border-transparent text-white/30 hover:border-white/20'}`}
+                      title="Marquer comme bonne reponse"
+                      className=${`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black transition-all ${q.correctOptionIndex === oi ? 'bg-neon-green/20 border-2 border-neon-green/60 text-neon-green' : 'bg-white/5 border-2 border-white/10 text-white/30 hover:border-white/30'}`}
                     >
                       ${LABELS[oi] || oi+1}
                     </button>
@@ -221,16 +223,17 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
                       type="text"
                       value=${opt.text || ''}
                       onInput=${e => updOpt(oi, 'text', e.target.value)}
-                      placeholder=${`Option ${LABELS[oi] || oi+1}...`}
+                      placeholder=${`Texte de la reponse ${LABELS[oi] || oi+1}...`}
                       className="flex-1 bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
                     />
                   </div>
-                  <div className="flex items-center gap-2 pl-12">
+                  <!-- Média optionnel de l'option -->
+                  <div className="pl-12">
                     <${MediaField}
                       value=${opt.mediaUrl || ''}
                       onChange=${v => updOpt(oi, 'mediaUrl', v)}
-                      accept="image/*"
-                      placeholder="Image de l'option"
+                      accept="image/*,audio/*,video/*"
+                      placeholder="Image, son ou video (optionnel)"
                     />
                   </div>
                 </div>
