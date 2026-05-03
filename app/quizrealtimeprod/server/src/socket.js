@@ -146,8 +146,8 @@ function emitSessionState(io, session) {
     session.gameState.quizWelcomeImageUrl = session.quiz.welcomeImageUrl || '';
     session.gameState.quizWelcomeMusicUrl = session.quiz.welcomeMusicUrl || '';
     session.gameState.quizTitle = session.quiz.title || session.gameState.quizTitle || 'Quiz Live';
-    session.gameState.ceremonyBackgroundUrl = session.quiz.closingCeremony?.backgroundUrl || '';
-    session.gameState.ceremonyMusicUrl = session.quiz.closingCeremony?.musicUrl || '';
+    session.gameState.ceremonyBackgroundUrl = session.quiz.closingCeremony?.backgroundUrl || session.quiz.ceremonyBackgroundUrl || '';
+    session.gameState.ceremonyMusicUrl = session.quiz.closingCeremony?.musicUrl || session.quiz.ceremonyMusicUrl || '';
   }
   const { leaderboardPlayers, leaderboardTeams } = buildLeaderboards(session);
   io.to(sessionRoom(session.sessionCode)).emit("game:state", {
@@ -321,6 +321,7 @@ export function setupSocketHandlers(io) {
             reconnectToken: result.player.reconnectToken,
             teamId: result.player.teamId,
             teamName: result.player.teamName,
+            avatar: result.player.avatar || null,
           },
         });
         persistAndEmit(io, session);
@@ -367,6 +368,7 @@ export function setupSocketHandlers(io) {
               reconnectToken: result.player.reconnectToken,
               teamId: result.player.teamId,
               teamName: result.player.teamName,
+              avatar: result.player.avatar || null,
             },
           });
           persistAndEmit(io, session);
@@ -619,6 +621,8 @@ export function setupSocketHandlers(io) {
             session.gameState.quizTitle = newQuiz.title || "Quiz Live";
             session.gameState.quizWelcomeImageUrl = newQuiz.welcomeImageUrl || '';
             session.gameState.quizWelcomeMusicUrl = newQuiz.welcomeMusicUrl || '';
+            session.gameState.ceremonyBackgroundUrl = newQuiz.closingCeremony?.backgroundUrl || newQuiz.ceremonyBackgroundUrl || '';
+            session.gameState.ceremonyMusicUrl = newQuiz.closingCeremony?.musicUrl || newQuiz.ceremonyMusicUrl || '';
             session.gameState.updatedAt = new Date().toISOString();
             res = { ok: true, quizTitle: newQuiz.title };
             break;
@@ -689,6 +693,7 @@ export function setupSocketHandlers(io) {
             break;
           }
 
+          case "kick_player":
           case "remove_player": {
             const pidx = (session.players || []).findIndex(
               (p) => p.id === payload.playerId,
@@ -697,12 +702,22 @@ export function setupSocketHandlers(io) {
               res = { ok: false, error: "Joueur introuvable" };
               break;
             }
+            const kicked = session.players[pidx];
+            if (kicked?.socketId) {
+              io.to(kicked.socketId).emit("game:players_ejected", {
+                sessionCode: session.sessionCode,
+              });
+            }
             session.players.splice(pidx, 1);
             res = { ok: true };
             break;
           }
 
+          case "eject_all_players":
           case "clear_players": {
+            io.to(sessionRoom(session.sessionCode)).emit("game:players_ejected", {
+              sessionCode: session.sessionCode,
+            });
             session.players = [];
             res = { ok: true };
             break;
@@ -730,6 +745,8 @@ export function setupSocketHandlers(io) {
               session.gameState.quizTitle = session.quiz.title || session.gameState.quizTitle;
               session.gameState.quizWelcomeImageUrl = session.quiz.welcomeImageUrl || '';
               session.gameState.quizWelcomeMusicUrl = session.quiz.welcomeMusicUrl || '';
+              session.gameState.ceremonyBackgroundUrl = session.quiz.closingCeremony?.backgroundUrl || session.quiz.ceremonyBackgroundUrl || '';
+              session.gameState.ceremonyMusicUrl = session.quiz.closingCeremony?.musicUrl || session.quiz.ceremonyMusicUrl || '';
             }
             res = { ok: true };
             break;
@@ -832,6 +849,11 @@ export function setupSocketHandlers(io) {
               session.gameState.updatedAt = new Date().toISOString();
             }
             res = { ok: true };
+            break;
+          }
+
+          case "end_game": {
+            res = finishQuiz(session);
             break;
           }
 
@@ -1019,6 +1041,7 @@ export function setupSocketHandlers(io) {
             break;
 
           case "vote_proposal_reveal_start":
+          case "vote_close":
             res = startProposalReveal(session);
             break;
 
@@ -1036,6 +1059,10 @@ export function setupSocketHandlers(io) {
 
           case "vote_reveal_next":
             res = voteRevealNext(session);
+            break;
+
+          case "vote_end":
+            res = showResults(session);
             break;
 
           // ── Challenge Vidéo ──────────────────────────────────
@@ -1143,7 +1170,8 @@ export function setupSocketHandlers(io) {
     // --- PLAYER VOTE ---
     socket.on("player:vote", (payload = {}, ack) => {
       try {
-        const { sessionCode, playerId, voteIndex } = payload;
+        const { sessionCode, playerId } = payload;
+        const voteIndex = payload.voteIndex ?? payload.index;
         const session = getSession(sessionCode || socket.data?.sessionCode);
         if (!session) { safeAck(ack, { ok: false, error: "Session introuvable" }); return; }
         const effectivePlayerId = socket.data?.playerId || playerId;

@@ -334,17 +334,24 @@ function detectCorrectAnswer(question, answer) {
 
   // true/false
   if (qType === "true_false") {
-    const expected = normalizeText(
-      question.correctAnswer ??
-        question.solution ??
-        (question.isTrue === true
-          ? "vrai"
-          : question.isTrue === false
-            ? "faux"
-            : ""),
-    );
+    const idx = Number(question.correctOptionIndex ?? question.correctIndex ?? -1);
+    const optionAnswer = Array.isArray(question.options) && question.options[idx]
+      ? (question.options[idx].text || question.options[idx].label || "")
+      : "";
+    const fallback =
+      optionAnswer ||
+      (question.isTrue === true ? "vrai" : question.isTrue === false ? "faux" : "");
+    const expected = normalizeText(question.correctAnswer ?? question.solution ?? fallback);
     const actual = normalizeText(answer);
     return !!expected && actual === expected;
+  }
+
+  if (Array.isArray(question.options) && question.options.length) {
+    const idx = Number(question.correctOptionIndex ?? question.correctIndex ?? -1);
+    const opt = question.options[idx];
+    const expectedOpt = normalizeText(opt?.text ?? opt?.label ?? opt ?? "");
+    const actualOpt = normalizeText(answer);
+    if (expectedOpt) return actualOpt === expectedOpt;
   }
 
   // MCQ / text / generic
@@ -413,12 +420,20 @@ function buildRevealPayloadForCurrentQuestion(session) {
       answeredAt: a.answeredAt || null,
     }));
 
+  const optionIdx = Number(q.correctOptionIndex ?? q.correctIndex ?? -1);
+  const optionAnswer = Array.isArray(q.options) && q.options[optionIdx]
+    ? (q.options[optionIdx].text || q.options[optionIdx].label || String(q.options[optionIdx]))
+    : null;
+
   return {
     questionId: q.id,
     revealMode,
-    correctAnswer: q.correctAnswer ?? q.solution ?? null,
+    correctAnswer: q.correctAnswer ?? q.solution ?? optionAnswer ?? null,
+    answer: q.correctAnswer ?? q.solution ?? optionAnswer ?? null,
+    optionIndex: Number.isFinite(optionIdx) ? optionIdx : null,
     explanation:   q.explanation  ?? null,
     revealImage:   q.revealImage  ?? null,
+    mediaUrl:      q.revealImage ?? q.mediaUrl ?? null,
     revealText:    q.revealText   ?? null,
     revealAudio:   q.revealAudio  ?? null,
     answers,
@@ -461,6 +476,8 @@ export function startQuiz(session) {
   session.gameState.currentQuestionIndex = -1;
   session.gameState.currentRound = null;
   session.gameState.currentQuestion = null;
+  session.gameState.answers = {};
+  session.gameState.revealedAnswer = null;
 
   // Reset phase meta
   session.gameState.phaseMeta = {
@@ -478,6 +495,12 @@ export function startQuiz(session) {
   session.gameState.buzzerQueue = [];
   session.gameState.buzzerCooldowns = {};
   session.gameState.burgerFinalScore = null;
+  session.gameState.voteState = null;
+  session.gameState.videoState = null;
+  session.gameState.proposalRevealState = null;
+
+  for (const p of session.players || []) p.scoreTotal = 0;
+  syncTeamScoresFromPlayers(session);
 
   // Aller directement à round_intro si des manches existent
   const rounds = getRounds(session);
@@ -1600,6 +1623,7 @@ export function voteRevealNext(session) {
   ensureSessionRuntime(session);
 
   const vs = session.gameState.voteState;
+  if (vs?.phase === "voting") return revealVoteResults(session);
   if (!vs) return { ok: false, error: "Aucun état de vote" };
   if (vs.phase !== "revealed") return { ok: false, error: "Révélation non initialisée" };
 

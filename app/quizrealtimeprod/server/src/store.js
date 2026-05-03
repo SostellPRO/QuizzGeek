@@ -24,6 +24,7 @@ function sanitizeSessionForPersistence(session) {
       pseudo: p.pseudo,
       teamId: p.teamId || null,
       teamName: p.teamName || null,
+      avatar: p.avatar || null,
       reconnectToken: p.reconnectToken,
       connected: false, // on force hors ligne après redémarrage serveur
       socketId: null, // non persisté
@@ -77,6 +78,7 @@ function hydrateSession(raw) {
           pseudo: p.pseudo || "Joueur",
           teamId: p.teamId || null,
           teamName: p.teamName || null,
+          avatar: p.avatar || null,
           reconnectToken: p.reconnectToken || randomId("reco"),
           connected: false,
           socketId: null,
@@ -324,6 +326,8 @@ export function saveQuiz(quiz) {
         session.gameState.quizTitle = next.title || session.gameState.quizTitle;
         session.gameState.quizWelcomeImageUrl = next.welcomeImageUrl || '';
         session.gameState.quizWelcomeMusicUrl = next.welcomeMusicUrl || '';
+        session.gameState.ceremonyBackgroundUrl = next.closingCeremony?.backgroundUrl || next.ceremonyBackgroundUrl || '';
+        session.gameState.ceremonyMusicUrl = next.closingCeremony?.musicUrl || next.ceremonyMusicUrl || '';
       }
     }
   }
@@ -483,6 +487,7 @@ export function getPublicPlayers(session) {
     teamName: p.teamName,
     connected: !!p.connected,
     scoreTotal: p.scoreTotal || 0,
+    isBot: !!p.isBot,
   }));
 }
 
@@ -496,7 +501,8 @@ export function buildLeaderboards(session) {
       avatar: p.avatar || null,
       teamId: p.teamId,
       teamName: p.teamName,
-      scoreTotal: p.scoreTotal || 0,
+          scoreTotal: p.scoreTotal || 0,
+          isBot: !!p.isBot,
       connected: !!p.connected,
     }));
 

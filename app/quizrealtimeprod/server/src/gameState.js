@@ -33,6 +33,8 @@ export function createInitialGameState({ quiz = null, sessionCode } = {}) {
     quizTitle: safeQuiz?.title || "Quiz Live",
     quizWelcomeImageUrl: safeQuiz?.welcomeImageUrl || '',
     quizWelcomeMusicUrl: safeQuiz?.welcomeMusicUrl || '',
+    ceremonyBackgroundUrl: safeQuiz?.closingCeremony?.backgroundUrl || safeQuiz?.ceremonyBackgroundUrl || '',
+    ceremonyMusicUrl: safeQuiz?.closingCeremony?.musicUrl || safeQuiz?.ceremonyMusicUrl || '',
 
     // lobby | intro_quiz | round_intro | question | waiting | answer_reveal | manual_scoring | results | end
     status: "lobby",
