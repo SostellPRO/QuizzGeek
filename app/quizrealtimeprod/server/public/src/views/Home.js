@@ -26,7 +26,13 @@ const SIGNALS = [
 export default function Home() {
   const { navigate } = useGame();
 
-  const go = (id) => { navigate(id); };
+  const go = (id) => {
+    if (id === 'display' || id === 'player') {
+      window.open(`${window.location.origin}/#${id}`, '_blank', 'noopener');
+    } else {
+      navigate(id);
+    }
+  };
 
   return html`
     <div className="flex min-h-[100dvh] items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
