@@ -241,18 +241,24 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
             </div>
           `}
 
-          <!-- Correct answer (free text / buzzer / burger) -->
-          ${(q.type === 'free' || q.type === 'burger' || q.type === 'rapidite') && html`
+          <!-- Correct answer + media reveal (QCM / True-False / Buzzer / Free / Burger) -->
+          ${(q.type === 'qcm' || q.type === 'true_false' || !q.type || q.type === 'rapidite' || q.type === 'free' || q.type === 'burger') && html`
             <div className="flex flex-col gap-2 rounded-lg p-3 border border-neon-green/20 bg-neon-green/[0.04]">
-              <label className="text-xs font-semibold text-neon-green/70 uppercase tracking-wider">Reponse attendue</label>
+              <label className="text-xs font-semibold text-neon-green/70 uppercase tracking-wider">
+                ${(q.type === 'qcm' || q.type === 'true_false' || !q.type)
+                  ? 'Revelation — texte affiche a la correction'
+                  : 'Reponse attendue'}
+              </label>
               <input
                 type="text"
                 value=${q.correctAnswer || ''}
                 onInput=${e => upd('correctAnswer', e.target.value)}
-                placeholder="Reponse correcte..."
+                placeholder=${(q.type === 'qcm' || q.type === 'true_false' || !q.type)
+                  ? 'Texte de la bonne reponse (affiche sur la TV lors de la revelation)...'
+                  : 'Reponse correcte...'}
                 className="bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
               />
-              ${q.type === 'rapidite' && html`
+              ${(q.type === 'qcm' || q.type === 'true_false' || !q.type || q.type === 'rapidite') && html`
                 <${MediaField}
                   label="Media de la reponse (image, son ou video)"
                   value=${q.correctAnswerMediaUrl || ''}

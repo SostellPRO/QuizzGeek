@@ -778,6 +778,8 @@ export function setupSocketHandlers(io) {
               pseudo: session.gameState.buzzerState.firstPseudo,
               at: new Date().toISOString(),
             };
+            // Afficher automatiquement la solution sur l'écran TV après validation correcte
+            revealAnswer(session);
             res = { ok: true };
             break;
           }

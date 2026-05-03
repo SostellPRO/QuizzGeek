@@ -53,10 +53,11 @@ const PAGES = { home: Home, player: PlayerView, host: HostView, display: Display
 const FULL_PAGES = new Set(['display', 'player']);
 
 export default function App() {
-  const { page } = useGame();
+  const { page, editingQuiz } = useGame();
 
   const PageComponent = PAGES[page] || Home;
-  const showNav = !FULL_PAGES.has(page);
+  // Masquer la NavBar globale quand on édite un quiz : le header sticky du QuizEditor prend le relai
+  const showNav = !FULL_PAGES.has(page) && !(page === 'admin' && editingQuiz);
 
   return html`
     <div className="flex min-h-[100dvh] flex-col">

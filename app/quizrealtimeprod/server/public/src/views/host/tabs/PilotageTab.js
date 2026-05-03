@@ -186,7 +186,7 @@ export default function PilotageTab() {
             ${isPaused
               ? html`<${Btn} variant="success" wide onClick=${() => ha('resume_game')}>▶ Reprendre<//>`
               : html`<${Btn} variant="secondary" onClick=${() => ha('pause_game')}>⏸ Pause<//>` }
-            ${!isBurger && !isBuzzer && !isVC && !isVote && !['answer_reveal'].includes(phase) && html`
+            ${!isBurger && !isVC && !isVote && !['answer_reveal'].includes(phase) && html`
               <${Btn} variant="secondary" pulse onClick=${() => ha('reveal_answer')}>📋 Solution<//>
             `}
             ${!isVote && !['answer_reveal'].includes(phase) && html`
