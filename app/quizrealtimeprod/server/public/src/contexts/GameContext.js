@@ -186,6 +186,30 @@ export function GameProvider({ children }) {
     return () => s.disconnect();
   }, []); // eslint-disable-line
 
+  // Player reconnect after refresh / network drop.
+  useEffect(() => {
+    if (!socket || !playerSession?.sessionCode || !playerSession?.reconnectToken) return;
+    socket.emit('player:reconnect', {
+      sessionCode: playerSession.sessionCode,
+      reconnectToken: playerSession.reconnectToken,
+      avatar: playerSession.avatar || null,
+    }, (res) => {
+      if (!res?.ok) return;
+      const p = res.player || {};
+      const next = {
+        ...playerSession,
+        playerId: p.id || playerSession.playerId,
+        pseudo: p.pseudo || playerSession.pseudo,
+        reconnectToken: p.reconnectToken || playerSession.reconnectToken,
+        teamId: p.teamId || null,
+        teamName: p.teamName || null,
+        avatar: p.avatar || playerSession.avatar || null,
+      };
+      localStorage.setItem('quiz_player_session', JSON.stringify(next));
+      setPlayerSession(next);
+    });
+  }, [socket]); // eslint-disable-line
+
   // ── Host action helper ──────────────────────────────────────
   const hostAction = useCallback((action, extra = {}, cb) => {
     if (!socket) return;
@@ -195,6 +219,11 @@ export function GameProvider({ children }) {
       action,
       ...extra,
     }, (res) => {
+      if (res && !res.ok) {
+        window.dispatchEvent(new CustomEvent('quiz:host-error', {
+          detail: { action, message: res.error || 'Action impossible.' },
+        }));
+      }
       if (cb) cb(res);
     });
   }, [socket, hostSession]);

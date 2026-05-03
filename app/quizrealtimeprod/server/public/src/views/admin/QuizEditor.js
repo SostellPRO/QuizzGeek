@@ -1,17 +1,73 @@
-import { useState, useCallback } from 'react';
-import { html, uid, emptyRound, emptyQuestion, ROUND_TYPES, resolveMedia } from '../../utils.js';
+import { useState } from 'react';
+import { html, uid, emptyRound, emptyQuestion, ROUND_TYPES, resolveMedia, mediaKind } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
-import { Btn, Alert, Badge } from '../../components/ui.js';
+import { Btn, Alert } from '../../components/ui.js';
 
 const Q_TYPES = [
   { value: 'qcm',       label: 'QCM (4 options)' },
   { value: 'true_false',label: 'Vrai / Faux' },
-  { value: 'free',      label: 'Réponse libre' },
+  { value: 'rapidite',  label: 'Buzzer / rapidite' },
+  { value: 'vote',      label: 'Vote' },
+  { value: 'free',      label: 'Reponse libre' },
   { value: 'burger',    label: 'Burger de la mort' },
+  { value: 'video_challenge', label: 'Challenge video' },
 ];
 
-const SCORING_MODES   = [{ value:'auto', label:'Auto' },{ value:'manual', label:'Manuel' }];
-const SCORING_TARGETS = [{ value:'individual', label:'Individuel' },{ value:'team', label:'Équipe' }];
+
+function MediaPreview({ url, className = 'w-16 h-16' }) {
+  if (!url) return null;
+  const src = resolveMedia(url);
+  const kind = mediaKind(src);
+  // key=src force React à re-monter l'élément si l'URL change
+  // (évite que le display:none d'un onError persiste après changement d'URL)
+  if (kind === 'video') return html`<video key=${src} src=${src} className=${`${className} rounded-xl object-cover border border-white/15 flex-shrink-0`} muted playsInline onError=${e => { e.currentTarget.style.display='none'; }} />`;
+  if (kind === 'audio') return html`<audio key=${src} src=${src} controls className="w-full max-w-[240px] h-10 flex-shrink-0" onError=${e => { e.currentTarget.style.display='none'; }} />`;
+  return html`<img key=${src} src=${src} alt="apercu" className=${`${className} rounded-xl object-cover flex-shrink-0 border border-white/15`} onError=${e => { e.currentTarget.style.display='none'; }} />`;
+}
+
+function MediaField({ label, value, onChange, accept = 'image/*,audio/*,video/*', placeholder = '/uploads/...' }) {
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState('');
+
+  const uploadFile = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    setErr('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/uploads/media', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!data?.ok) throw new Error(data?.error || 'Upload impossible');
+      onChange(data.file?.mediaUrl || data.file?.url || '');
+    } catch (e) {
+      setErr(e.message || 'Upload impossible');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return html`
+    <div className="flex flex-col gap-1.5 flex-1">
+      ${label && html`<label className="text-xs font-semibold text-white/50 uppercase tracking-wider">${label}</label>`}
+      <div className="flex items-center gap-3">
+        <input
+          type="text"
+          value=${value || ''}
+          onInput=${e => onChange(e.target.value)}
+          placeholder=${placeholder}
+          className="flex-1 bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
+        />
+        <label className="inline-flex items-center justify-center px-3 py-2 rounded-lg app-panel border border-white/10 text-white/70 text-xs font-bold cursor-pointer hover:border-accent/50 hover:text-white transition-colors min-h-[42px]">
+          ${uploading ? '...' : 'Upload'}
+          <input type="file" accept=${accept} className="hidden" onChange=${e => uploadFile(e.target.files?.[0])} />
+        </label>
+        <${MediaPreview} url=${value} />
+      </div>
+      ${err && html`<span className="text-xs text-rose-300">${err}</span>`}
+    </div>
+  `;
+}
 
 function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
   const [open, setOpen] = useState(false);
@@ -22,11 +78,28 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
     opts[oi] = { ...opts[oi], [key]: val };
     onUpdate({ ...q, options: opts });
   };
+  const changeType = (type) => {
+    const next = { ...q, type };
+    if (type === 'true_false') {
+      next.options = [
+        { id: uid('opt'), text: 'Vrai', mediaUrl: '' },
+        { id: uid('opt'), text: 'Faux', mediaUrl: '' },
+      ];
+      next.correctOptionIndex = Math.min(Number(q.correctOptionIndex || 0), 1);
+    } else if (type === 'qcm' && !(q.options || []).length) {
+      next.options = emptyQuestion('qcm').options;
+      next.correctOptionIndex = 0;
+    } else if (!['qcm', 'true_false'].includes(type)) {
+      next.options = [];
+    }
+    if (type === 'burger' && !(q.items || []).length) next.items = emptyQuestion('burger').items;
+    onUpdate(next);
+  };
 
   const LABELS = ['A','B','C','D'];
 
   return html`
-    <div className="rounded-xl border border-white/8 bg-bg-card overflow-hidden">
+    <div className="rounded-lg app-panel overflow-hidden">
       <!-- Row header -->
       <div
         className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/3 transition-colors"
@@ -39,7 +112,7 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
           <button
             onClick=${e => { e.stopPropagation(); onDelete(); }}
             className="text-white/25 hover:text-rose-400 transition-colors text-sm px-1.5"
-          >🗑</button>
+          >Suppr.</button>
           <span className="text-white/25 text-sm">${open ? '▲' : '▼'}</span>
         </div>
       </div>
@@ -55,32 +128,36 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
               value=${q.content || ''}
               onInput=${e => upd('content', e.target.value)}
               rows="2"
-              placeholder="Énoncé de la question…"
-              className="bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-base placeholder-white/25 focus:border-accent/60 outline-none transition-colors resize-y"
+              placeholder="Enonce de la question..."
+              className="bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-base placeholder-white/25 focus:border-accent/60 outline-none transition-colors resize-y"
             />
           </div>
 
-          <!-- Media URL + preview -->
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">Image / Vidéo (URL)</label>
-            <div className="flex items-center gap-3">
-              <input
-                type="text"
-                value=${q.mediaUrl || ''}
-                onInput=${e => upd('mediaUrl', e.target.value)}
-                placeholder="https://… ou /pictures/…"
-                className="flex-1 bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
+          <${MediaField}
+            label="Televerser / remplacer le media"
+            value=${q.mediaUrl || ''}
+            onChange=${v => upd('mediaUrl', v)}
+            placeholder="https://... ou /uploads/..."
+          />
+
+          ${roundType === 'video_challenge' && html`
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <${MediaField}
+                label="Video d'entrainement"
+                value=${q.trainingVideoUrl || ''}
+                onChange=${v => upd('trainingVideoUrl', v)}
+                accept="video/*"
+                placeholder="/uploads/entrainement.mp4"
               />
-              ${q.mediaUrl && html`
-                <img
-                  src=${resolveMedia(q.mediaUrl)}
-                  alt="aperçu"
-                  className="w-14 h-14 rounded-xl object-cover flex-shrink-0 border border-white/15"
-                  onError=${e => { e.target.style.display='none'; }}
-                />
-              `}
+              <${MediaField}
+                label="Video du challenge"
+                value=${q.videoUrl || ''}
+                onChange=${v => upd('videoUrl', v)}
+                accept="video/*"
+                placeholder="/uploads/challenge.mp4"
+              />
             </div>
-          </div>
+          `}
 
           <!-- Type + Timer -->
           <div className="grid grid-cols-2 gap-3">
@@ -88,7 +165,7 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
               <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">Type</label>
               <select
                 value=${q.type || 'qcm'}
-                onChange=${e => upd('type', e.target.value)}
+                onChange=${e => changeType(e.target.value)}
                 className="bg-bg-input border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:border-accent/60 outline-none transition-colors min-h-[42px] cursor-pointer"
               >
                 ${Q_TYPES.map(t => html`<option key=${t.value} value=${t.value}>${t.label}</option>`)}
@@ -101,7 +178,7 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
                 value=${q.timer ?? 30}
                 onInput=${e => upd('timer', parseInt(e.target.value) || 30)}
                 min="5" max="300"
-                className="bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm font-mono focus:border-accent/60 outline-none transition-colors min-h-[42px]"
+                className="bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm font-mono focus:border-accent/60 outline-none transition-colors min-h-[42px]"
               />
             </div>
           </div>
@@ -111,10 +188,10 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
             <div className="flex flex-col gap-2">
               <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">
                 Options
-                <span className="text-white/25 font-normal ml-1">(cliquer pour marquer la bonne réponse)</span>
+                <span className="text-white/25 font-normal ml-1">(cliquer pour marquer la bonne reponse)</span>
               </label>
               ${(q.options || []).map((opt, oi) => html`
-                <div key=${oi} className="flex flex-col gap-1.5 bg-white/3 rounded-xl p-3 border border-white/5">
+                <div key=${oi} className="flex flex-col gap-1.5 bg-white/3 rounded-lg p-3 border border-white/5">
                   <div className="flex items-center gap-3">
                     <button
                       onClick=${() => upd('correctOptionIndex', oi)}
@@ -126,26 +203,17 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
                       type="text"
                       value=${opt.text || ''}
                       onInput=${e => updOpt(oi, 'text', e.target.value)}
-                      placeholder=${`Option ${LABELS[oi] || oi+1}…`}
-                      className="flex-1 bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
+                      placeholder=${`Option ${LABELS[oi] || oi+1}...`}
+                      className="flex-1 bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
                     />
                   </div>
                   <div className="flex items-center gap-2 pl-12">
-                    <input
-                      type="text"
+                    <${MediaField}
                       value=${opt.mediaUrl || ''}
-                      onInput=${e => updOpt(oi, 'mediaUrl', e.target.value)}
-                      placeholder="Image de l'option (URL ou /pictures/…)"
-                      className="flex-1 bg-bg-input border border-white/8 rounded-lg px-3 py-1.5 text-white text-xs placeholder-white/20 focus:border-accent/50 outline-none transition-colors"
+                      onChange=${v => updOpt(oi, 'mediaUrl', v)}
+                      accept="image/*"
+                      placeholder="Image de l'option"
                     />
-                    ${opt.mediaUrl && html`
-                      <img
-                        src=${resolveMedia(opt.mediaUrl)}
-                        alt=""
-                        className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-white/10"
-                        onError=${e => { e.target.style.display='none'; }}
-                      />
-                    `}
                   </div>
                 </div>
               `)}
@@ -155,14 +223,40 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
           <!-- Correct answer (free text) -->
           ${(q.type === 'free' || q.type === 'burger') && html`
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">Réponse attendue</label>
+              <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">Reponse attendue</label>
               <input
                 type="text"
                 value=${q.correctAnswer || ''}
                 onInput=${e => upd('correctAnswer', e.target.value)}
-                placeholder="Réponse correcte…"
-                className="bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
+                placeholder="Reponse correcte..."
+                className="bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
               />
+            </div>
+          `}
+
+          ${q.type === 'burger' && html`
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">Liste des questions / ingredients</label>
+              ${(q.items || []).map((item, ii) => html`
+                <input
+                  key=${item.id || ii}
+                  type="text"
+                  value=${item?.text || item || ''}
+                  onInput=${e => {
+                    const items = [...(q.items || [])];
+                    items[ii] = { ...(typeof item === 'object' ? item : {}), id: item?.id || uid('item'), text: e.target.value };
+                    upd('items', items);
+                  }}
+                  placeholder=${`Element ${ii + 1}`}
+                  className="bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
+                />
+              `)}
+              <button
+                onClick=${() => upd('items', [...(q.items || []), { id: uid('item'), text: '', mediaUrl: '' }])}
+                className="py-2 rounded-xl border border-dashed border-amber-500/30 text-amber-300/80 hover:bg-amber-500/10 text-sm font-bold"
+              >
+                + Ajouter un element
+              </button>
             </div>
           `}
 
@@ -174,7 +268,7 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
               value=${q.points ?? 100}
               onInput=${e => upd('points', parseInt(e.target.value) || 100)}
               min="0" max="9999"
-              className="bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm font-mono focus:border-accent/60 outline-none transition-colors min-h-[42px]"
+              className="bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm font-mono focus:border-accent/60 outline-none transition-colors min-h-[42px]"
             />
           </div>
 
@@ -191,7 +285,15 @@ function RoundPanel({ round, ri, onUpdate, onDelete }) {
   const upd = (key, val) => onUpdate({ ...round, [key]: val });
 
   const addQuestion = () => {
-    const q = emptyQuestion(round.type === 'true_false' ? 'true_false' : round.type === 'vote' ? 'free' : 'qcm');
+    const qTypeByRound = {
+      true_false: 'true_false',
+      rapidite: 'rapidite',
+      speed: 'rapidite',
+      vote: 'vote',
+      burger: 'burger',
+      video_challenge: 'video_challenge',
+    };
+    const q = emptyQuestion(qTypeByRound[round.type] || 'qcm');
     if (round.type === 'true_false') {
       q.options = [
         { id: uid('opt'), text: 'Vrai',  mediaUrl: '' },
@@ -215,7 +317,7 @@ function RoundPanel({ round, ri, onUpdate, onDelete }) {
   };
 
   return html`
-    <div className="rounded-2xl border border-white/10 bg-bg-alt overflow-hidden">
+    <div className="rounded-lg app-surface overflow-hidden">
       <!-- Round header -->
       <div
         className="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-white/3 transition-colors"
@@ -224,13 +326,13 @@ function RoundPanel({ round, ri, onUpdate, onDelete }) {
         <span className="text-2xl">${rt.icon}</span>
         <div className="flex-1 min-w-0">
           <div className="font-bold text-sm text-white/90">${round.title || `Manche ${ri+1}`}</div>
-          <div className="text-xs text-white/35 mt-0.5">${rt.label} · ${(round.questions||[]).length} question(s)</div>
+          <div className="text-xs text-white/35 mt-0.5">${rt.label} - ${(round.questions||[]).length} question(s)</div>
         </div>
         <div className="flex gap-2 flex-shrink-0">
           <button
             onClick=${e => { e.stopPropagation(); onDelete(); }}
             className="text-white/20 hover:text-rose-400 transition-colors text-sm px-1.5"
-          >🗑</button>
+          >Suppr.</button>
           <span className="text-white/30">${open ? '▲' : '▼'}</span>
         </div>
       </div>
@@ -240,14 +342,55 @@ function RoundPanel({ round, ri, onUpdate, onDelete }) {
 
           <!-- Round settings -->
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <${MediaField}
+              label="Fond debut / manche"
+              value=${round.backgroundUrl || ''}
+              onChange=${v => upd('backgroundUrl', v)}
+              accept="image/*"
+              placeholder="/uploads/fond.jpg"
+            />
+            <${MediaField}
+              label="Musique debut"
+              value=${round.introMusicUrl || round.musicUrl || ''}
+              onChange=${v => upd('introMusicUrl', v)}
+              accept="audio/*"
+              placeholder="/uploads/intro.mp3"
+            />
+            <${MediaField}
+              label="Musique en cours"
+              value=${round.gameMusicUrl || ''}
+              onChange=${v => upd('gameMusicUrl', v)}
+              accept="audio/*"
+              placeholder="/uploads/jeu.mp3"
+            />
+            <${MediaField}
+              label="Musique fin"
+              value=${round.endMusicUrl || ''}
+              onChange=${v => upd('endMusicUrl', v)}
+              accept="audio/*"
+              placeholder="/uploads/fin.mp3"
+            />
+          </div>
+
+          ${round.type === 'video_challenge' && html`
+            <${MediaField}
+              label="Video d'entrainement de manche"
+              value=${round.trainingVideoUrl || ''}
+              onChange=${v => upd('trainingVideoUrl', v)}
+              accept="video/*"
+              placeholder="/uploads/entrainement.mp4"
+            />
+          `}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">Titre de la manche</label>
               <input
                 type="text"
                 value=${round.title || ''}
                 onInput=${e => upd('title', e.target.value)}
-                placeholder="ex: Manche 1 — Culture G"
-                className="bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
+                placeholder="ex: Manche 1 - Culture G"
+                className="bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -255,7 +398,7 @@ function RoundPanel({ round, ri, onUpdate, onDelete }) {
               <select
                 value=${round.type || 'qcm'}
                 onChange=${e => upd('type', e.target.value)}
-                className="bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-accent/60 outline-none transition-colors min-h-[42px] cursor-pointer"
+                className="bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:border-accent/60 outline-none transition-colors min-h-[42px] cursor-pointer"
               >
                 ${Object.entries(ROUND_TYPES).map(([v, r]) => html`
                   <option key=${v} value=${v}>${r.icon} ${r.label}</option>
@@ -271,8 +414,8 @@ function RoundPanel({ round, ri, onUpdate, onDelete }) {
                 type="text"
                 value=${round.shortRules || ''}
                 onInput=${e => upd('shortRules', e.target.value)}
-                placeholder="Résumé des règles…"
-                className="bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
+                placeholder="Resume des regles..."
+                className="bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -281,8 +424,8 @@ function RoundPanel({ round, ri, onUpdate, onDelete }) {
                 type="text"
                 value=${round.musicUrl || ''}
                 onInput=${e => upd('musicUrl', e.target.value)}
-                placeholder="/sounds/… ou https://…"
-                className="bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
+                placeholder="/sounds/... ou https://..."
+                className="bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
               />
             </div>
           </div>
@@ -308,7 +451,7 @@ function RoundPanel({ round, ri, onUpdate, onDelete }) {
             </div>
             <button
               onClick=${addQuestion}
-              className="mt-3 w-full py-3.5 rounded-xl border-2 border-dashed border-accent/30 text-accent/70 hover:border-accent/60 hover:text-accent hover:bg-accent/5 transition-all text-sm font-bold flex items-center justify-center gap-2"
+              className="mt-3 w-full py-3.5 rounded-lg border-2 border-dashed border-accent/30 text-accent/70 hover:border-accent/60 hover:text-accent hover:bg-accent/5 transition-all text-sm font-bold flex items-center justify-center gap-2"
             >
               + Ajouter une question
             </button>
@@ -360,9 +503,9 @@ export default function QuizEditor({ onBack }) {
       // Refresh quiz list
       const all = await apiFetch('/api/quizzes');
       setAdminQuizzes(all.quizzes || []);
-      setAlert({ type: 'success', message: '✅ Quiz sauvegardé !' });
+      setAlert({ type: 'success', message: 'Quiz sauvegarde !' });
     } catch (e) {
-      setAlert({ type: 'error', message: 'Erreur réseau : ' + e.message });
+      setAlert({ type: 'error', message: 'Erreur reseau : ' + e.message });
     } finally {
       setSaving(false);
     }
@@ -385,7 +528,7 @@ export default function QuizEditor({ onBack }) {
         </button>
         <div className="flex-1 text-base font-bold text-white/80 truncate">${q.title || 'Nouveau quiz'}</div>
         <${Btn} variant="success" size="sm" onClick=${save} disabled=${saving}>
-          ${saving ? '⏳' : '💾 Sauvegarder'}
+          ${saving ? '...' : 'Sauvegarder'}
         <//>
       </div>
 
@@ -395,39 +538,47 @@ export default function QuizEditor({ onBack }) {
         ${alert && html`<${Alert} type=${alert.type} message=${alert.message} />`}
 
         <!-- Quiz meta -->
-        <div className="rounded-2xl border border-white/10 bg-bg-card p-5 flex flex-col gap-4">
-          <h2 className="text-sm font-bold text-white/50 uppercase tracking-wider">Informations générales</h2>
+        <div className="rounded-lg app-surface p-5 flex flex-col gap-4">
+          <h2 className="text-sm font-bold text-white/50 uppercase tracking-wider">Informations generales</h2>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-white/70">Titre du quiz</label>
             <input
               type="text"
               value=${q.title || ''}
               onInput=${e => updQ('title', e.target.value)}
-              placeholder="ex: Quiz Famille — Mai 2025"
-              className="bg-bg-input border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-bold placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[52px]"
+              placeholder="ex: Quiz Famille - Mai 2026"
+              className="bg-bg-input border border-white/10 rounded-lg px-4 py-3 text-white text-lg font-bold placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[52px]"
             />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-white/70">Image d'accueil (URL)</label>
-              <input
-                type="text"
-                value=${q.welcomeImageUrl || ''}
-                onInput=${e => updQ('welcomeImageUrl', e.target.value)}
-                placeholder="https://… ou /pictures/…"
-                className="bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-white/70">Musique d'accueil (URL)</label>
-              <input
-                type="text"
-                value=${q.welcomeMusicUrl || ''}
-                onInput=${e => updQ('welcomeMusicUrl', e.target.value)}
-                placeholder="/sounds/… ou https://…"
-                className="bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
-              />
-            </div>
+            <${MediaField}
+              label="Image d'accueil"
+              value=${q.welcomeImageUrl || ''}
+              onChange=${v => updQ('welcomeImageUrl', v)}
+              accept="image/*"
+              placeholder="/uploads/accueil.jpg"
+            />
+            <${MediaField}
+              label="Musique d'accueil"
+              value=${q.welcomeMusicUrl || ''}
+              onChange=${v => updQ('welcomeMusicUrl', v)}
+              accept="audio/*"
+              placeholder="/uploads/accueil.mp3"
+            />
+            <${MediaField}
+              label="Fond ceremonie"
+              value=${q.closingCeremony?.backgroundUrl || q.ceremonyBackgroundUrl || ''}
+              onChange=${v => updQ('closingCeremony', { ...(q.closingCeremony || {}), backgroundUrl: v })}
+              accept="image/*"
+              placeholder="/uploads/ceremonie.jpg"
+            />
+            <${MediaField}
+              label="Musique ceremonie"
+              value=${q.closingCeremony?.musicUrl || q.ceremonyMusicUrl || ''}
+              onChange=${v => updQ('closingCeremony', { ...(q.closingCeremony || {}), musicUrl: v })}
+              accept="audio/*"
+              placeholder="/uploads/ceremonie.mp3"
+            />
           </div>
         </div>
 
@@ -451,7 +602,7 @@ export default function QuizEditor({ onBack }) {
           </div>
           <button
             onClick=${addRound}
-            className="mt-4 w-full py-4 rounded-2xl border-2 border-dashed border-violet-500/30 text-violet-400/70 hover:border-violet-500/60 hover:text-violet-400 hover:bg-violet-500/5 transition-all font-bold flex items-center justify-center gap-2 text-sm"
+            className="mt-4 w-full py-4 rounded-lg border-2 border-dashed border-violet-500/30 text-violet-400/70 hover:border-violet-500/60 hover:text-violet-400 hover:bg-violet-500/5 transition-all font-bold flex items-center justify-center gap-2 text-sm"
           >
             + Ajouter une manche
           </button>
@@ -460,7 +611,7 @@ export default function QuizEditor({ onBack }) {
         <!-- Bottom save -->
         <div className="flex gap-3 pb-8">
           <${Btn} variant="success" wide pulse onClick=${save} disabled=${saving}>
-            ${saving ? '⏳ Sauvegarde…' : '💾 Sauvegarder le quiz'}
+            ${saving ? 'Sauvegarde...' : 'Sauvegarder le quiz'}
           <//>
           <${Btn} variant="secondary" onClick=${onBack}>Annuler<//>
         </div>
@@ -469,3 +620,4 @@ export default function QuizEditor({ onBack }) {
     </div>
   `;
 }
+

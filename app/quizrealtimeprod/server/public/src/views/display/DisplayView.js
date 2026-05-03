@@ -1,24 +1,23 @@
 import { useState, useEffect } from 'react';
-import { html, resolveMedia, ROUND_TYPES } from '../../utils.js';
+import { html, resolveMedia, mediaKind, ROUND_TYPES } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
 import { Btn, Alert, Dots } from '../../components/ui.js';
 
 // ── Display Connect Screen ────────────────────────────────────
 function DisplayConnect() {
   const { socket, setDisplaySession, navigate } = useGame();
-  const [code,  setCode]  = useState('');
+  const [code, setCode] = useState('');
   const [alert, setAlert] = useState(null);
 
-  // Auto-connect when code is provided via URL: #display?code=XXXX
   useEffect(() => {
-    const hash  = window.location.hash.slice(1);
+    const hash = window.location.hash.slice(1);
     const match = hash.match(/[?&]code=([^&]+)/i);
     if (!match || !socket) return;
     const autoCode = decodeURIComponent(match[1]).toUpperCase();
     setCode(autoCode);
     socket.emit('join:display', { sessionCode: autoCode }, (res) => {
       if (res?.ok) setDisplaySession({ sessionCode: autoCode, connected: true });
-      else setAlert({ type: 'error', message: res?.error || 'Connexion automatique échouée.' });
+      else setAlert({ type: 'error', message: res?.error || 'Connexion automatique echouee.' });
     });
   }, [socket]); // eslint-disable-line
 
@@ -32,37 +31,59 @@ function DisplayConnect() {
   };
 
   return html`
-    <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-bg px-6">
-      <button onClick=${() => navigate('home')} className="absolute top-6 left-6 text-white/30 hover:text-white text-sm">← Accueil</button>
-      <div className="text-center mb-8">
-        <div className="text-6xl mb-4">🖥️</div>
-        <h1 className="font-display text-4xl font-black gradient-text">Écran TV</h1>
-        <p className="text-white/40 mt-2">Projeter sur le grand écran</p>
-      </div>
-      ${alert && html`<div className="mb-4 w-full max-w-sm"><${Alert} type=${alert.type} message=${alert.message} /></div>`}
-      <div className="flex flex-col gap-2 w-full max-w-sm">
-        <label className="text-sm font-semibold text-white/50 text-center uppercase tracking-wider">Code de session</label>
-        <div className="flex gap-3">
-          <input
-            type="text"
-            value=${code}
-            onInput=${e => setCode(e.target.value.toUpperCase())}
-            placeholder="1234"
-            maxLength="6"
-            className="flex-1 bg-bg-input border border-white/10 rounded-xl px-5 py-4 text-white text-2xl font-mono font-bold tracking-[0.3em] text-center placeholder-white/20 focus:border-accent/60 outline-none transition-colors"
-            onKeyDown=${e => e.key === 'Enter' && connect()}
-          />
-          <${Btn} variant="primary" onClick=${connect} size="lg">→<//>
+    <div className="flex min-h-[100dvh] items-center justify-center px-6 py-8">
+      <button onClick=${() => navigate('home')} className="absolute left-6 top-6 rounded-lg app-chip px-3 py-2 text-sm font-bold text-white/58 transition-colors hover:text-white">← Accueil</button>
+      <div className="w-full max-w-lg rounded-lg app-surface p-6 text-center animate-fade-in sm:p-8">
+        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-lg app-panel text-5xl">📺</div>
+        <h1 className="font-display text-5xl font-black gradient-text">Ecran TV</h1>
+        <p className="mt-3 text-sm leading-6 text-white/48">Connectez cet ecran a une session pour diffuser le quiz en grand format.</p>
+        ${alert && html`<div className="mt-5"><${Alert} type=${alert.type} message=${alert.message} /></div>`}
+        <div className="mt-6 flex flex-col gap-2">
+          <label className="text-xs font-bold uppercase tracking-[0.18em] text-white/42">Code de session</label>
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value=${code}
+              onInput=${e => setCode(e.target.value.toUpperCase())}
+              placeholder="1234"
+              maxLength="6"
+              className="min-h-[58px] flex-1 rounded-lg border border-white/10 bg-bg-input/90 px-5 py-4 text-center font-mono text-2xl font-black tracking-[0.3em] text-white outline-none transition-colors placeholder-white/20 focus:border-sky-400/70"
+              onKeyDown=${e => e.key === 'Enter' && connect()}
+            />
+            <${Btn} variant="primary" onClick=${connect} size="lg">→<//>
+          </div>
         </div>
       </div>
     </div>
   `;
 }
-
-// ── Answer grid for QCM ───────────────────────────────────────
+// Answer grid for QCM ───────────────────────────────────────
 const LABELS  = ['A','B','C','D','E','F'];
-const COLORS  = ['#b24bff','#38ef7d','#4facfe','#f7971e','#ff4e6a','#a78bfa'];
-const BGCOLORS= ['rgba(178,75,255,.15)','rgba(56,239,125,.15)','rgba(79,172,254,.15)','rgba(247,151,30,.15)','rgba(255,78,106,.15)','rgba(167,139,250,.15)'];
+const COLORS  = ['#7c5cff','#2dd4bf','#38bdf8','#f59e0b','#fb7185','#a78bfa'];
+const BGCOLORS= ['rgba(124,92,255,.15)','rgba(45,212,191,.15)','rgba(56,189,248,.15)','rgba(245,158,11,.15)','rgba(251,113,133,.15)','rgba(167,139,250,.15)'];
+
+function MediaStage({ url, maxHeight = '35vh', autoPlay = true }) {
+  if (!url) return null;
+  const src = resolveMedia(url);
+  const kind = mediaKind(src);
+  if (kind === 'video') return html`
+    <video
+      key=${src}
+      src=${src}
+      className="max-w-full rounded-lg object-contain border border-white/10 shadow-2xl"
+      style=${{ maxHeight }}
+      controls
+      autoPlay=${autoPlay}
+      playsInline
+    />
+  `;
+  if (kind === 'audio') return html`
+    <audio key=${src} src=${src} controls autoPlay=${autoPlay} className="w-full max-w-2xl" />
+  `;
+  return html`
+    <img src=${src} className="max-w-full rounded-lg object-contain border border-white/10 shadow-2xl" style=${{ maxHeight }} alt="media" />
+  `;
+}
 
 function AnswerGrid({ options, revealed, correctIdx }) {
   if (!options?.length) return null;
@@ -76,10 +97,10 @@ function AnswerGrid({ options, revealed, correctIdx }) {
         return html`
           <div
             key=${opt.id || i}
-            className="flex items-center gap-4 rounded-2xl border-2 transition-all duration-500"
+            className="flex items-center gap-4 rounded-lg border-2 transition-all duration-500"
             style=${{
-              borderColor: isCorrect ? '#38ef7d' : isWrong ? 'rgba(255,255,255,.08)' : COLORS[i % COLORS.length],
-              background: isCorrect ? 'rgba(56,239,125,.15)' : isWrong ? 'rgba(255,255,255,.03)' : BGCOLORS[i % BGCOLORS.length],
+              borderColor: isCorrect ? '#2dd4bf' : isWrong ? 'rgba(255,255,255,.08)' : COLORS[i % COLORS.length],
+              background: isCorrect ? 'rgba(45,212,191,.15)' : isWrong ? 'rgba(255,255,255,.03)' : BGCOLORS[i % BGCOLORS.length],
               padding: 'clamp(12px,2vw,24px)',
               opacity: isWrong ? 0.45 : 1,
               transform: isCorrect ? 'scale(1.03)' : 'scale(1)',
@@ -91,7 +112,7 @@ function AnswerGrid({ options, revealed, correctIdx }) {
                 width:     'clamp(42px,5vw,68px)',
                 height:    'clamp(42px,5vw,68px)',
                 background:'rgba(255,255,255,.12)',
-                color:      isCorrect ? '#38ef7d' : COLORS[i % COLORS.length],
+                color:      isCorrect ? '#2dd4bf' : COLORS[i % COLORS.length],
                 fontSize:  'clamp(1.3rem,2.5vw,2rem)',
               }}
             >
@@ -102,6 +123,11 @@ function AnswerGrid({ options, revealed, correctIdx }) {
               style=${{ fontSize: 'clamp(1.1rem,2.2vw,1.9rem)', lineHeight: '1.25' }}
             >
               ${opt.text}
+              ${opt.mediaUrl && html`
+                <span className="block mt-3">
+                  <${MediaStage} url=${opt.mediaUrl} maxHeight="18vh" autoPlay=${false} />
+                </span>
+              `}
             </span>
           </div>
         `;
@@ -119,7 +145,7 @@ function VoteDisplay({ gs, players }) {
   const cursor   = voteState?.revealCursor ?? -1;
 
   if (mode === 'vote_input') {
-    const conn    = players.filter(p => p.connected).length;
+    const conn    = players.filter(p => p.connected && !p.isBot).length;
     const voted   = Object.keys(gs?.answers?.[gs?.currentQuestion?.id] || {}).length;
     return html`
       <div className="flex flex-col items-center gap-8 py-12 animate-fade-in">
@@ -146,7 +172,7 @@ function VoteDisplay({ gs, players }) {
   if (mode === 'vote_voting') {
     const options = voteState?.options || proposals;
     const votes   = voteState?.votes || {};
-    const conn    = players.filter(p => p.connected).length;
+    const conn    = players.filter(p => p.connected && !p.isBot).length;
     const totalVotes = Object.keys(votes).length;
     return html`
       <div className="flex flex-col gap-5 animate-fade-in">
@@ -219,7 +245,7 @@ function BuzzerDisplay({ gs, players }) {
       <div className="flex flex-col items-center gap-6 animate-bounce-in">
         <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>${isCorrect ? '✅' : '❌'}</div>
         <div className="text-center">
-          <div style=${{ fontSize: 'clamp(1.2rem,3vw,2.2rem)', fontWeight:'700', color: isCorrect ? '#38ef7d' : '#ff4e6a' }}>
+          <div style=${{ fontSize: 'clamp(1.2rem,3vw,2.2rem)', fontWeight:'700', color: isCorrect ? '#2dd4bf' : '#ff4e6a' }}>
             ${isCorrect ? 'CORRECT !' : 'FAUX !'}
           </div>
           ${who && html`<div style=${{ fontSize: 'clamp(1rem,2.5vw,1.8rem)', color: 'rgba(255,255,255,.6)', marginTop:'6px' }}>${who.avatar || '🎮'} ${who.pseudo}</div>`}
@@ -383,11 +409,12 @@ export default function DisplayView() {
     }
 
     if (phase === 'training_video') return html`
-      <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-6 animate-fade-in">
+      <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-6 animate-fade-in px-8">
         <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🏋️</div>
         <h1 className="font-display font-black text-amber-400" style=${{ fontSize: 'clamp(2.5rem,6vw,5rem)' }}>
           Vidéo d'entraînement
         </h1>
+        <${MediaStage} url=${gs?.currentRound?.trainingVideoUrl} maxHeight="58vh" />
         <${Dots} />
       </div>
     `;
@@ -447,7 +474,7 @@ export default function DisplayView() {
     const isVote  = ansMode === 'vote_input' || ansMode === 'vote_voting' || ansMode === 'vote_revealing' || ansMode === 'vote_revealed';
     const isBurger= gs?.currentRound?.type === 'burger';
     const isVC    = gs?.currentRound?.type === 'video_challenge';
-    const conn    = players.filter(p => p.connected).length;
+    const conn    = players.filter(p => p.connected && !p.isBot).length;
     const answered= Object.keys(gs?.answers?.[curQ?.id] || {}).length;
     const curRound= gs?.currentRound;
 
@@ -472,7 +499,7 @@ export default function DisplayView() {
             ${items.map((item, i) => html`
               <div key=${i} className="flex items-center gap-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-6 py-4">
                 <span className="font-mono text-amber-400 font-bold" style=${{ fontSize: 'clamp(1rem,2vw,1.5rem)' }}>${i+1}.</span>
-                <span className="font-bold" style=${{ fontSize: 'clamp(1.1rem,2.5vw,2rem)' }}>${item}</span>
+                <span className="font-bold" style=${{ fontSize: 'clamp(1.1rem,2.5vw,2rem)' }}>${item?.text || item}</span>
               </div>
             `)}
           </div>
@@ -486,6 +513,7 @@ export default function DisplayView() {
       const selId   = gs?.videoState?.selectedPlayerId;
       const who     = selId ? players.find(p => (p.id===selId||p.playerId===selId)) : null;
       const score   = gs?.videoState?.score;
+      const mediaUrl = vcPhase === 'training_playing' ? curQ?.trainingVideoUrl : (curQ?.videoUrl || curQ?.mediaUrl);
       return html`
         <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-8 px-8 animate-fade-in">
           <div style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>🎬</div>
@@ -498,6 +526,7 @@ export default function DisplayView() {
               ${who.avatar || '🎮'} <strong className="text-white">${who.pseudo}</strong> passe à l'action !
             </p>
           `}
+          <${MediaStage} url=${mediaUrl} maxHeight="46vh" />
           ${score != null && html`
             <div className="font-display font-black text-neon-green"
                  style=${{ fontSize: 'clamp(5rem,18vw,10rem)' }}>
@@ -534,15 +563,15 @@ export default function DisplayView() {
     // True / False – dedicated big-button display
     const isTrueFalse = ansMode === 'true_false' || curRound?.type === 'true_false';
     if (isTrueFalse) {
-      const tfVotes = gs?.phaseMeta?.trueFalseVotes || {};
-      const vraiCount = tfVotes['vrai'] || tfVotes['true'] || 0;
-      const fauxCount = tfVotes['faux'] || tfVotes['false'] || 0;
+      const tfVotes = gs?.trueFalseVotes || {};
+      const vraiCount = Array.isArray(tfVotes.yes) ? tfVotes.yes.length : (tfVotes['vrai'] || tfVotes['true'] || 0);
+      const fauxCount = Array.isArray(tfVotes.no) ? tfVotes.no.length : (tfVotes['faux'] || tfVotes['false'] || 0);
       const total     = vraiCount + fauxCount;
       return html`
         <div className="flex flex-col min-h-[100dvh] px-[clamp(24px,4vw,64px)] py-[clamp(24px,3vh,48px)]">
           ${curQ?.mediaUrl && html`
             <div className="flex justify-center mb-5">
-              <img src=${resolveMedia(curQ.mediaUrl)} className="max-w-full rounded-2xl object-contain" style=${{ maxHeight:'25vh' }} alt="media" />
+              <${MediaStage} url=${curQ.mediaUrl} maxHeight="24vh" />
             </div>
           `}
           ${curQ?.content && html`
@@ -551,8 +580,8 @@ export default function DisplayView() {
               ${curQ.content}
             </p>
           `}
-          <div className="grid grid-cols-2 gap-6 flex-1">
-            <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-neon-green/40 bg-neon-green/10 p-8" style=${{ minHeight:'30vh' }}>
+          <div className="grid grid-cols-2 gap-5 flex-1 max-h-[42vh]">
+            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-neon-green/40 bg-neon-green/10 p-5" style=${{ minHeight:'18vh' }}>
               <span style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>✅</span>
               <span className="font-display font-black text-neon-green mt-4" style=${{ fontSize: 'clamp(2.5rem,6vw,5rem)' }}>VRAI</span>
               ${total > 0 && html`
@@ -561,7 +590,7 @@ export default function DisplayView() {
                 </span>
               `}
             </div>
-            <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-rose-500/40 bg-rose-500/10 p-8" style=${{ minHeight:'30vh' }}>
+            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-rose-500/40 bg-rose-500/10 p-5" style=${{ minHeight:'18vh' }}>
               <span style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>❌</span>
               <span className="font-display font-black text-rose-400 mt-4" style=${{ fontSize: 'clamp(2.5rem,6vw,5rem)' }}>FAUX</span>
               ${total > 0 && html`
@@ -592,8 +621,8 @@ export default function DisplayView() {
                 className="font-mono font-black rounded-full w-12 h-12 flex items-center justify-center border-2"
                 style=${{
                   fontSize: '1.2rem',
-                  borderColor: timer.remainingSec <= 5 ? '#ff4e6a' : '#38ef7d',
-                  color:       timer.remainingSec <= 5 ? '#ff4e6a' : '#38ef7d',
+                  borderColor: timer.remainingSec <= 5 ? '#ff4e6a' : '#2dd4bf',
+                  color:       timer.remainingSec <= 5 ? '#ff4e6a' : '#2dd4bf',
                   background:  timer.remainingSec <= 5 ? 'rgba(255,78,106,.1)' : 'rgba(56,239,125,.1)',
                 }}
               >
@@ -606,12 +635,7 @@ export default function DisplayView() {
         <!-- Media -->
         ${curQ?.mediaUrl && html`
           <div className="flex justify-center mb-5">
-            <img
-              src=${resolveMedia(curQ.mediaUrl)}
-              className="max-w-full rounded-2xl object-contain"
-              style=${{ maxHeight: '35vh' }}
-              alt="media"
-            />
+            <${MediaStage} url=${curQ.mediaUrl} maxHeight="35vh" />
           </div>
         `}
 
@@ -751,3 +775,4 @@ export default function DisplayView() {
     </div>
   `;
 }
+

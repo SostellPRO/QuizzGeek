@@ -6,16 +6,16 @@ import { Btn, Alert, Card } from '../../components/ui.js';
 export default function HostConnect() {
   const { socket, hostSession, setHostSession, navigate } = useGame();
 
-  const [code, setCode]   = useState(hostSession?.sessionCode || localStorage.getItem('quiz_host_session_code') || '');
-  const [key,  setKey]    = useState(hostSession?.hostKey     || localStorage.getItem('quiz_host_key')         || '');
+  const [code, setCode] = useState(hostSession?.sessionCode || localStorage.getItem('quiz_host_session_code') || '');
+  const [key, setKey] = useState(hostSession?.hostKey || localStorage.getItem('quiz_host_key') || '');
   const [alert, setAlert] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const connect = () => {
     const sessionCode = code.trim().toUpperCase();
-    const hostKey     = key.trim();
+    const hostKey = key.trim();
     if (!sessionCode || !hostKey) {
-      setAlert({ type: 'error', message: 'Code de session et clé host requis.' });
+      setAlert({ type: 'error', message: 'Code de session et cle host requis.' });
       return;
     }
     if (!socket) return;
@@ -34,61 +34,66 @@ export default function HostConnect() {
   };
 
   return html`
-    <div className="flex flex-col min-h-[100dvh] bg-bg px-4 py-8 max-w-lg mx-auto">
-
-      <button onClick=${() => navigate('home')} className="text-white/40 hover:text-white text-sm mb-6 self-start">
-        ← Accueil
-      </button>
-
-      <div className="text-center mb-8">
-        <div className="text-5xl mb-3">🎬</div>
-        <h1 className="font-display text-3xl font-black gradient-text">Maître de jeu</h1>
-        <p className="text-white/40 text-sm mt-1">Connectez-vous à une session</p>
-      </div>
-
-      ${alert && html`<div className="mb-4"><${Alert} type=${alert.type} message=${alert.message} /></div>`}
-
-      <${Card}>
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-white/70">Code de session</label>
-            <input
-              type="text"
-              value=${code}
-              onInput=${e => setCode(e.target.value.toUpperCase())}
-              placeholder="ex: 1234"
-              maxLength="6"
-              className="bg-bg-input border border-white/10 rounded-xl px-5 py-3 text-white text-xl font-mono font-bold tracking-[0.25em] text-center placeholder-white/20 focus:border-accent/60 outline-none transition-colors min-h-[52px]"
-              onKeyDown=${e => e.key === 'Enter' && connect()}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-white/70">Clé host</label>
-            <input
-              type="text"
-              value=${key}
-              onInput=${e => setKey(e.target.value)}
-              placeholder="demo-host"
-              className="bg-bg-input border border-white/10 rounded-xl px-4 py-3 text-white text-base placeholder-white/30 focus:border-accent/60 outline-none transition-colors min-h-[48px]"
-              onKeyDown=${e => e.key === 'Enter' && connect()}
-            />
-          </div>
-          <${Btn} variant="primary" wide pulse onClick=${connect} disabled=${loading}>
-            ${loading ? '⏳ Connexion…' : '🔌 Se connecter en tant que host'}
-          <//>
-        </div>
-      <//>
-
-      <div className="mt-6 text-center">
-        <p className="text-white/30 text-sm">Pas encore de session ?</p>
-        <button
-          onClick=${() => navigate('admin')}
-          className="text-accent text-sm font-semibold hover:text-accent-dark mt-1 transition-colors"
-        >
-          Créer un quiz dans l'admin →
+    <div className="flex min-h-[100dvh] items-center justify-center px-4 py-6">
+      <div className="w-full max-w-xl animate-fade-in">
+        <button onClick=${() => navigate('home')} className="mb-5 inline-flex items-center rounded-lg app-chip px-3 py-2 text-sm font-bold text-white/58 transition-colors hover:text-white">
+          ← Accueil
         </button>
-      </div>
 
+        <${Card} className="p-6 sm:p-7">
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <div className="mb-2 inline-flex rounded-full app-chip px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-teal-200">Regie live</div>
+              <h1 className="font-display text-4xl font-black gradient-text">Maitre de jeu</h1>
+              <p className="mt-2 text-sm leading-6 text-white/52">Connectez-vous a une session existante pour piloter le rythme, les questions et les scores.</p>
+            </div>
+            <div className="hidden h-14 w-14 items-center justify-center rounded-lg app-panel text-3xl sm:flex">🎬</div>
+          </div>
+
+          ${alert && html`<div className="mb-4"><${Alert} type=${alert.type} message=${alert.message} /></div>`}
+
+          <div className="grid gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-white/70">Code de session</label>
+              <input
+                type="text"
+                value=${code}
+                onInput=${e => setCode(e.target.value.toUpperCase())}
+                placeholder="1234"
+                maxLength="6"
+                className="min-h-[56px] rounded-lg border border-white/10 bg-bg-input/90 px-5 py-3 text-center font-mono text-2xl font-black tracking-[0.28em] text-white outline-none transition-colors placeholder-white/20 focus:border-sky-400/70"
+                onKeyDown=${e => e.key === 'Enter' && connect()}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-white/70">Cle host</label>
+              <input
+                type="text"
+                value=${key}
+                onInput=${e => setKey(e.target.value)}
+                placeholder="demo-host"
+                className="min-h-[50px] rounded-lg border border-white/10 bg-bg-input/90 px-4 py-3 text-base text-white outline-none transition-colors placeholder-white/30 focus:border-sky-400/70"
+                onKeyDown=${e => e.key === 'Enter' && connect()}
+              />
+            </div>
+
+            <${Btn} variant="primary" wide pulse onClick=${connect} disabled=${loading}>
+              ${loading ? 'Connexion...' : 'Se connecter en host'}
+            <//>
+          </div>
+        <//>
+
+        <div className="mt-5 rounded-lg app-panel p-3 text-center">
+          <span className="text-sm text-white/38">Pas encore de session ? </span>
+          <button
+            onClick=${() => navigate('admin')}
+            className="text-sm font-extrabold text-sky-300 transition-colors hover:text-sky-100"
+          >
+            Creer un quiz dans le Studio
+          </button>
+        </div>
+      </div>
     </div>
   `;
 }

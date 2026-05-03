@@ -11,17 +11,22 @@ export const randCode = () =>
 
 export const resolveMedia = (url) => {
   if (!url) return '';
-  return /^https?:\/\//i.test(url) ? url : url.startsWith('/') ? url : '/' + url;
+  const raw = String(url).trim();
+  if (!raw) return '';
+  if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
+  const cleaned = raw
+    .replace(/\\/g, '/')
+    .replace(/^public\//i, '')
+    .replace(/^server\/public\//i, '');
+  return cleaned.startsWith('/') ? cleaned : '/' + cleaned;
 };
 
-export const cn = (...classes) => classes.filter(Boolean).join(' ');
-
-// Format a score with + or - sign
-export const fmtScore = (n) => (n > 0 ? `+${n}` : String(n));
-
-// Truncate text
-export const trunc = (s, len = 60) =>
-  typeof s === 'string' && s.length > len ? s.slice(0, len) + '…' : (s || '');
+export const mediaKind = (url = '') => {
+  const clean = String(url).split('?')[0].toLowerCase();
+  if (/\.(mp4|webm|mov|ogv)$/.test(clean)) return 'video';
+  if (/\.(mp3|wav|ogg|webm)$/.test(clean)) return 'audio';
+  return 'image';
+};
 
 // Empty quiz template
 export const emptyQuiz = () => ({
@@ -31,6 +36,7 @@ export const emptyQuiz = () => ({
   welcomeMusicUrl: '',
   ceremonyBackgroundUrl: '',
   ceremonyMusicUrl: '',
+  closingCeremony: { backgroundUrl: '', musicUrl: '', rankComments: {} },
   rounds: [],
 });
 
@@ -44,6 +50,10 @@ export const emptyRound = () => ({
   shortRules: 'qcm',
   backgroundUrl: '',
   musicUrl: '',
+  introMusicUrl: '',
+  gameMusicUrl: '',
+  endMusicUrl: '',
+  trainingVideoUrl: '',
   questions: [],
 });
 
@@ -61,6 +71,9 @@ export const emptyQuestion = (type = 'qcm') => ({
   ] : [],
   correctOptionIndex: 0,
   correctAnswer: '',
+  items: type === 'burger' ? Array.from({ length: 10 }, (_, i) => ({ id: uid('item'), text: `Elément ${i + 1}`, mediaUrl: '' })) : [],
+  trainingVideoUrl: '',
+  videoUrl: '',
   points: 100,
   timer: 30,
 });
@@ -75,16 +88,4 @@ export const ROUND_TYPES = {
   video_challenge: { label: 'Challenge Vidéo', icon: '🎬', color: '#ff4e6a' },
 };
 
-export const PHASE_LABELS = {
-  lobby:          { label: 'Lobby',            badge: 'blue' },
-  round_intro:    { label: 'Présentation',     badge: 'orange' },
-  training_video: { label: 'Vidéo entraîn.', badge: 'orange' },
-  get_ready:      { label: 'Prêts',            badge: 'green' },
-  question:       { label: 'Question',         badge: 'orange' },
-  waiting:        { label: 'Attente',          badge: 'orange' },
-  answer_reveal:  { label: 'Révélation',       badge: 'green' },
-  manual_scoring: { label: 'Arbitrage',        badge: 'orange' },
-  round_end:      { label: 'Fin manche',       badge: 'green' },
-  results:        { label: 'Résultats',        badge: 'blue' },
-  end:            { label: 'Fin du quiz',      badge: 'green' },
-};
+

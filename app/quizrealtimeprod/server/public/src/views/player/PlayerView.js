@@ -20,7 +20,18 @@ export default function PlayerView() {
       avatar:         saved.avatar || null,
     }, (res) => {
       if (res?.ok) {
-        setPlayerSession({ ...saved, playerId: res.playerId || saved.playerId });
+        const p = res.player || {};
+        const next = {
+          ...saved,
+          playerId: p.id || saved.playerId,
+          pseudo: p.pseudo || saved.pseudo,
+          reconnectToken: p.reconnectToken || saved.reconnectToken,
+          teamId: p.teamId || null,
+          teamName: p.teamName || null,
+          avatar: p.avatar || saved.avatar || null,
+        };
+        localStorage.setItem('quiz_player_session', JSON.stringify(next));
+        setPlayerSession(next);
       } else {
         localStorage.removeItem('quiz_player_session');
       }

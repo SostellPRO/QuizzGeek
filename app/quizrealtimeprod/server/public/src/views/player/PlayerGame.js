@@ -1,26 +1,45 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { html, resolveMedia } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
-import { Btn, Badge, Alert, Dots, SessionBanner } from '../../components/ui.js';
+import { Btn, Alert, Dots, SessionBanner } from '../../components/ui.js';
 
 const ROUND_ICONS = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', burger:'🍔', vote:'🗳️', video_challenge:'🎬' };
 const ROUND_LABELS= { qcm:'QCM', rapidite:'Rapidité', speed:'Rapidité', true_false:'Vrai / Faux', burger:'Burger', vote:'Vote', video_challenge:'Challenge Vidéo' };
 const OPTION_LABELS = ['A','B','C','D','E','F'];
 
+// Color palette matching the TV display screen
+const OPT_COLORS   = ['#b24bff','#38ef7d','#4facfe','#f7971e','#ff4e6a','#a78bfa'];
+const OPT_BGCOLORS = [
+  'rgba(178,75,255,.15)',
+  'rgba(56,239,125,.15)',
+  'rgba(79,172,254,.15)',
+  'rgba(247,151,30,.15)',
+  'rgba(255,78,106,.15)',
+  'rgba(167,139,250,.15)',
+];
+
 export default function PlayerGame() {
-  const { socket, gameState: gs, players, teams, playerSession: s, setPlayerSession, navigate } = useGame();
+  const { socket, gameState: gs, players, playerSession: s, setPlayerSession, navigate } = useGame();
   const [alert, setAlert]     = useState(null);
   const [locked, setLocked]   = useState(false);
   const [voteText, setVoteText]= useState('');
-  const draftRef = useRef('');
 
   const myPlayer = players.find(p => p.id === s?.playerId || p.playerId === s?.playerId);
 
-  // Reset answer state on each new question
+  // Reset answer state on each new question (two guards in case one misses)
   useEffect(() => {
     setLocked(false);
     setVoteText('');
   }, [gs?.currentQuestion?.id]); // eslint-disable-line
+
+  // Backup: also reset when the phase enters a new question cycle
+  useEffect(() => {
+    const s = gs?.status;
+    if (s === 'get_ready' || s === 'question' || s === 'round_intro') {
+      setLocked(false);
+      setVoteText('');
+    }
+  }, [gs?.status]); // eslint-disable-line
 
   const phase    = gs?.status || 'lobby';
   const roundType= gs?.currentRound?.type || 'qcm';
@@ -244,7 +263,7 @@ export default function PlayerGame() {
             ${items.map((item, i) => html`
               <div key=${i} className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
                 <span className="font-mono text-amber-400 font-bold text-sm w-6">${i+1}.</span>
-                <span className="text-white font-semibold">${item}</span>
+                <span className="text-white font-semibold">${item?.text || item}</span>
               </div>
             `)}
           </div>
@@ -257,7 +276,7 @@ export default function PlayerGame() {
       const buzzerState = gs?.buzzerState;
       const firstId     = buzzerState?.firstPlayerId;
       const iFirst      = firstId === s?.playerId;
-      const cooldown    = buzzerState?.cooldownPlayerId === s?.playerId;
+      const cooldown    = (gs?.buzzerCooldowns?.[s?.playerId] || 0) > Date.now();
       const buzzerLocked= gs?.phaseMeta?.playerScreenLocked;
 
       if (iFirst) return html`
@@ -311,7 +330,7 @@ export default function PlayerGame() {
               <p className="text-base font-semibold">${currentQ.content}</p>
             </div>
           `}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <button
               onClick=${() => sendAnswer('vrai')}
               className="flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-neon-green/40 bg-neon-green/8 font-display font-black text-xl text-neon-green active:scale-95 transition-all hover:bg-neon-green/15"
@@ -348,7 +367,7 @@ export default function PlayerGame() {
             <label className="text-sm font-semibold text-white/60">Votre réponse</label>
             <textarea
               value=${voteText}
-              onInput=${e => { setVoteText(e.target.value); draftRef.current = e.target.value; }}
+              onInput=${e => setVoteText(e.target.value)}
               placeholder="Écrivez votre réponse…"
               rows="3"
               className="bg-bg-input border border-white/10 rounded-xl px-4 py-3 text-white text-base placeholder-white/30 focus:border-accent/60 outline-none transition-colors resize-none"
@@ -376,16 +395,26 @@ export default function PlayerGame() {
           ${currentQ?.content && html`<p className="text-center font-bold text-base">${currentQ.content}</p>`}
           <p className="text-xs text-white/50 text-center uppercase tracking-wider mb-1">Votez pour une réponse</p>
           <div className="flex flex-col gap-2">
-            ${options.map((opt, i) => html`
-              <button
-                key=${i}
-                onClick=${() => sendVoteChoice(i)}
-                className="flex items-center gap-4 p-4 rounded-xl border font-semibold text-left transition-all active:scale-95 bg-bg-card border-white/10 hover:border-accent/50 hover:bg-accent/5"
-              >
-                <span className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center font-black text-sm bg-accent/15 border border-accent/30 text-accent">${i+1}</span>
-                <span className="text-white">${opt.text || opt}</span>
-              </button>
-            `)}
+            ${options.map((opt, i) => {
+              const color   = OPT_COLORS[i % OPT_COLORS.length];
+              const bgColor = OPT_BGCOLORS[i % OPT_BGCOLORS.length];
+              return html`
+                <button
+                  key=${i}
+                  onClick=${() => sendVoteChoice(i)}
+                  style=${{ borderColor: color, background: bgColor }}
+                  className="flex items-center gap-4 p-4 rounded-xl border-2 font-semibold text-left transition-all active:scale-95 hover:brightness-125"
+                >
+                  <span
+                    style=${{ color, borderColor: color, background: `${color}22` }}
+                    className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center font-black text-sm border-2"
+                  >
+                    ${i+1}
+                  </span>
+                  <span className="text-white">${opt.text || opt}</span>
+                </button>
+              `;
+            })}
           </div>
         </div>
       `;
@@ -428,22 +457,30 @@ export default function PlayerGame() {
             </div>
           `}
           <div className="grid grid-cols-1 gap-3">
-            ${currentQ.options.map((opt, i) => html`
-              <button
-                key=${opt.id || i}
-                onClick=${() => sendAnswer(opt.text)}
-                disabled=${locked}
-                className="flex items-center gap-4 p-4 rounded-xl border font-semibold text-left transition-all duration-150 active:scale-95 bg-bg-card border-white/10 hover:border-accent/50 hover:bg-accent/5 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <span className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center font-black text-lg bg-accent/15 border border-accent/30 text-accent">
-                  ${OPTION_LABELS[i]}
-                </span>
-                <div className="flex flex-col gap-1 flex-1">
-                  <span className="text-white text-base">${opt.text}</span>
-                  ${opt.mediaUrl && html`<img src=${resolveMedia(opt.mediaUrl)} alt="" className="max-h-20 rounded-lg object-contain mt-1" />`}
-                </div>
-              </button>
-            `)}
+            ${currentQ.options.map((opt, i) => {
+              const color   = OPT_COLORS[i % OPT_COLORS.length];
+              const bgColor = OPT_BGCOLORS[i % OPT_BGCOLORS.length];
+              return html`
+                <button
+                  key=${opt.id || i}
+                  onClick=${() => sendAnswer(opt.text)}
+                  disabled=${locked}
+                  style=${{ borderColor: color, background: bgColor }}
+                  className="flex items-center gap-4 p-4 rounded-xl border-2 font-semibold text-left transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-125"
+                >
+                  <span
+                    style=${{ color, borderColor: color, background: `${color}22` }}
+                    className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center font-black text-lg border-2"
+                  >
+                    ${OPTION_LABELS[i]}
+                  </span>
+                  <div className="flex flex-col gap-1 flex-1">
+                    <span className="text-white text-base">${opt.text}</span>
+                    ${opt.mediaUrl && html`<img src=${resolveMedia(opt.mediaUrl)} alt="" className="max-h-20 rounded-lg object-contain mt-1" />`}
+                  </div>
+                </button>
+              `;
+            })}
           </div>
         </div>
       `;
