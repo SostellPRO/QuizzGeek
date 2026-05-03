@@ -18,7 +18,7 @@ const PHASE_BADGE = {
 };
 
 export default function PilotageTab() {
-  const { gameState: gs, players, hostAction, hostSession } = useGame();
+  const { gameState: gs, players, teams, hostAction, hostSession } = useGame();
   const [videoScore,  setVideoScore]  = useState(0);
   const [burgerScore, setBurgerScore] = useState(0);
   const [broadcastMsg, setBroadcastMsg] = useState('');
@@ -262,11 +262,30 @@ export default function PilotageTab() {
                 <//>
               `)}
             </div>
+            ${teams?.length > 0 && html`
+              <div className="grid grid-cols-2 gap-2">
+                ${teams.map(t => html`
+                  <${Btn}
+                    key=${t.id}
+                    variant=${gs?.videoState?.selectedTeamId === t.id ? 'primary' : 'ghost'}
+                    size="sm"
+                    onClick=${() => ha('video_select_team', { teamId: t.id })}
+                  >
+                    👥 ${t.name}
+                  <//>
+                `)}
+              </div>
+            `}
             <div className="grid grid-cols-2 gap-2">
               <${Btn} variant="secondary" size="sm" disabled=${!curQ?.trainingVideoUrl} onClick=${() => ha('video_start_training_ready')}>Entrainement<//>
               <${Btn} variant="secondary" size="sm" disabled=${videoPhase !== 'training_ready'} onClick=${() => ha('video_start_training_playing')}>Lire entr.<//>
+              <${Btn} variant="ghost" size="sm" onClick=${() => ha('video_training_control', { ctrl: 'pause' })}>Pause entr.<//>
+              <${Btn} variant="ghost" size="sm" onClick=${() => ha('video_training_control', { ctrl: 'rewind' })}>Debut entr.<//>
               <${Btn} variant="secondary" size="sm" onClick=${() => ha('video_mark_ready')}>Pret<//>
               <${Btn} variant="primary" size="sm" disabled=${!gs?.videoState?.selectedPlayerId && !gs?.videoState?.selectedTeamId} onClick=${() => ha('video_start_playing')}>Lancer<//>
+              <${Btn} variant="ghost" size="sm" onClick=${() => ha('video_control', { ctrl: 'pause' })}>Pause<//>
+              <${Btn} variant="ghost" size="sm" onClick=${() => ha('video_control', { ctrl: 'play' })}>Lire<//>
+              <${Btn} variant="ghost" size="sm" onClick=${() => ha('video_control', { ctrl: 'rewind' })}>Debut<//>
               <${Btn} variant="secondary" size="sm" disabled=${videoPhase !== 'playing'} onClick=${() => ha('video_start_eval')}>Evaluer<//>
             </div>
             <div className="flex items-center gap-2">
@@ -301,9 +320,25 @@ export default function PilotageTab() {
                 <//>
               `)}
             </div>
+            ${teams?.length > 0 && html`
+              <div className="grid grid-cols-2 gap-2">
+                ${teams.map(t => html`
+                  <${Btn}
+                    key=${t.id}
+                    variant=${gs?.burgerSelectedTeamId === t.id ? 'warning' : 'ghost'}
+                    size="sm"
+                    onClick=${() => ha('burger_select_team', { teamId: t.id })}
+                  >
+                    👥 ${t.name}
+                  <//>
+                `)}
+              </div>
+            `}
             <div className="grid grid-cols-3 gap-2">
               <${Btn} variant="secondary" size="sm" onClick=${() => ha('burger_prev_item')}>Item precedent<//>
-              <${Btn} variant="primary" size="sm" pulse onClick=${() => ha('burger_next_item')}>Item suivant<//>
+              <${Btn} variant="primary" size="sm" pulse onClick=${() => ha('burger_next_item')}>
+                ${(gs?.burgerState?.currentItemIndex ?? -1) >= ((curQ?.items?.length || 0) - 1) ? 'Reponse candidat' : 'Item suivant'}
+              <//>
               <${Btn} variant="warning" size="sm" onClick=${() => ha('burger_pass')}>Passer<//>
             </div>
             <div className="flex items-center gap-2">
@@ -353,6 +388,16 @@ export default function PilotageTab() {
               👥 Équipes
             <//>
           </div>
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <${Btn} variant="secondary" onClick=${() => ha('final_ceremony_init')}>Mode suspense<//>
+            <${Btn}
+              variant="primary"
+              pulse
+              onClick=${() => ha(gs?.phaseMeta?.ceremonyView === 'teams' ? 'final_ceremony_reveal_next_team' : 'final_ceremony_reveal_next')}
+            >
+              Reveler suivant
+            <//>
+          </div>
         </div>
       `}
 
@@ -371,4 +416,3 @@ export default function PilotageTab() {
     </div>
   `;
 }
-

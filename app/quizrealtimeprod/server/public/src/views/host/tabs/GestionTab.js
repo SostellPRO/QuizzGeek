@@ -6,6 +6,7 @@ import { Btn } from '../../../components/ui.js';
 export default function GestionTab() {
   const { gameState: gs, players, teams, hostAction } = useGame();
   const [points, setPoints] = useState(100);
+  const [teamName, setTeamName] = useState('');
 
   const phase = gs?.status || 'lobby';
 
@@ -18,6 +19,19 @@ export default function GestionTab() {
     const pts = parseInt(prompt('Points a attribuer (negatif = retirer) :', '100'));
     if (isNaN(pts)) return;
     hostAction('award_manual_points', { playerId, points: pts });
+  };
+
+  const createTeam = () => {
+    const name = teamName.trim();
+    if (!name) return;
+    hostAction('create_team', { name });
+    setTeamName('');
+  };
+
+  const renameTeam = (team) => {
+    const name = prompt('Nouveau nom de l equipe :', team.name);
+    if (!name?.trim()) return;
+    hostAction('rename_team', { teamId: team.id, newName: name.trim() });
   };
 
   const connPlayers = players.filter(p => p.connected);
@@ -69,9 +83,23 @@ export default function GestionTab() {
         `)}
       </section>
 
-      ${teams.length > 0 && html`
-        <section>
+      <section>
           <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/42">Equipes</h3>
+          <div className="mb-3 flex gap-2">
+            <input
+              type="text"
+              value=${teamName}
+              onInput=${e => setTeamName(e.target.value)}
+              placeholder="Nom de l equipe"
+              className="min-h-[42px] flex-1 rounded-lg border border-white/10 bg-bg-input/90 px-4 py-2 text-sm text-white outline-none transition-colors focus:border-sky-400/70"
+              onKeyDown=${e => e.key === 'Enter' && createTeam()}
+            />
+            <${Btn} variant="primary" size="sm" onClick=${createTeam}>Creer<//>
+          </div>
+          ${teams.length === 0 && html`
+            <div className="rounded-lg app-panel py-6 text-center text-sm text-white/38">Aucune equipe creee</div>
+          `}
+          ${teams.length > 0 && html`
           <div className="flex flex-col gap-2">
             ${teams.map(t => html`
               <div key=${t.id} className="flex items-center justify-between rounded-lg app-panel px-4 py-3">
@@ -79,12 +107,16 @@ export default function GestionTab() {
                   <div className="text-sm font-extrabold text-white">${t.name}</div>
                   <div className="text-xs text-white/40">${players.filter(p => p.teamId === t.id).length} membre(s)</div>
                 </div>
-                <div className="rounded-full bg-teal-400/12 px-2.5 py-1 font-mono text-sm font-black text-teal-300">${t.scoreTotal ?? t.score ?? 0}</div>
+                <div className="flex items-center gap-2">
+                  <div className="rounded-full bg-teal-400/12 px-2.5 py-1 font-mono text-sm font-black text-teal-300">${t.scoreTotal ?? t.score ?? 0}</div>
+                  <button onClick=${() => renameTeam(t)} className="min-h-[34px] rounded-lg bg-white/6 px-2.5 text-xs font-black text-white/48 transition-colors hover:bg-white/10">Renommer</button>
+                  <button onClick=${() => confirm('Supprimer cette equipe ?') && hostAction('delete_team', { teamId: t.id })} className="min-h-[34px] rounded-lg bg-white/6 px-2.5 text-xs font-black text-white/48 transition-colors hover:bg-rose-500/16 hover:text-rose-300">X</button>
+                </div>
               </div>
             `)}
           </div>
+          `}
         </section>
-      `}
 
       <section className="rounded-lg app-surface p-4">
         <h3 className="mb-3 text-sm font-extrabold text-white/72">Points en masse</h3>

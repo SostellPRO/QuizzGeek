@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { html } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
 import { Btn, Alert } from '../../components/ui.js';
@@ -20,8 +20,28 @@ export default function PlayerJoin({ suggestedCode = '' }) {
   const [showAll, setShowAll] = useState(false);
   const [alert, setAlert] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [sessionTeams, setSessionTeams] = useState([]);
 
   const visAvatars = showAll ? AVATARS : AVATARS.slice(0, DEFAULT_VIS);
+
+  useEffect(() => {
+    const sessionCode = code.trim().toUpperCase();
+    if (sessionCode.length < 4) {
+      setSessionTeams([]);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/sessions/${encodeURIComponent(sessionCode)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled) return;
+        setSessionTeams(data?.session?.teams || []);
+      })
+      .catch(() => {
+        if (!cancelled) setSessionTeams([]);
+      });
+    return () => { cancelled = true; };
+  }, [code]);
 
   const join = async () => {
     const sessionCode = code.trim().toUpperCase();
@@ -52,7 +72,7 @@ export default function PlayerJoin({ suggestedCode = '' }) {
     });
   };
 
-  const teamsList = (gameState?.teams || teams || []);
+  const teamsList = (gameState?.teams?.length ? gameState.teams : teams?.length ? teams : sessionTeams || []);
   const hasTeams = teamsList.length > 0;
 
   return html`

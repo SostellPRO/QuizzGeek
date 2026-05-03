@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { html, resolveMedia, mediaKind, ROUND_TYPES } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
 import { Btn, Alert, Dots } from '../../components/ui.js';
@@ -82,6 +82,36 @@ function MediaStage({ url, maxHeight = '35vh', autoPlay = true }) {
   `;
   return html`
     <img src=${src} className="max-w-full rounded-lg object-contain border border-white/10 shadow-2xl" style=${{ maxHeight }} alt="media" />
+  `;
+}
+
+function ControlledVideo({ url, control, maxHeight = '46vh' }) {
+  const ref = useRef(null);
+  const lastControlAt = useRef(null);
+
+  useEffect(() => {
+    const video = ref.current;
+    if (!video || !control?.action || control.at === lastControlAt.current) return;
+    lastControlAt.current = control.at;
+    if (control.action === 'play') video.play().catch(() => {});
+    if (control.action === 'pause') video.pause();
+    if (control.action === 'rewind') {
+      video.currentTime = 0;
+      video.pause();
+    }
+  }, [control?.action, control?.at]);
+
+  if (!url) return null;
+  return html`
+    <video
+      key=${resolveMedia(url)}
+      ref=${ref}
+      src=${resolveMedia(url)}
+      className="max-w-full rounded-lg object-contain border border-white/10 shadow-2xl"
+      style=${{ maxHeight }}
+      controls
+      playsInline
+    />
   `;
 }
 
@@ -368,7 +398,7 @@ export default function DisplayView() {
             </p>
             <div className="flex flex-wrap justify-center gap-3">
               ${connP.map(p => html`
-                <div key=${p.id || p.playerId} className="flex flex-col items-center gap-1 px-4 py-3 rounded-2xl bg-white/8 border border-white/10 animate-fade-in">
+                <div key=${p.id || p.playerId} className="flex flex-col-reverse items-center gap-1 px-4 py-3 rounded-2xl bg-white/8 border border-white/10 animate-fade-in">
                   <span style=${{ fontSize: 'clamp(1.5rem,3.5vw,2.8rem)' }}>${p.avatar || '🎮'}</span>
                   <span className="font-bold text-white/80" style=${{ fontSize: 'clamp(.7rem,1.3vw,1rem)' }}>${p.pseudo || '?'}</span>
                 </div>
@@ -457,6 +487,27 @@ export default function DisplayView() {
 
     if (phase === 'results' || phase === 'end') {
       const ceremonyView = gs?.phaseMeta?.ceremonyView || 'players';
+      const finalCeremony = gs?.phaseMeta?.finalCeremony || null;
+      if (phase === 'end' && finalCeremony) {
+        const revealOrder = ceremonyView === 'teams'
+          ? (finalCeremony.teamsRevealOrder || [])
+          : (finalCeremony.revealOrder || []);
+        const visible = revealOrder.filter(x => x.revealed);
+        const pending = revealOrder.length - visible.length;
+        const lb = visible.map(x => ({
+          ...x,
+          pseudo: x.pseudo || x.name,
+          scoreTotal: x.scoreTotal || 0,
+        }));
+        return html`
+          <div className="flex flex-col items-center justify-center min-h-[100dvh] px-8 py-10">
+            <${TVScoreboard} leaderboard=${lb} title=${ceremonyView === 'teams' ? '🏆 Classement par équipes' : '🏆 Classement Final'} />
+            ${pending > 0 && html`
+              <p className="mt-6 text-white/38 font-bold tracking-[0.18em] uppercase">${pending} resultat(s) masque(s)</p>
+            `}
+          </div>
+        `;
+      }
       const lb = ceremonyView === 'teams'
         ? (lbTeams.length ? lbTeams : (gs?.leaderboardTeams || []))
         : (lbPlayers.length ? lbPlayers : (gs?.leaderboardPlayers || []));
@@ -488,9 +539,11 @@ export default function DisplayView() {
 
     // Burger
     if (isBurger) {
-      const items = gs?.burgerItems || [];
-      const selId = gs?.burgerSelectedPlayerId || gs?.burgerSelectedTeamId;
-      const who   = selId ? players.find(p => (p.id === selId || p.playerId === selId)) : null;
+      const allItems = curQ?.items || [];
+      const currentIdx = gs?.burgerState?.currentItemIndex ?? -1;
+      const items = currentIdx >= 0 ? allItems.slice(0, currentIdx + 1) : [];
+      const selectedPseudo = gs?.burgerSelectedPseudo || '';
+      const answering = phase === 'manual_scoring' || gs?.burgerState?.answering;
       return html`
         <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-8 px-8 animate-fade-in">
           <div style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>🍔</div>
@@ -498,9 +551,19 @@ export default function DisplayView() {
               style=${{ fontSize: 'clamp(2.5rem,7vw,5rem)' }}>
             Burger de la Mort
           </h1>
-          ${who && html`
+          ${!selectedPseudo && html`
+            <p className="text-white/50 text-center" style=${{ fontSize: 'clamp(1.2rem,3vw,2.2rem)' }}>
+              Le maitre de jeu choisit un candidat.
+            </p>
+          `}
+          ${selectedPseudo && !answering && html`
             <p className="text-white/60 text-center" style=${{ fontSize: 'clamp(1.2rem,3vw,2.2rem)' }}>
-              C'est le tour de <strong className="text-amber-400">${who.pseudo}</strong> !
+              <strong className="text-amber-400">${selectedPseudo}</strong>, preparez-vous.
+            </p>
+          `}
+          ${selectedPseudo && answering && html`
+            <p className="text-white/70 text-center font-display font-black" style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>
+              ${selectedPseudo} repond.
             </p>
           `}
           <div className="flex flex-col gap-3 w-full max-w-2xl">
@@ -519,9 +582,12 @@ export default function DisplayView() {
     if (isVC) {
       const vcPhase = gs?.videoState?.phase;
       const selId   = gs?.videoState?.selectedPlayerId;
+      const selTeam = gs?.videoState?.selectedTeamId;
       const who     = selId ? players.find(p => (p.id===selId||p.playerId===selId)) : null;
+      const selectedName = who?.pseudo || gs?.videoState?.selectedPseudo || '';
       const score   = gs?.videoState?.score;
       const mediaUrl = vcPhase === 'training_playing' ? curQ?.trainingVideoUrl : (curQ?.videoUrl || curQ?.mediaUrl);
+      const control = vcPhase === 'training_playing' ? gs?.videoState?.trainingVideoControl : gs?.videoState?.videoControl;
       return html`
         <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-8 px-8 animate-fade-in">
           <div style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>🎬</div>
@@ -534,7 +600,16 @@ export default function DisplayView() {
               ${who.avatar || '🎮'} <strong className="text-white">${who.pseudo}</strong> passe à l'action !
             </p>
           `}
-          <${MediaStage} url=${mediaUrl} maxHeight="46vh" />
+          ${vcPhase === 'select' && html`
+            <p className="text-white/45 text-center" style=${{ fontSize: 'clamp(1.1rem,2.5vw,1.8rem)' }}>Le maitre de jeu choisit un candidat.</p>
+          `}
+          ${vcPhase === 'ready' && html`
+            <p className="text-rose-300 text-center font-display font-black" style=${{ fontSize: 'clamp(1.8rem,4vw,3rem)' }}>Preparez-vous.</p>
+          `}
+          ${vcPhase === 'training_ready' && html`
+            <p className="text-amber-300 text-center font-display font-black" style=${{ fontSize: 'clamp(1.8rem,4vw,3rem)' }}>Video d'entrainement.</p>
+          `}
+          <${ControlledVideo} url=${mediaUrl} control=${control} maxHeight="46vh" />
           ${score != null && html`
             <div className="font-display font-black text-neon-green"
                  style=${{ fontSize: 'clamp(5rem,18vw,10rem)' }}>
@@ -569,12 +644,11 @@ export default function DisplayView() {
     `;
 
     // True / False – dedicated big-button display
-    const isTrueFalse = ansMode === 'true_false' || curRound?.type === 'true_false';
-    if (isTrueFalse) {
-      const tfVotes = gs?.trueFalseVotes || {};
-      const vraiCount = Array.isArray(tfVotes.yes) ? tfVotes.yes.length : (tfVotes['vrai'] || tfVotes['true'] || 0);
-      const fauxCount = Array.isArray(tfVotes.no) ? tfVotes.no.length : (tfVotes['faux'] || tfVotes['false'] || 0);
-      const total     = vraiCount + fauxCount;
+      const isTrueFalse = ansMode === 'true_false' || curRound?.type === 'true_false';
+      if (isTrueFalse) {
+      const vraiCount = 0;
+      const fauxCount = 0;
+      const total = 0;
       return html`
         <div className="flex flex-col min-h-[100dvh] px-[clamp(24px,4vw,64px)] py-[clamp(24px,3vh,48px)]">
           ${curQ?.mediaUrl && html`
@@ -782,4 +856,3 @@ export default function DisplayView() {
     </div>
   `;
 }
-

@@ -194,9 +194,11 @@ export default function PlayerGame() {
     // ── Video Challenge ──────────────────────────────────────────
     if (isVC) {
       const selId = gs?.videoState?.selectedPlayerId;
-      const isMe  = selId === s?.playerId;
+      const selTeam = gs?.videoState?.selectedTeamId;
+      const selectedName = gs?.videoState?.selectedPseudo || '';
+      const isMe  = selId === s?.playerId || (selTeam && s?.teamId === selTeam);
 
-      if (!selId) return html`
+      if (!selId && !selTeam) return html`
         <div className="rounded-2xl bg-rose-500/10 border border-rose-500/25 p-6 text-center">
           <div className="text-4xl mb-3">🎬</div>
           <h2 className="text-xl font-bold text-rose-400">Challenge Vidéo</h2>
@@ -217,7 +219,7 @@ export default function PlayerGame() {
       return html`
         <div className="rounded-2xl bg-bg-card border border-white/8 p-6 text-center">
           <div className="text-4xl mb-3">🎬</div>
-          ${who && html`<p className="text-white/60 mb-1">C'est le tour de <strong className="text-white">${who.pseudo}</strong></p>`}
+          <p className="text-white/60 mb-1"><strong className="text-white">${who?.pseudo || selectedName || 'Un candidat'}</strong> est interroge.</p>
           <p className="text-white/40 text-sm">Regardez l'écran TV !</p>
           <${Dots} />
         </div>
@@ -244,12 +246,20 @@ export default function PlayerGame() {
         return html`
           <div className="rounded-2xl bg-bg-card border border-white/8 p-6 text-center">
             <div className="text-4xl mb-3">🍔</div>
-            <p className="text-white/50">C'est le tour de <strong className="text-amber-400">${selPlayer?.pseudo || 'quelqu\'un'}</strong></p>
+            <p className="text-white/50"><strong className="text-amber-400">${selPlayer?.pseudo || gs?.burgerSelectedPseudo || 'Un candidat'}</strong> est interroge.</p>
             <p className="text-white/30 text-sm mt-2">Regardez l'écran TV !</p>
             <${Dots} />
           </div>
         `;
       }
+
+      if (isMe) return html`
+        <div className="flex flex-col items-center gap-4 py-8 text-center animate-bounce-in">
+          <div className="text-6xl">🍔</div>
+          <h2 className="text-2xl font-display font-black text-amber-400">L'admin vous interroge !</h2>
+          <p className="text-white/50 text-sm">Regardez l'ecran TV et repondez oralement quand il vous le demande.</p>
+        </div>
+      `;
 
       const items = currentQ?.items || gs?.burgerItems || [];
       return html`

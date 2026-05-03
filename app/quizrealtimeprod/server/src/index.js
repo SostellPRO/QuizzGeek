@@ -356,6 +356,11 @@ app.get("/api/sessions/:sessionCode", (req, res) => {
           ? session.players.length
           : 0,
         teamsCount: Array.isArray(session.teams) ? session.teams.length : 0,
+        teams: (session.teams || []).map((t) => ({
+          id: t.id,
+          name: t.name,
+          scoreTotal: t.scoreTotal || 0,
+        })),
         status: session.gameState?.status || "lobby",
       },
     });

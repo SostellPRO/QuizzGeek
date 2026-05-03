@@ -668,6 +668,7 @@ export function nextQuestion(session) {
       selectedPseudo: null,
       score: null,
       videoControl: null,
+      trainingVideoControl: null,
     };
   }
 
@@ -1153,14 +1154,22 @@ export function burgerNextItem(session) {
     return { ok: false, error: "Question de type burger uniquement" };
   }
 
+  const hasPlayer = !!session.gameState.burgerSelectedPlayerId;
+  const hasTeam = !!session.gameState.burgerSelectedTeamId;
+  if (!hasPlayer && !hasTeam) {
+    return { ok: false, error: "Choisissez d'abord un joueur ou une équipe" };
+  }
+
   if (!session.gameState.burgerState) {
     session.gameState.burgerState = {
       questionId: q.id,
       currentItemIndex: -1,
+      answering: false,
     };
   }
 
   const bs = session.gameState.burgerState;
+  bs.answering = false;
   const totalItems = Array.isArray(q.items) ? q.items.length : 0;
 
   if (bs.currentItemIndex < totalItems - 1) {
@@ -1175,6 +1184,7 @@ export function burgerNextItem(session) {
     allowAnswer: false,
   });
   setStatus(session, "manual_scoring");
+  bs.answering = true;
   touch(session);
   return { ok: true, finished: true, currentItemIndex: bs.currentItemIndex, totalItems };
 }
@@ -1386,6 +1396,14 @@ export function setBurgerPlayer(session, playerId) {
   session.gameState.burgerSelectedPlayerId = playerId;
   session.gameState.burgerSelectedTeamId = null;
   session.gameState.burgerSelectedPseudo = player.pseudo;
+  session.gameState.burgerFinalScore = null;
+  session.gameState.burgerState = {
+    questionId: getCurrentQuestion(session)?.id || null,
+    currentItemIndex: -1,
+    answering: false,
+  };
+  setPhaseMeta(session, { playerScreenLocked: true, allowAnswer: false });
+  setStatus(session, "question");
   touch(session);
   return { ok: true };
 }
@@ -1945,6 +1963,14 @@ export function setBurgerTeam(session, teamId) {
   session.gameState.burgerSelectedPlayerId = null;
   session.gameState.burgerSelectedTeamId = teamId;
   session.gameState.burgerSelectedPseudo = team.name;
+  session.gameState.burgerFinalScore = null;
+  session.gameState.burgerState = {
+    questionId: getCurrentQuestion(session)?.id || null,
+    currentItemIndex: -1,
+    answering: false,
+  };
+  setPhaseMeta(session, { playerScreenLocked: true, allowAnswer: false });
+  setStatus(session, "question");
   touch(session);
   return { ok: true };
 }
@@ -1959,6 +1985,13 @@ export function burgerPass(session) {
   if (!hasPlayer && !hasTeam) {
     return { ok: false, error: "Aucun joueur/équipe sélectionné pour l'épreuve burger" };
   }
+  if (!session.gameState.burgerState) {
+    session.gameState.burgerState = {
+      questionId: getCurrentQuestion(session)?.id || null,
+      currentItemIndex: -1,
+    };
+  }
+  session.gameState.burgerState.answering = true;
   setPhaseMeta(session, { playerScreenLocked: true, allowAnswer: false });
   setStatus(session, "manual_scoring");
   touch(session);

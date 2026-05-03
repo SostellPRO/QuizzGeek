@@ -206,10 +206,13 @@ export function createSession({
     rounds: [],
   };
 
-  // Always create 20 generic teams (players choose among them)
-  const teams = Array.from({ length: 20 }, (_, idx) => ({
+  const configuredTeamNames =
+    safeQuiz?.teamsConfig?.enabled !== false && Array.isArray(safeQuiz?.teamsConfig?.teamNames)
+      ? safeQuiz.teamsConfig.teamNames.filter((name) => String(name || "").trim())
+      : [];
+  const teams = configuredTeamNames.map((name, idx) => ({
     id: `team_${idx + 1}`,
-    name: `Équipe ${idx + 1}`,
+    name,
     scoreTotal: 0,
   }));
 

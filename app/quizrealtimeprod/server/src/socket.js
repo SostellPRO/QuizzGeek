@@ -159,8 +159,20 @@ function emitSessionState(io, session) {
   });
 }
 
+const pendingPersistSessions = new Map();
+
+function persistSoon(session) {
+  const code = session?.sessionCode || "default";
+  if (pendingPersistSessions.has(code)) return;
+  const timer = setTimeout(() => {
+    pendingPersistSessions.delete(code);
+    persistSessions();
+  }, 750);
+  pendingPersistSessions.set(code, timer);
+}
+
 function persistAndEmit(io, session) {
-  persistSessions();
+  persistSoon(session);
   emitSessionState(io, session);
 }
 
@@ -647,6 +659,37 @@ export function setupSocketHandlers(io) {
             t.name = String(payload.newName || t.name).trim();
             for (const p of session.players || []) {
               if (p.teamId === payload.teamId) p.teamName = t.name;
+            }
+            res = { ok: true };
+            break;
+          }
+
+          case "create_team": {
+            const name = String(payload.name || "").trim();
+            if (!name) {
+              res = { ok: false, error: "Nom d'équipe requis" };
+              break;
+            }
+            if (!Array.isArray(session.teams)) session.teams = [];
+            const id = `team_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+            session.teams.push({ id, name, scoreTotal: 0 });
+            res = { ok: true, team: { id, name } };
+            break;
+          }
+
+          case "delete_team": {
+            const teamId = payload.teamId;
+            const idx = (session.teams || []).findIndex((t) => t.id === teamId);
+            if (idx < 0) {
+              res = { ok: false, error: "Équipe introuvable" };
+              break;
+            }
+            session.teams.splice(idx, 1);
+            for (const p of session.players || []) {
+              if (p.teamId === teamId) {
+                p.teamId = null;
+                p.teamName = null;
+              }
             }
             res = { ok: true };
             break;

@@ -75,7 +75,14 @@ export function GameProvider({ children }) {
 
   // ── Socket init ──────────────────────────────────────────────
   useEffect(() => {
-    const s = window.io();
+    const s = window.io({
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 300,
+      reconnectionDelayMax: 2500,
+      timeout: 8000,
+      transports: ['websocket', 'polling'],
+    });
     setSocket(s);
 
     s.on('game:players_ejected', () => {
