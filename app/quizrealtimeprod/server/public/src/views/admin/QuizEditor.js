@@ -14,15 +14,28 @@ const Q_TYPES = [
 ];
 
 
-function MediaPreview({ url, className = 'w-16 h-16' }) {
+function MediaPreview({ url }) {
   if (!url) return null;
   const src = resolveMedia(url);
   const kind = mediaKind(src);
-  // key=src force React à re-monter l'élément si l'URL change
-  // (évite que le display:none d'un onError persiste après changement d'URL)
-  if (kind === 'video') return html`<video key=${src} src=${src} className=${`${className} rounded-xl object-cover border border-white/15 flex-shrink-0`} muted playsInline onError=${e => { e.currentTarget.style.display='none'; }} />`;
-  if (kind === 'audio') return html`<audio key=${src} src=${src} controls className="w-full max-w-[240px] h-10 flex-shrink-0" onError=${e => { e.currentTarget.style.display='none'; }} />`;
-  return html`<img key=${src} src=${src} alt="apercu" className=${`${className} rounded-xl object-cover flex-shrink-0 border border-white/15`} onError=${e => { e.currentTarget.style.display='none'; }} />`;
+  // key=src : React re-monte l'élément si l'URL change → réinitialise le display:none éventuel
+  const hide = e => { e.currentTarget.style.display = 'none'; };
+  if (kind === 'video') return html`
+    <video key=${src} src=${src} muted playsInline onError=${hide}
+      className="w-full max-h-28 rounded-lg object-cover border border-white/10"
+    />
+  `;
+  if (kind === 'audio') return html`
+    <audio key=${src} src=${src} controls onError=${hide}
+      className="w-full h-9"
+      style=${{ colorScheme: 'dark' }}
+    />
+  `;
+  return html`
+    <img key=${src} src=${src} alt="apercu" onError=${hide}
+      className="h-16 rounded-lg object-cover border border-white/10"
+    />
+  `;
 }
 
 function MediaField({ label, value, onChange, accept = 'image/*,audio/*,video/*', placeholder = '/uploads/...' }) {
@@ -48,22 +61,26 @@ function MediaField({ label, value, onChange, accept = 'image/*,audio/*,video/*'
   };
 
   return html`
-    <div className="flex flex-col gap-1.5 flex-1">
+    <div className="flex flex-col gap-1 flex-1 min-w-0">
       ${label && html`<label className="text-xs font-semibold text-white/50 uppercase tracking-wider">${label}</label>`}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 min-w-0">
         <input
           type="text"
           value=${value || ''}
           onInput=${e => onChange(e.target.value)}
           placeholder=${placeholder}
-          className="flex-1 bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
+          className="min-w-0 flex-1 bg-bg-input border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[40px]"
         />
-        <label className="inline-flex items-center justify-center px-3 py-2 rounded-lg app-panel border border-white/10 text-white/70 text-xs font-bold cursor-pointer hover:border-accent/50 hover:text-white transition-colors min-h-[42px]">
-          ${uploading ? '...' : 'Upload'}
+        <label className="flex-shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg app-panel border border-white/10 text-white/70 text-xs font-bold cursor-pointer hover:border-accent/50 hover:text-white transition-colors min-h-[40px]">
+          ${uploading ? '⏳' : '↑'}
           <input type="file" accept=${accept} className="hidden" onChange=${e => uploadFile(e.target.files?.[0])} />
         </label>
-        <${MediaPreview} url=${value} />
       </div>
+      ${value && html`
+        <div className="media-preview-wrap overflow-hidden">
+          <${MediaPreview} url=${value} />
+        </div>
+      `}
       ${err && html`<span className="text-xs text-rose-300">${err}</span>`}
     </div>
   `;
@@ -586,7 +603,7 @@ export default function QuizEditor({ onBack }) {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-white/80">
-              Manches <span className="text-white/30 font-medium">({(q.rounds||[]).length})</span>
+              Manches <span className="text-white/30 font-medium">(${(q.rounds||[]).length})</span>
             </h2>
           </div>
           <div className="flex flex-col gap-4">
