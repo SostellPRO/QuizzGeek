@@ -2018,15 +2018,11 @@ export function setBurgerScore(session, score) {
 
   if (selectedTeamId) {
     // Attribuer les points à chaque membre de l'équipe
+    // NOTE: awardPointsToPlayer appelle syncTeamScoresFromPlayers → ne pas modifier team.scoreTotal manuellement
     for (const p of (session.players || [])) {
       if (p.teamId === selectedTeamId) {
         awardPointsToPlayer(session, p.id, n);
       }
-    }
-    // Mettre à jour le score de l'équipe aussi
-    const team = (session.teams || []).find((t) => t.id === selectedTeamId);
-    if (team) {
-      team.scoreTotal = (team.scoreTotal || 0) + n;
     }
   } else {
     awardPointsToPlayer(session, selectedId, n);
@@ -2039,32 +2035,8 @@ export function setBurgerScore(session, score) {
     score: n,
   };
 
-  // Rester en manual_scoring pour afficher le résultat sur la TV (le score s'affiche dans cette phase)
-  if (session.gameState.status !== "manual_scoring") {
-    setStatus(session, "manual_scoring");
-  }
+  // Basculer en scoring manuel pour validation de l'hôte
+  setStatus(session, "manual_scoring");
   touch(session);
-  return { ok: true, score: n, pseudo: selectedPseudo };
-}
-
-export function getEngineDebugState(session) {
-  const rt = ensureSessionRuntime(session);
-  return {
-    ok: true,
-    runtime: {
-      hasTimerInterval: !!rt.timerInterval,
-      hasAutoRevealTimeout: !!rt.autoRevealTimeout,
-      timerQuestionId: rt.timerQuestionId || null,
-      timerStartedAt: rt.timerStartedAt || null,
-    },
-    game: {
-      status: session?.gameState?.status,
-      currentRoundIndex: session?.gameState?.currentRoundIndex,
-      currentQuestionIndex: session?.gameState?.currentQuestionIndex,
-      timer: session?.gameState?.phaseMeta?.timer || null,
-      locked: !!session?.gameState?.phaseMeta?.playerScreenLocked,
-      allowAnswer: !!session?.gameState?.phaseMeta?.allowAnswer,
-      answerMode: session?.gameState?.phaseMeta?.answerMode || "none",
-    },
-  };
+  return { ok: true };
 }

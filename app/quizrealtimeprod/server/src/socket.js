@@ -695,6 +695,30 @@ export function setupSocketHandlers(io) {
             break;
           }
 
+          case "assign_player_team": {
+            const targetPlayer = (session.players || []).find(
+              (p) => p.id === payload.playerId,
+            );
+            if (!targetPlayer) {
+              res = { ok: false, error: "Joueur introuvable" };
+              break;
+            }
+            if (payload.teamId) {
+              const assignTeam = (session.teams || []).find((t) => t.id === payload.teamId);
+              if (!assignTeam) {
+                res = { ok: false, error: "Équipe introuvable" };
+                break;
+              }
+              targetPlayer.teamId   = assignTeam.id;
+              targetPlayer.teamName = assignTeam.name;
+            } else {
+              targetPlayer.teamId   = null;
+              targetPlayer.teamName = null;
+            }
+            res = { ok: true };
+            break;
+          }
+
           case "final_ceremony_init":
           case "final_ceremony_reveal_next":
           case "final_ceremony_reveal_next_team":
@@ -1220,8 +1244,13 @@ export function setupSocketHandlers(io) {
         const session = getSession(sessionCode || socket.data?.sessionCode);
         if (!session) { safeAck(ack, { ok: false, error: "Session introuvable" }); return; }
         const effectivePlayerId = socket.data?.playerId || playerId;
-        const player = session.players?.find((p) => p.id === effectivePlayerId);
-        if (!player) { safeAck(ack, { ok: false, error: "Joueur introuvable" }); return; }
+        const player = session.players.find(
+          (p) => p.id === effectivePlayerId || p.socketId === socket.id,
+        );
+        if (!player) {
+          safeAck(ack, { ok: false, error: "Joueur introuvable" });
+          return;
+        }
         const res = recordVoteCast(session, { player, voteIndex });
         safeAck(ack, res);
         if (res.ok) persistAndEmit(io, session);
@@ -1230,37 +1259,29 @@ export function setupSocketHandlers(io) {
       }
     });
 
-    // --- SESSION STATE ---
-    socket.on("session:get_state", ({ sessionCode } = {}, ack) => {
-      try {
-        const session = getSession(sessionCode || socket.data?.sessionCode);
-        if (!session) {
-          safeAck(ack, { ok: false, error: "Session introuvable" });
-          return;
-        }
-        const { leaderboardPlayers, leaderboardTeams } =
-          buildLeaderboards(session);
-        safeAck(ack, {
-          ok: true,
-          gameState: session.gameState,
-          players: getPublicPlayers(session),
-          teams: getPublicTeams(session),
-          leaderboardPlayers,
-          leaderboardTeams,
-        });
-      } catch (e) {
-        safeAck(ack, { ok: false, error: e.message });
-      }
-    });
-
     // --- DISCONNECT ---
     socket.on("disconnect", () => {
       try {
-        removeSocketFromSessions(socket.id);
+        // Find which session this socket belonged to BEFORE removing it
+        const affectedSessions = [];
         for (const session of store.sessions.values()) {
+          const wasHost    = session.sockets?.host?.has?.(socket.id);
+          const wasDisplay = session.sockets?.displays?.has?.(socket.id);
+          const wasPlayer  = session.players?.some(p => p.socketId === socket.id);
+          if (wasHost || wasDisplay || wasPlayer) affectedSessions.push(session);
+        }
+
+        // Now clean up
+        removeSocketFromSessions(socket.id);
+
+        // Emit updated state only for affected sessions
+        for (const session of affectedSessions) {
           emitSessionState(io, session);
         }
-      } catch {}
+      } catch (e) {
+        // Silently ignore disconnect errors
+      }
     });
-  });
-}
+
+  }); // end io.on("connection")
+} // end setupSocketHandlers

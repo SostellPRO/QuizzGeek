@@ -168,15 +168,13 @@ function AnswerGrid({ options, revealed, correctIdx }) {
 
 // ── Vote display ──────────────────────────────────────────────
 function VoteDisplay({ gs, players }) {
-  const mode     = gs?.phaseMeta?.answerMode;
-  const voteState= gs?.voteState;
-  const proposals= voteState?.proposals || [];
-  const revealed = voteState?.revealed  || {};
-  const cursor   = voteState?.revealCursor ?? -1;
+  const mode               = gs?.phaseMeta?.answerMode;
+  const voteState          = gs?.voteState;
+  const proposalRevealState= gs?.proposalRevealState;
 
   if (mode === 'vote_input') {
-    const conn    = players.filter(p => p.connected && !p.isBot).length;
-    const voted   = Object.keys(gs?.answers?.[gs?.currentQuestion?.id] || {}).length;
+    const conn  = players.filter(p => p.connected && !p.isBot).length;
+    const voted = Object.keys(gs?.answers?.[gs?.currentQuestion?.id] || {}).length;
     return html`
       <div className="flex flex-col items-center gap-8 py-12 animate-fade-in">
         <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🗳️</div>
@@ -198,11 +196,40 @@ function VoteDisplay({ gs, players }) {
     `;
   }
 
+  // Proposal reveal – proposals revealed one by one before voting starts
+  if (mode === 'vote_proposal_reveal') {
+    const proposals = proposalRevealState?.proposals || [];
+    const cursor    = proposalRevealState?.revealCursor ?? -1;
+    const revealed  = proposals.slice(0, cursor + 1);
+    return html`
+      <div className="flex flex-col gap-5 animate-fade-in">
+        <h2 className="gradient-text font-display font-black text-center" style=${{ fontSize: 'clamp(1.8rem,4vw,3rem)' }}>
+          📋 Les propositions
+        </h2>
+        <div className="flex flex-col gap-3">
+          ${revealed.map((prop, i) => html`
+            <div
+              key=${i}
+              className="flex items-center gap-4 rounded-2xl border px-6 py-4 animate-fade-in"
+              style=${{ background: 'rgba(178,75,255,.1)', borderColor: 'rgba(178,75,255,.3)' }}
+            >
+              <span className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-black bg-accent/20 text-accent" style=${{ fontSize: 'clamp(.9rem,1.8vw,1.3rem)' }}>${i+1}</span>
+              <span style=${{ fontSize: 'clamp(1.1rem,2.5vw,2rem)', fontWeight: '700' }}>${prop.text || prop}</span>
+            </div>
+          `)}
+        </div>
+        <div className="text-center text-white/40" style=${{ fontSize: 'clamp(0.9rem,1.8vw,1.3rem)' }}>
+          ${cursor + 1} / ${proposals.length} propositions
+        </div>
+      </div>
+    `;
+  }
+
   // Vote voting – display all options for players to vote on
   if (mode === 'vote_voting') {
-    const options = voteState?.options || proposals;
-    const votes   = voteState?.votes || {};
-    const conn    = players.filter(p => p.connected && !p.isBot).length;
+    const options    = voteState?.options || [];
+    const votes      = voteState?.votes   || {};
+    const conn       = players.filter(p => p.connected && !p.isBot).length;
     const totalVotes = Object.keys(votes).length;
     return html`
       <div className="flex flex-col gap-5 animate-fade-in">
@@ -230,29 +257,31 @@ function VoteDisplay({ gs, players }) {
     `;
   }
 
-  // Vote revealing / revealed
-  const revealedProposals = proposals.slice(0, cursor + 1);
+  // Vote revealing / revealed — options with voteCount from voteState.options
+  const options = voteState?.options || [];
+  const cursor  = voteState?.revealCursor ?? options.length - 1;
+  const revealedOptions = options.slice(0, cursor + 1);
   return html`
     <div className="flex flex-col gap-5 animate-fade-in">
       <h2 className="gradient-text font-display font-black text-center" style=${{ fontSize: 'clamp(1.8rem,4vw,3rem)' }}>
-        Les réponses
+        Les résultats
       </h2>
       <div className="flex flex-col gap-3">
-        ${revealedProposals.map((prop, i) => html`
+        ${revealedOptions.map((opt, i) => html`
           <div
             key=${i}
             className="flex items-center justify-between rounded-2xl border px-6 py-4 animate-fade-in"
             style=${{
-              background: 'rgba(79,172,254,.12)',
-              borderColor: 'rgba(79,172,254,.3)',
+              background: opt.isDecoy ? 'rgba(251,113,133,.1)' : 'rgba(79,172,254,.12)',
+              borderColor: opt.isDecoy ? 'rgba(251,113,133,.3)' : 'rgba(79,172,254,.3)',
             }}
           >
-            <span style=${{ fontSize: 'clamp(1.2rem,2.5vw,2rem)', fontWeight: '700' }}>${prop.text}</span>
+            <span style=${{ fontSize: 'clamp(1.2rem,2.5vw,2rem)', fontWeight: '700' }}>${opt.text || opt}</span>
             <span
-              className="font-display font-black text-neon-green"
+              className=${`font-display font-black ${opt.isDecoy ? 'text-rose-400' : 'text-neon-green'}`}
               style=${{ fontSize: 'clamp(1.5rem,3.5vw,2.5rem)' }}
             >
-              ${prop.count}
+              ${opt.voteCount ?? 0}
             </span>
           </div>
         `)}
@@ -457,7 +486,31 @@ export default function DisplayView() {
       </div>
     `;
 
-    if (phase === 'get_ready') return html`
+    if (phase === 'get_ready') {
+      const q = gs?.currentQuestion;
+      const round = gs?.currentRound;
+      return html`
+        <div key=${`ready_${q?.id || gs?.currentQuestionIndex || 0}`} className="flex flex-col items-center justify-center min-h-[100dvh] gap-6 animate-bounce-in px-8 text-center">
+          <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🎯</div>
+          <h1 className="font-display font-black gradient-text" style=${{ fontSize: 'clamp(2.5rem,7vw,6rem)' }}>
+            Tenez-vous prets !
+          </h1>
+          <div className="text-white/38 font-mono text-sm tracking-[0.18em] uppercase">
+            ${round?.title ? html`<span>${round.title}</span>` : ''}
+            ${q ? html`<span> · Q${(gs?.currentQuestionIndex ?? 0)+1}</span>` : ''}
+          </div>
+          ${q?.content && html`
+            <p className="font-display font-bold text-white/78 max-w-5xl" style=${{ fontSize: 'clamp(1.4rem,3vw,2.8rem)', lineHeight: '1.2' }}>
+              ${q.content}
+            </p>
+          `}
+          ${q?.mediaUrl && html`<${MediaStage} url=${q.mediaUrl} maxHeight="28vh" autoPlay=${false} />`}
+          <${Dots} />
+        </div>
+      `;
+    }
+
+    if (false) return html`
       <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-6 animate-bounce-in">
         <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🎯</div>
         <h1 className="font-display font-black gradient-text" style=${{ fontSize: 'clamp(2.5rem,7vw,6rem)' }}>
@@ -646,9 +699,9 @@ export default function DisplayView() {
     // True / False – dedicated big-button display
       const isTrueFalse = ansMode === 'true_false' || curRound?.type === 'true_false';
       if (isTrueFalse) {
-      const vraiCount = 0;
-      const fauxCount = 0;
-      const total = 0;
+      const vraiCount = gs?.trueFalseVotes?.yes?.length ?? 0;
+      const fauxCount = gs?.trueFalseVotes?.no?.length ?? 0;
+      const total = vraiCount + fauxCount;
       return html`
         <div className="flex flex-col min-h-[100dvh] px-[clamp(24px,4vw,64px)] py-[clamp(24px,3vh,48px)]">
           ${curQ?.mediaUrl && html`
@@ -756,103 +809,4 @@ export default function DisplayView() {
           </div>
           ${curQ?.content && html`
             <p className="font-display font-bold text-center mb-6 text-white/70" style=${{ fontSize: 'clamp(1.4rem,2.8vw,2.4rem)' }}>
-              ${curQ.content}
-            </p>
-          `}
-          <div className="grid grid-cols-2 gap-6">
-            <div className=${'flex flex-col items-center justify-center rounded-3xl border-2 p-8 transition-all duration-500' + (isVrai ? ' border-neon-green/80 bg-neon-green/20 scale-105' : ' border-white/10 bg-white/3 opacity-40')} style=${{ minHeight:'25vh' }}>
-              <span style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>✅</span>
-              <span className=${'font-display font-black mt-3' + (isVrai ? ' text-neon-green' : ' text-white/30')} style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>VRAI</span>
-              ${isVrai && html`<span className="text-neon-green text-2xl mt-2">✓</span>`}
-            </div>
-            <div className=${'flex flex-col items-center justify-center rounded-3xl border-2 p-8 transition-all duration-500' + (!isVrai ? ' border-neon-green/80 bg-neon-green/20 scale-105' : ' border-white/10 bg-white/3 opacity-40')} style=${{ minHeight:'25vh' }}>
-              <span style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>❌</span>
-              <span className=${'font-display font-black mt-3' + (!isVrai ? ' text-neon-green' : ' text-white/30')} style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>FAUX</span>
-              ${!isVrai && html`<span className="text-neon-green text-2xl mt-2">✓</span>`}
-            </div>
-          </div>
-        </div>
-      `;
-    }
-    return html`
-      <div className="flex flex-col min-h-[100dvh] px-[clamp(24px,4vw,64px)] py-[clamp(24px,3vh,48px)] animate-fade-in">
-
-        <!-- Answer reveal banner -->
-        <div className="flex items-center justify-center gap-4 mb-6">
-          <span style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>📋</span>
-          <span className="font-display font-black gradient-text-green"
-                style=${{ fontSize: 'clamp(1.8rem,4vw,3.5rem)' }}>
-            La réponse !
-          </span>
-        </div>
-
-        <!-- Correct answer highlight -->
-        ${revealed?.answer && html`
-          <div className="flex justify-center mb-6">
-            <div className="rounded-2xl border-2 border-neon-green/60 bg-neon-green/10 px-8 py-4">
-              <span className="font-display font-black text-neon-green"
-                    style=${{ fontSize: 'clamp(1.5rem,3.5vw,3rem)' }}>
-                ✓ ${revealed.answer}
-              </span>
-            </div>
-          </div>
-        `}
-
-        <!-- Question text -->
-        ${curQ?.content && html`
-          <p className="font-display font-bold text-center mb-5 text-white/70"
-             style=${{ fontSize: 'clamp(1.4rem,2.8vw,2.4rem)' }}>
-            ${curQ.content}
-          </p>
-        `}
-
-        <!-- Options with correct highlighted -->
-        <${AnswerGrid}
-          options=${curQ?.options || []}
-          revealed=${true}
-          correctIdx=${curQ?.correctOptionIndex ?? revealed?.optionIndex ?? 0}
-        />
-
-        <!-- Reveal media -->
-        ${revealed?.mediaUrl && html`
-          <div className="flex justify-center mt-6">
-            <img
-              src=${resolveMedia(revealed.mediaUrl)}
-              className="max-w-full rounded-2xl object-contain"
-              style=${{ maxHeight: '30vh' }}
-              alt="reveal media"
-            />
-          </div>
-        `}
-
-        <!-- Reveal audio -->
-        ${revealed?.revealAudio && html`<audio id="reveal-audio-player" src=${resolveMedia(revealed.revealAudio)} style=${{display:'none'}} />`}
-
-      </div>
-    `;
-  };
-
-  return html`
-    <div
-      className="display-fullscreen bg-bg"
-      style=${{
-        ...(bgUrl ? { backgroundImage:`url('${bgUrl}')`, backgroundSize:'cover', backgroundPosition:'center' } : {}),
-      }}
-    >
-      ${bgUrl && html`<div className="bg-overlay" />`}
-
-      <!-- Session banner (top LEFT) -->
-      <div className="absolute top-3 left-4 z-20 flex items-center gap-2">
-        <span className="font-mono text-white/30 text-xs">Session </span>
-        <span className="font-mono font-bold text-accent/80 tracking-widest text-sm">${sc}</span>
-        <button onClick=${toggleMute} className="ml-2 text-white/30 hover:text-white text-base">${musicMuted ? '🔇' : '🔊'}</button>
-      </div>
-
-      <!-- Main content -->
-      <div className="relative z-10">
-        ${renderContent()}
-      </div>
-
-    </div>
-  `;
-}
+              ${curQ.conte

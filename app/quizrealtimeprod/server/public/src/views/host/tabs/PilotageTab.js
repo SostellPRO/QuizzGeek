@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { html } from '../../../utils.js';
 import { useGame } from '../../../contexts/GameContext.js';
 import { Btn, Badge } from '../../../components/ui.js';
@@ -24,6 +24,7 @@ export default function PilotageTab() {
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [showBroadcast, setShowBroadcast] = useState(false);
   const [peekScores, setPeekScores]       = useState(false);
+  const [timerSeconds, setTimerSeconds]   = useState(30);
 
   const phase   = gs?.status || 'lobby';
   const isPaused= gs?.phaseMeta?.paused === true;
@@ -63,7 +64,7 @@ export default function PilotageTab() {
   const sendBroadcast = () => {
     const msg = broadcastMsg.trim();
     if (!msg) return;
-    ha('broadcast_message', { message: msg, type: 'info' });
+    ha('broadcast_message', { text: msg, type: 'info' });
     setBroadcastMsg('');
     setShowBroadcast(false);
   };
@@ -355,6 +356,37 @@ export default function PilotageTab() {
           </div>
         </div>
       `}
+      <!-- Timer controls -->
+      ${['question','waiting','answer_reveal','manual_scoring','get_ready'].includes(phase) && html`
+        <div className="rounded-xl bg-bg-card border border-white/8 p-4">
+          <div className="text-xs text-white/40 uppercase tracking-widest mb-3">⏱ Chronomètre</div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="5"
+              max="600"
+              value=${timerSeconds}
+              onInput=${e => setTimerSeconds(Math.max(5, parseInt(e.target.value) || 30))}
+              className="w-24 bg-bg-input border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-mono text-center focus:border-accent/60 outline-none"
+            />
+            <span className="text-xs text-white/40">sec</span>
+            ${gs?.phaseMeta?.timer
+              ? html`
+                <${Btn} variant="danger" onClick=${() => ha('stop_timer')}>⏹ Stopper<//>
+              `
+              : html`
+                <${Btn} variant="primary" pulse onClick=${() => ha('start_timer', { seconds: timerSeconds })}>▶ Lancer<//>
+              `
+            }
+          </div>
+          ${gs?.phaseMeta?.timer && html`
+            <div className="mt-2 text-xs text-neon-green font-mono">
+              ⏱ Chrono en cours — visible sur la TV
+            </div>
+          `}
+        </div>
+      `}
+
       <!-- Navigation -->
       <div className="rounded-xl bg-bg-card border border-white/8 p-4">
         <div className="text-xs text-white/40 uppercase tracking-widest mb-3">🧭 Navigation</div>
@@ -364,54 +396,17 @@ export default function PilotageTab() {
             <${Btn} variant="nav" pulse=${nextPulse} onClick=${() => ha('next_question')}>Question ▶</${Btn}>
           </div>
         `}
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <${Btn} variant="ghost" size="sm" onClick=${() => ha('prev_round')}>◀◀ Manche</${Btn}>
+          <${Btn} variant="ghost" size="sm" onClick=${() => ha('next_round')}>Manche ▶▶</${Btn}>
+        </div>
         <div className="grid grid-cols-2 gap-2">
-          <${Btn} variant="nav" size="sm" onClick=${() => ha('prev_round')}>◀ Manche</${Btn}>
-          <${Btn} variant="nav" size="sm" pulse=${['round_end','results'].includes(phase)} onClick=${() => ha('next_round')}>Manche ▶</${Btn}>
+          <${Btn} variant="ghost" size="sm" onClick=${() => ha('show_results')}>📊 Résultats</${Btn}>
+          <${Btn} variant="danger" size="sm" onClick=${() => {
+            if (confirm('Terminer la partie ?')) ha('end_game');
+          }}>🏁 Fin de partie</${Btn}>
         </div>
       </div>
-
-      <!-- Cérémonie finale : basculer joueurs / équipes -->
-      ${phase === 'end' && html`
-        <div className="rounded-xl bg-accent/8 border border-accent/25 p-4">
-          <div className="text-xs text-white/40 uppercase tracking-widest mb-3">🏆 Cérémonie finale</div>
-          <div className="grid grid-cols-2 gap-2">
-            <${Btn}
-              variant=${!gs?.phaseMeta?.ceremonyView || gs?.phaseMeta?.ceremonyView === 'players' ? 'primary' : 'ghost'}
-              onClick=${() => ha('ceremony_view', { view: 'players' })}
-            >
-              👤 Joueurs
-            <//>
-            <${Btn}
-              variant=${gs?.phaseMeta?.ceremonyView === 'teams' ? 'primary' : 'ghost'}
-              onClick=${() => ha('ceremony_view', { view: 'teams' })}
-            >
-              👥 Équipes
-            <//>
-          </div>
-          <div className="grid grid-cols-2 gap-2 mt-3">
-            <${Btn} variant="secondary" onClick=${() => ha('final_ceremony_init')}>Mode suspense<//>
-            <${Btn}
-              variant="primary"
-              pulse
-              onClick=${() => ha(gs?.phaseMeta?.ceremonyView === 'teams' ? 'final_ceremony_reveal_next_team' : 'final_ceremony_reveal_next')}
-            >
-              Reveler suivant
-            <//>
-          </div>
-        </div>
-      `}
-
-      <!-- End game -->
-      ${['question','waiting','round_end','results','answer_reveal','manual_scoring'].includes(phase) && html`
-        <div className="text-center mt-2">
-          <button
-            onClick=${() => confirm('Terminer le quiz ?') && ha('end_game')}
-            className="text-xs text-white/20 hover:text-rose-400 transition-colors"
-          >
-            ⏹ Terminer le quiz
-          </button>
-        </div>
-      `}
 
     </div>
   `;

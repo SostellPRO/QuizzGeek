@@ -103,34 +103,49 @@ export default function GestionTab() {
           <div className="flex flex-col gap-2">
             ${teams.map(t => html`
               <div key=${t.id} className="flex items-center justify-between rounded-lg app-panel px-4 py-3">
-                <div>
-                  <div className="text-sm font-extrabold text-white">${t.name}</div>
-                  <div className="text-xs text-white/40">${players.filter(p => p.teamId === t.id).length} membre(s)</div>
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <span className="font-bold text-white truncate">${t.name}</span>
+                  <span className="text-xs text-white/40 font-mono shrink-0">${t.scoreTotal ?? 0} pts</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="rounded-full bg-teal-400/12 px-2.5 py-1 font-mono text-sm font-black text-teal-300">${t.scoreTotal ?? t.score ?? 0}</div>
-                  <button onClick=${() => renameTeam(t)} className="min-h-[34px] rounded-lg bg-white/6 px-2.5 text-xs font-black text-white/48 transition-colors hover:bg-white/10">Renommer</button>
-                  <button onClick=${() => confirm('Supprimer cette equipe ?') && hostAction('delete_team', { teamId: t.id })} className="min-h-[34px] rounded-lg bg-white/6 px-2.5 text-xs font-black text-white/48 transition-colors hover:bg-rose-500/16 hover:text-rose-300">X</button>
+                <div className="flex gap-1 shrink-0">
+                  <button
+                    onClick=${() => renameTeam(t)}
+                    className="min-h-[34px] rounded-lg bg-white/6 px-2.5 text-xs font-black text-white/48 transition-colors hover:bg-sky-400/14 hover:text-sky-200"
+                    title="Renommer"
+                  >✏️</button>
+                  <button
+                    onClick=${() => confirm(\`Supprimer \${t.name} ?\`) && hostAction('delete_team', { teamId: t.id })}
+                    className="min-h-[34px] rounded-lg bg-white/6 px-2.5 text-xs font-black text-white/48 transition-colors hover:bg-rose-500/16 hover:text-rose-300"
+                    title="Supprimer"
+                  >🗑</button>
                 </div>
               </div>
             `)}
           </div>
           `}
-        </section>
 
-      <section className="rounded-lg app-surface p-4">
-        <h3 className="mb-3 text-sm font-extrabold text-white/72">Points en masse</h3>
-        <div className="flex gap-2">
-          <input
-            type="number"
-            value=${points}
-            onInput=${e => setPoints(parseInt(e.target.value) || 0)}
-            className="min-h-[42px] flex-1 rounded-lg border border-white/10 bg-bg-input/90 px-4 py-2 font-mono text-sm text-white outline-none transition-colors focus:border-sky-400/70"
-          />
-          <${Btn} variant="success" size="sm" onClick=${() => hostAction('award_all', { points })}>
-            Tous +${points}
-          <//>
-        </div>
+          <!-- Assign players to teams -->
+          ${teams.length > 0 && players.length > 0 && html`
+          <div className="mt-4">
+            <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-white/35">Assigner joueurs aux équipes</h4>
+            <div className="flex flex-col gap-2">
+              ${players.map(p => html`
+                <div key=${p.id || p.playerId} className="flex items-center gap-3 rounded-lg bg-white/4 border border-white/8 px-3 py-2">
+                  <span className="text-lg">${p.avatar || '🎮'}</span>
+                  <span className="flex-1 text-sm font-semibold text-white truncate">${p.pseudo}</span>
+                  <select
+                    value=${p.teamId || ''}
+                    onChange=${e => hostAction('assign_player_team', { playerId: p.id || p.playerId, teamId: e.target.value || null })}
+                    className="bg-bg-input border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-sky-400/60 transition-colors"
+                  >
+                    <option value="">— Aucune —</option>
+                    ${teams.map(t => html`<option key=${t.id} value=${t.id}>${t.name}</option>`)}
+                  </select>
+                </div>
+              `)}
+            </div>
+          </div>
+          `}
       </section>
     </div>
   `;

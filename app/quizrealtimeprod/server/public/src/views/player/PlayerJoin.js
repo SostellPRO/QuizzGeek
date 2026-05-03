@@ -147,16 +147,22 @@ export default function PlayerJoin({ suggestedCode = '' }) {
                 <select
                   value=${teamId}
                   onChange=${e => setTeamId(e.target.value)}
-                  className="min-h-[50px] cursor-pointer rounded-lg border border-white/10 bg-bg-input/90 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-sky-400/70"
+                  className="min-h-[50px] rounded-lg border border-white/10 bg-bg-input/90 px-4 py-3 text-base text-white outline-none transition-colors focus:border-sky-400/70"
                 >
-                  <option value="">Aucune equipe</option>
+                  <option value="">— Choisir une équipe —</option>
                   ${teamsList.map(t => html`<option key=${t.id} value=${t.id}>${t.name}</option>`)}
                 </select>
               </div>
             `}
 
-            <${Btn} variant="primary" wide pulse onClick=${join} disabled=${loading}>
-              ${loading ? 'Connexion...' : 'Rejoindre la partie'}
+            <${Btn}
+              variant="primary"
+              wide
+              size="lg"
+              onClick=${join}
+              disabled=${loading}
+            >
+              ${loading ? '⏳ Connexion…' : '🎮 Rejoindre la partie'}
             <//>
           </div>
         </div>

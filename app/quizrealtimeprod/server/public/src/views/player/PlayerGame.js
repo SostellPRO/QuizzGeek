@@ -563,11 +563,11 @@ export default function PlayerGame() {
 
   const renderEnd = () => {
     const total = myPlayer?.scoreTotal ?? 0;
-    const rank  = (lbSort = []) => {
-      const sorted = [...(gs?.leaderboard || [])].sort((a,b)=>b.score-a.score);
-      const pos    = sorted.findIndex(p => p.playerId === s?.playerId || p.id === s?.playerId);
+    const lb = gs?.leaderboardPlayers || [];
+    const myRank = (() => {
+      const pos = lb.findIndex(p => p.playerId === s?.playerId || p.id === s?.playerId);
       return pos >= 0 ? pos + 1 : '?';
-    };
+    })();
     return html`
       <div className="flex flex-col items-center gap-5 py-6 text-center animate-bounce-in">
         <div className="text-6xl animate-float">🏆</div>
@@ -575,6 +575,7 @@ export default function PlayerGame() {
         <div className="rounded-2xl bg-accent/10 border border-accent/30 px-8 py-5">
           <div className="text-5xl font-display font-black gradient-text-green">${total}</div>
           <div className="text-sm text-white/40 mt-1 uppercase tracking-widest">points au total</div>
+          ${myRank !== '?' && html`<div className="text-lg font-bold text-white/60 mt-2">${myRank === 1 ? '🏆' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : `#${myRank}`} sur ${lb.length}</div>`}
         </div>
         <p className="text-white/40 text-sm">Regardez le classement sur l'écran TV !</p>
         <${Btn} variant="secondary" onClick=${disconnect}>← Quitter<//>
@@ -593,28 +594,10 @@ export default function PlayerGame() {
         right=${html`<span className="text-neon-green font-bold font-mono">${myPlayer?.scoreTotal ?? 0} pts</span>`}
       />
 
-      <!-- Alert -->
-      ${alert && html`
-        <div className="px-4 pt-3">
-          <${Alert} type=${alert.type} message=${alert.message} />
-        </div>
-      `}
-
-      <!-- Content -->
-      <div className="flex-1 px-4 py-5 max-w-md mx-auto w-full">
+      <!-- Page content -->
+      <div className="flex-1 px-4 py-4">
         ${renderPhase()}
       </div>
-
-      <!-- Disconnect button -->
-      <div className="px-4 pb-5 text-center">
-        <button
-          onClick=${disconnect}
-          className="text-xs text-white/20 hover:text-white/50 transition-colors"
-        >
-          Se déconnecter
-        </button>
-      </div>
-
     </div>
   `;
 }
