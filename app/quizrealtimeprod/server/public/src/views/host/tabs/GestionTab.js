@@ -114,7 +114,7 @@ export default function GestionTab() {
                     title="Renommer"
                   >✏️</button>
                   <button
-                    onClick=${() => confirm(\`Supprimer \${t.name} ?\`) && hostAction('delete_team', { teamId: t.id })}
+                    onClick=${() => confirm('Supprimer ' + t.name + ' ?') && hostAction('delete_team', { teamId: t.id })}
                     className="min-h-[34px] rounded-lg bg-white/6 px-2.5 text-xs font-black text-white/48 transition-colors hover:bg-rose-500/16 hover:text-rose-300"
                     title="Supprimer"
                   >🗑</button>

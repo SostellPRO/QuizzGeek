@@ -809,4 +809,90 @@ export default function DisplayView() {
           </div>
           ${curQ?.content && html`
             <p className="font-display font-bold text-center mb-6 text-white/70" style=${{ fontSize: 'clamp(1.4rem,2.8vw,2.4rem)' }}>
-              ${curQ.conte
+              ${curQ.content}
+            </p>
+          `}
+          <div className="flex justify-center mt-4">
+            <div className=${`flex flex-col items-center justify-center rounded-2xl border-2 p-8 ${isVrai ? 'border-neon-green/60 bg-neon-green/15' : 'border-rose-500/60 bg-rose-500/15'}`}
+                 style=${{ minWidth: 'clamp(200px,40vw,500px)' }}>
+              <span style=${{ fontSize: 'clamp(5rem,15vw,10rem)' }}>${isVrai ? '✅' : '❌'}</span>
+              <span className=${`font-display font-black mt-4 ${isVrai ? 'text-neon-green' : 'text-rose-400'}`}
+                    style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>
+                ${isVrai ? 'VRAI' : 'FAUX'}
+              </span>
+            </div>
+          </div>
+          ${curQ?.correctAnswerMediaUrl && html`
+            <div className="flex justify-center mt-6">
+              <${MediaStage} url=${curQ.correctAnswerMediaUrl} maxHeight="30vh" />
+            </div>
+          `}
+          ${curQ?.correctAnswer && html`
+            <p className="text-center mt-4 text-neon-green font-bold"
+               style=${{ fontSize: 'clamp(1.1rem,2.5vw,2rem)' }}>
+              ${curQ.correctAnswer}
+            </p>
+          `}
+        </div>
+      `;
+    }
+
+    // Standard QCM / rapidite reveal
+    return html`
+      <div className="flex flex-col min-h-[100dvh] px-[clamp(24px,4vw,64px)] py-[clamp(24px,3vh,48px)] animate-fade-in">
+        <div className="flex items-center justify-center gap-4 mb-6">
+          <span style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>📋</span>
+          <span className="font-display font-black gradient-text-green" style=${{ fontSize: 'clamp(1.8rem,4vw,3.5rem)' }}>La réponse !</span>
+        </div>
+        ${curQ?.content && html`
+          <p className="font-display font-bold text-center mb-6 text-white/70"
+             style=${{ fontSize: 'clamp(1.4rem,2.8vw,2.4rem)', lineHeight: '1.2' }}>
+            ${curQ.content}
+          </p>
+        `}
+        ${curQ?.options?.length > 0 && html`
+          <${AnswerGrid}
+            options=${curQ.options}
+            revealed=${true}
+            correctIdx=${curQ.correctOptionIndex ?? -1}
+          />
+        `}
+        ${curQ?.correctAnswerMediaUrl && html`
+          <div className="flex justify-center mt-6">
+            <${MediaStage} url=${curQ.correctAnswerMediaUrl} maxHeight="30vh" />
+          </div>
+        `}
+        ${curQ?.correctAnswer && html`
+          <div className="mt-5 text-center rounded-2xl border border-neon-green/40 bg-neon-green/10 px-6 py-4">
+            <p className="font-display font-black text-neon-green"
+               style=${{ fontSize: 'clamp(1.5rem,4vw,3rem)' }}>
+              ${curQ.correctAnswer}
+            </p>
+          </div>
+        `}
+      </div>
+    `;
+  };
+
+  // ── Main return ──────────────────────────────────────────────
+  return html`
+    <div className="display-fullscreen bg-bg"
+         style=${bgUrl ? { backgroundImage:'url(' + bgUrl + ')', backgroundSize:'cover', backgroundPosition:'center' } : {}}>
+      ${bgUrl && html`<div className="bg-overlay" />`}
+      ${gs?.phaseMeta?.broadcast && html`
+        <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center px-6 py-3"
+             style=${{ background: 'rgba(124,92,255,0.92)', backdropFilter: 'blur(8px)' }}>
+          <span className="font-bold text-white text-center" style=${{ fontSize: 'clamp(1rem,2.5vw,1.6rem)' }}>
+            📢 ${gs.phaseMeta.broadcast}
+          </span>
+        </div>
+      `}
+      <div className="relative z-10 flex flex-col min-h-[100dvh]">
+        ${renderContent()}
+      </div>
+      <button className="music-mute-btn" onClick=${toggleMute} title=${musicMuted ? 'Activer la musique' : 'Couper la musique'}>
+        ${musicMuted ? '🔇' : '🔊'}
+      </button>
+    </div>
+  `;
+}
