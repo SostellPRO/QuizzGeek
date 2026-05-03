@@ -116,27 +116,28 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
   const LABELS = ['A','B','C','D'];
 
   return html`
-    <div className="rounded-lg app-panel overflow-hidden">
+    <div className="rounded-lg overflow-hidden transition-all duration-150"
+         style=${{ background: 'rgba(12,16,32,0.82)', border: `1px solid ${open ? 'rgba(56,189,248,0.18)' : 'rgba(255,255,255,0.07)'}` }}>
       <!-- Row header -->
       <div
         className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/3 transition-colors"
         onClick=${() => setOpen(!open)}
       >
-        <span className="text-white/30 font-mono text-sm flex-shrink-0 w-6">${qi+1}.</span>
+        <span className=${`font-mono text-sm flex-shrink-0 w-6 transition-colors ${open ? 'text-neon-blue' : 'text-white/30'}`}>${qi+1}.</span>
         <p className="flex-1 text-sm text-white/80 truncate">${q.content || html`<em className="text-white/25">Question sans titre</em>`}</p>
         <span className="text-white/25 text-xs flex-shrink-0">${q.type || 'qcm'}</span>
-        <div className="flex gap-1 flex-shrink-0">
+        <div className="flex gap-1 flex-shrink-0 items-center">
           <button
             onClick=${e => { e.stopPropagation(); onDelete(); }}
             className="text-white/25 hover:text-rose-400 transition-colors text-sm px-1.5"
           >Suppr.</button>
-          <span className="text-white/25 text-sm">${open ? '▲' : '▼'}</span>
+          <span className=${`text-xs transition-colors ${open ? 'text-neon-blue/70' : 'text-white/25'}`}>${open ? '▲' : '▼'}</span>
         </div>
       </div>
 
       <!-- Row content (expanded) -->
       ${open && html`
-        <div className="px-4 pb-4 border-t border-white/5 pt-4 flex flex-col gap-4">
+        <div className="px-4 pb-4 border-t border-white/8 pt-4 flex flex-col gap-4" style=${{ background: 'rgba(4,6,14,0.6)' }}>
 
           <!-- Question text -->
           <div className="flex flex-col gap-1.5">
@@ -334,7 +335,8 @@ function RoundPanel({ round, ri, onUpdate, onDelete }) {
   };
 
   return html`
-    <div className="rounded-lg app-surface overflow-hidden">
+    <div className=${`rounded-xl overflow-hidden transition-all duration-200 ${open ? 'ring-1 ring-accent/30 shadow-lg shadow-black/30' : 'app-surface'}`}
+         style=${open ? { background: 'linear-gradient(180deg, rgba(124,92,255,0.07), rgba(255,255,255,0.03))', border: '1px solid rgba(124,92,255,0.22)' } : {}}>
       <!-- Round header -->
       <div
         className="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-white/3 transition-colors"
@@ -342,20 +344,20 @@ function RoundPanel({ round, ri, onUpdate, onDelete }) {
       >
         <span className="text-2xl">${rt.icon}</span>
         <div className="flex-1 min-w-0">
-          <div className="font-bold text-sm text-white/90">${round.title || `Manche ${ri+1}`}</div>
-          <div className="text-xs text-white/35 mt-0.5">${rt.label} - ${(round.questions||[]).length} question(s)</div>
+          <div className=${`font-bold text-sm transition-colors ${open ? 'text-white' : 'text-white/90'}`}>${round.title || `Manche ${ri+1}`}</div>
+          <div className="text-xs text-white/40 mt-0.5">${rt.label} · ${(round.questions||[]).length} question(s)</div>
         </div>
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex gap-2 flex-shrink-0 items-center">
           <button
             onClick=${e => { e.stopPropagation(); onDelete(); }}
             className="text-white/20 hover:text-rose-400 transition-colors text-sm px-1.5"
           >Suppr.</button>
-          <span className="text-white/30">${open ? '▲' : '▼'}</span>
+          <span className=${`text-xs transition-colors ${open ? 'text-accent/80' : 'text-white/30'}`}>${open ? '▲' : '▼'}</span>
         </div>
       </div>
 
       ${open && html`
-        <div className="px-5 pb-5 border-t border-white/5 pt-4 flex flex-col gap-5">
+        <div className="px-5 pb-5 border-t border-white/8 pt-5 flex flex-col gap-5" style=${{ background: 'rgba(6,8,18,0.55)' }}>
 
           <!-- Round settings -->
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -449,9 +451,11 @@ function RoundPanel({ round, ri, onUpdate, onDelete }) {
 
           <!-- Questions -->
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-white/60">
-                Questions <span className="text-white/30">(${(round.questions||[]).length})</span>
+            <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/6">
+              <span className="text-sm font-semibold text-neon-blue/80 flex items-center gap-2">
+                <span className="w-1 h-4 rounded-full bg-neon-blue/60 inline-block"></span>
+                Questions
+                <span className="text-white/30 font-normal">(${(round.questions||[]).length})</span>
               </span>
             </div>
             <div className="flex flex-col gap-2">
@@ -533,7 +537,7 @@ export default function QuizEditor({ onBack }) {
   };
 
   return html`
-    <div className="flex flex-col min-h-[100dvh] bg-bg">
+    <div className="flex flex-col min-h-[100dvh] bg-bg-alt">
 
       <!-- Sticky header -->
       <div className="sticky top-0 z-20 bg-bg-alt border-b border-white/8 px-4 py-3 flex items-center gap-3">
@@ -601,9 +605,11 @@ export default function QuizEditor({ onBack }) {
 
         <!-- Rounds -->
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-bold text-white/80">
-              Manches <span className="text-white/30 font-medium">(${(q.rounds||[]).length})</span>
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/8">
+            <h2 className="text-base font-bold text-white/90 flex items-center gap-2">
+              <span className="w-1 h-5 rounded-full bg-accent/70 inline-block"></span>
+              Manches
+              <span className="text-white/35 font-normal text-sm">(${(q.rounds||[]).length})</span>
             </h2>
           </div>
           <div className="flex flex-col gap-4">
