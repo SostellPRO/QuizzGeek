@@ -207,14 +207,19 @@ export function GameProvider({ children }) {
           play(blr.result === 'correct' ? 'correct' : 'wrong');
         }
 
-        // ── Vote reveal sound ────────────────────────────────────
+        // ── Vote reveal sound ─────────────────────────────────────
+        // cashRegister = vraie réponse révélée ; wrong = leurre révélé
         const vrc = gs?.voteState?.revealCursor;
         const am  = gs?.phaseMeta?.answerMode;
         if ((am === 'vote_revealing' || am === 'vote_revealed') &&
             vrc != null && vrc !== lastVoteReveal.current) {
-          const justRevealed = lastVoteReveal.current != null;
+          const prevCursor = lastVoteReveal.current;
           lastVoteReveal.current = vrc;
-          if (justRevealed) play('cashRegister');
+          if (prevCursor != null) {
+            // L'option qui vient d'être révélée est à l'index (vrc - 1)
+            const justRevealedOption = gs?.voteState?.options?.[vrc - 1];
+            play(justRevealedOption?.isDecoy ? 'wrong' : 'cashRegister');
+          }
         } else if (am !== 'vote_revealing' && am !== 'vote_revealed') {
           lastVoteReveal.current = null;
         }

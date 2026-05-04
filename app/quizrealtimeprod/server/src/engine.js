@@ -174,7 +174,7 @@ function setAnswerModeFromQuestion(session) {
       qType === "vote" ||
       round.type === "vote"
     ) {
-      answerMode = "vote_input";
+      answerMode = "vote_question";
     } else if (
       qType === "qcm" ||
       qType === "mcq" ||
@@ -1518,6 +1518,17 @@ function shuffleArray(arr) {
 }
 
 /**
+ * Passe en mode vote_input : les joueurs peuvent saisir leur réponse.
+ * Appelé manuellement par l'admin après vote_question.
+ */
+export function startVoteInput(session) {
+  ensureSessionRuntime(session);
+  setPhaseMeta(session, { playerScreenLocked: false, allowAnswer: true, answerMode: "vote_input" });
+  touch(session);
+  return { ok: true };
+}
+
+/**
  * Lance la phase de vote :
  * - Réunit les réponses des joueurs + les fausses réponses pré-configurées
  * - Mélange le tout
@@ -1699,20 +1710,29 @@ export function startProposalReveal(session) {
   if (!q) return { ok: false, error: "Aucune question active" };
 
   const answerMap = getQuestionAnswersMap(session, q.id);
-  const proposals = Object.values(answerMap)
+  const playerProposals = Object.values(answerMap)
     .filter((a) => a.answer && a.answer.trim())
     .map((a) => {
       const player = (session.players || []).find((p) => p.id === a.playerId);
       return {
+        text: a.answer.trim(),
+        isDecoy: false,
         playerId: a.playerId,
         pseudo: player?.pseudo || "?",
-        answer: a.answer.trim(),
       };
     });
 
+  const fakeAnswers = Array.isArray(q.fakeAnswers)
+    ? q.fakeAnswers
+        .filter((f) => f && String(f).trim())
+        .map((f) => ({ text: String(f).trim(), isDecoy: true, playerId: null, pseudo: null }))
+    : [];
+
+  const proposals = shuffleArray([...playerProposals, ...fakeAnswers]);
+
   session.gameState.proposalRevealState = {
     proposals,
-    revealCursor: 0, // 0 = rien affiché; 1 = proposals[0] visible, etc.
+    revealCursor: -1, // -1 = rien affiché; 0 = proposals[0] visible, etc.
   };
 
   setPhaseMeta(session, {
@@ -1734,7 +1754,7 @@ export function proposalRevealNext(session) {
   ensureSessionRuntime(session);
   const prs = session.gameState.proposalRevealState;
   if (!prs) return { ok: false, error: "Pas de révélation de propositions active" };
-  prs.revealCursor = Math.min(prs.revealCursor + 1, prs.proposals.length);
+  prs.revealCursor = Math.min((prs.revealCursor ?? -1) + 1, prs.proposals.length - 1);
   touch(session);
   return { ok: true, cursor: prs.revealCursor, total: prs.proposals.length };
 }
@@ -1750,7 +1770,7 @@ export function proposalRevealNext(session) {
 export function initVideoChallenge(session) {
   ensureSessionRuntime(session);
   const q = getCurrentQuestion(session);
-  session.gameState.videoState = {
+  const vs = {
     questionId: q?.id || null,
     phase: "select",              // select | training_ready | training_playing | ready | playing | eval | scored
     selectedPlayerId: null,
@@ -1760,6 +1780,12 @@ export function initVideoChallenge(session) {
     videoControl: null,           // { action: 'play'|'pause'|'rewind', at }
     trainingVideoControl: null,   // { action: 'play'|'pause'|'rewind', at } pour la vidéo d'entraînement
   };
+  // Si une vidéo d'entraînement est disponible, la pré-charger en pause
+  if (q?.trainingVideoUrl) {
+    vs.trainingVideoControl = { action: 'pause', at: new Date().toISOString() };
+    vs.phase = "training_ready";
+  }
+  session.gameState.videoState = vs;
   setPhaseMeta(session, {
     playerScreenLocked: true,
     allowAnswer: false,

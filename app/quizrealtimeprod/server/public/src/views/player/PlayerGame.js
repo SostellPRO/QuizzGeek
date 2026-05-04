@@ -181,6 +181,7 @@ export default function PlayerGame() {
     const isBuzzer    = answerMode === 'buzzer' || roundType === 'rapidite' || roundType === 'speed';
     const isTrueFalse = answerMode === 'true_false' || roundType === 'true_false';
     const isBurger    = answerMode === 'burger' || gs?.currentRound?.type === 'burger';
+    const isVoteQuestion = answerMode === 'vote_question';
     const isVoteInput = answerMode === 'vote_input';
     const isVoteVoting= answerMode === 'vote_voting';
     const isVoteReveal= ['vote_proposal_reveal','vote_revealed','vote_revealing'].includes(answerMode);
@@ -289,7 +290,7 @@ export default function PlayerGame() {
 
       if (iFirst) return html`
         <div className="flex flex-col items-center gap-4 py-6 text-center animate-bounce-in">
-          <div className="text-6xl animate-float">🎉</div>
+          <div className="text-6xl animate-bounce">❗</div>
           <h2 className="text-2xl font-display font-black text-neon-green">Vous avez buzzé en premier !</h2>
           <p className="text-white/50 text-sm">Le maître de jeu va valider…</p>
         </div>
@@ -358,6 +359,16 @@ export default function PlayerGame() {
       `;
     }
 
+    // ── Vote : question affichée, joueurs en standby ────────────
+    if (isVoteQuestion) return html`
+      <div className="rounded-2xl bg-blue-500/10 border border-blue-500/25 p-6 text-center">
+        <div className="text-5xl mb-4">🗳️</div>
+        <h2 className="text-xl font-bold text-blue-400">Use Your Words</h2>
+        <p className="text-white/50 text-sm mt-2">Regardez l'écran TV…</p>
+        <${Dots} />
+      </div>
+    `;
+
     // ── Vote : saisie libre ──────────────────────────────────────
     if (isVoteInput) {
       if (locked) return html`
@@ -404,22 +415,26 @@ export default function PlayerGame() {
           <p className="text-xs text-white/50 text-center uppercase tracking-wider mb-1">Votez pour une réponse</p>
           <div className="flex flex-col gap-2">
             ${options.map((opt, i) => {
-              const color   = OPT_COLORS[i % OPT_COLORS.length];
-              const bgColor = OPT_BGCOLORS[i % OPT_BGCOLORS.length];
+              const isOwn   = opt.playerId && opt.playerId === s?.playerId;
+              const color   = isOwn ? 'rgba(255,255,255,.2)' : OPT_COLORS[i % OPT_COLORS.length];
+              const bgColor = isOwn ? 'rgba(255,255,255,.04)' : OPT_BGCOLORS[i % OPT_BGCOLORS.length];
               return html`
                 <button
                   key=${i}
-                  onClick=${() => sendVoteChoice(i)}
-                  style=${{ borderColor: color, background: bgColor }}
-                  className="flex items-center gap-4 p-4 rounded-xl border-2 font-semibold text-left transition-all active:scale-95 hover:brightness-125"
+                  onClick=${() => !isOwn && sendVoteChoice(i)}
+                  disabled=${isOwn}
+                  style=${{ borderColor: color, background: bgColor, opacity: isOwn ? 0.4 : 1, cursor: isOwn ? 'not-allowed' : 'pointer' }}
+                  className="flex items-center gap-4 p-4 rounded-xl border-2 font-semibold text-left transition-all ${isOwn ? '' : 'active:scale-95 hover:brightness-125'}"
+                  title=${isOwn ? 'Votre réponse — vous ne pouvez pas voter pour vous-même' : ''}
                 >
                   <span
                     style=${{ color, borderColor: color, background: `${color}22` }}
                     className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center font-black text-sm border-2"
                   >
-                    ${i+1}
+                    ${isOwn ? '✍' : i+1}
                   </span>
-                  <span className="text-white">${opt.text || opt}</span>
+                  <span className=${isOwn ? 'text-white/40' : 'text-white'}>${opt.text || opt}</span>
+                  ${isOwn && html`<span className="ml-auto text-xs text-white/30 italic">votre réponse</span>`}
                 </button>
               `;
             })}

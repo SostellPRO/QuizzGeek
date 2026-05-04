@@ -35,11 +35,13 @@ export default function PilotageTab() {
   const isBuzzer= gs?.phaseMeta?.answerMode === 'buzzer';
   const isVC    = curRound?.type === 'video_challenge';
   const videoPhase = gs?.videoState?.phase || '';
-  const isVoteInput = gs?.phaseMeta?.answerMode === 'vote_input';
-  const isVoteProposal = gs?.phaseMeta?.answerMode === 'vote_proposal_reveal';
-  const isVoteVoting = gs?.phaseMeta?.answerMode === 'vote_voting';
-  const isVote  = isVoteInput || isVoteVoting || isVoteProposal;
-  const voteRevealing = gs?.phaseMeta?.answerMode === 'vote_revealing' || gs?.phaseMeta?.answerMode === 'vote_revealed';
+  const answerMode = gs?.phaseMeta?.answerMode;
+  const isVoteQuestion = answerMode === 'vote_question';
+  const isVoteInput = answerMode === 'vote_input';
+  const isVoteProposal = answerMode === 'vote_proposal_reveal';
+  const isVoteVoting = answerMode === 'vote_voting';
+  const isVote  = isVoteQuestion || isVoteInput || isVoteVoting || isVoteProposal;
+  const voteRevealing = answerMode === 'vote_revealing' || answerMode === 'vote_revealed';
   const answerablePlayers = players.filter(p => p.connected && !p.isBot);
   const conn    = answerablePlayers.length;
   const answered= Object.keys(gs?.answers?.[curQ?.id] || {}).length;
@@ -215,41 +217,66 @@ export default function PilotageTab() {
       <!-- Vote controls -->
       ${(isVote || voteRevealing) && html`
         <div className="rounded-xl bg-blue-500/8 border border-blue-500/25 p-4">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center justify-between gap-2 mb-3">
             <span className="text-xs text-white/40 uppercase tracking-widest">🗳️ Vote</span>
             <span className="text-xs text-blue-300/60 font-mono">
-              ${isVoteInput ? '① Saisie' : isVoteProposal ? '② Révélation propositions' : isVoteVoting ? '③ Vote' : '④ Révélation résultats'}
+              ${isVoteQuestion ? 'Étape 1/5 – Question' :
+                isVoteInput ? 'Étape 2/5 – Saisie des réponses' :
+                isVoteProposal ? 'Étape 3/5 – Révélation propositions' :
+                isVoteVoting ? 'Étape 4/5 – Vote' :
+                'Étape 5/5 – Révélation résultats'}
             </span>
           </div>
           <div className="flex flex-col gap-2">
+            ${isVoteQuestion && html`
+              <${Btn} variant="primary" wide onClick=${() => ha('vote_start_input')}>
+                ✍️ C'est à vous
+              <//>
+            `}
             ${isVoteInput && html`
               <div className="text-xs text-white/35 mb-1">${answered}/${conn} réponse(s) reçue(s)</div>
               <${Btn} variant="primary" wide pulse=${allAnswered} onClick=${() => ha('vote_close')}>
-                ▶ Afficher les propositions
+                🗳️ Lancer les votes
               <//>
             `}
-            ${isVoteProposal && html`
-              <div className="grid grid-cols-2 gap-2">
-                <${Btn} variant="secondary" onClick=${() => ha('vote_proposal_reveal_next')}>
-                  Proposition suivante ▶
-                <//>
-                <${Btn} variant="primary" pulse onClick=${() => ha('vote_start_voting')}>
-                  🗳️ Lancer le vote
-                <//>
-              </div>
-            `}
+            ${isVoteProposal && (() => {
+              const prs = gs?.proposalRevealState;
+              const cursor = prs?.revealCursor ?? -1;
+              const total = prs?.proposals?.length ?? 0;
+              const allShown = total > 0 && cursor >= total - 1;
+              return html`
+                <div className="text-xs text-white/35 mb-1">${cursor + 1} / ${total} propositions affichées</div>
+                ${!allShown && html`
+                  <${Btn} variant="secondary" wide onClick=${() => ha('vote_proposal_reveal_next')}>
+                    ▶ Proposition suivante
+                  <//>
+                `}
+                ${allShown && html`
+                  <${Btn} variant="primary" wide pulse onClick=${() => ha('vote_start_voting')}>
+                    🗳️ Ouvrir le vote
+                  <//>
+                `}
+              `;
+            })()}
             ${isVoteVoting && html`
-              <div className="text-xs text-white/35 mb-1">${answered}/${conn} vote(s) reçu(s)</div>
-              <${Btn} variant="primary" wide pulse=${allAnswered} onClick=${() => ha('vote_reveal')}>
-                📊 Révéler les résultats
+              <div className="text-xs text-white/35 mb-1">${voteCount}/${conn} vote(s) reçu(s)</div>
+              <${Btn} variant="primary" wide pulse=${voteCount >= conn && conn > 0} onClick=${() => ha('vote_reveal')}>
+                🔍 Révéler les résultats
               <//>
             `}
-            ${voteRevealing && html`
-              <div className="flex gap-2">
-                <${Btn} variant="secondary" wide pulse onClick=${() => ha('vote_reveal_next')}>Suivant ▶<//>
-                <${Btn} variant="ghost" size="sm" onClick=${() => ha('vote_end')}>✓ Terminer<//>
-              </div>
-            `}
+            ${voteRevealing && (() => {
+              const isRevealed = answerMode === 'vote_revealed';
+              return html`
+                <div className="flex gap-2">
+                  ${!isRevealed && html`
+                    <${Btn} variant="secondary" wide pulse onClick=${() => ha('vote_reveal_next')}>▶ Révéler suivant<//>
+                  `}
+                  ${isRevealed && html`
+                    <${Btn} variant="success" wide onClick=${() => ha('vote_end')}>✓ Terminer<//>
+                  `}
+                </div>
+              `;
+            })()}
           </div>
         </div>
       `}
@@ -323,12 +350,13 @@ export default function PilotageTab() {
 
               <!-- Lancement -->
               <div className="flex items-center gap-2 flex-wrap mb-2">
-                <${Btn} variant="secondary" size="sm"
+                <${Btn} variant="primary" size="sm"
+                  pulse=${(!!gs?.videoState?.selectedPlayerId || !!gs?.videoState?.selectedTeamId) && videoPhase !== 'ready'}
                   onClick=${() => ha('video_mark_ready')}>
-                  Prêt
+                  ✋ Prêt
                 <//>
                 <${Btn} variant="primary" size="sm"
-                  pulse=${!!gs?.videoState?.selectedPlayerId || !!gs?.videoState?.selectedTeamId}
+                  pulse=${videoPhase === 'ready'}
                   disabled=${!gs?.videoState?.selectedPlayerId && !gs?.videoState?.selectedTeamId}
                   onClick=${() => ha('video_start_playing')}>
                   ▶ Lancer
@@ -360,6 +388,9 @@ export default function PilotageTab() {
                   type="number"
                   value=${videoScore}
                   onInput=${e => setVideoScore(parseInt(e.target.value) || 0)}
+                  step="10"
+                  min="0"
+                  max="100"
                   className="w-20 bg-bg-input border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-mono text-center focus:border-accent/60 outline-none"
                 />
                 <${Btn} variant="success" size="sm"
@@ -418,6 +449,9 @@ export default function PilotageTab() {
                 type="number"
                 value=${burgerScore}
                 onInput=${e => setBurgerScore(parseInt(e.target.value) || 0)}
+                step="10"
+                min="0"
+                max="100"
                 className="w-24 bg-bg-input border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-mono text-center focus:border-accent/60 outline-none"
               />
               <${Btn} variant="success" onClick=${() => ha('burger_set_score', { score: burgerScore })}>

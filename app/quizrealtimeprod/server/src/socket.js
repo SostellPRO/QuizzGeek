@@ -47,6 +47,7 @@ import {
   stopTimer,
   unlockPlayers,
   startVotePhase,
+  startVoteInput,
   recordVoteCast,
   revealVoteResults,
   voteRevealNext,
@@ -95,17 +96,21 @@ function getNickname(rank, total) {
 function buildFinalCeremonyData(session) {
   const { leaderboardPlayers, leaderboardTeams } = buildLeaderboards(session);
   const total = leaderboardPlayers.length;
-  const revealOrder = [...leaderboardPlayers].reverse().map((p, idx) => ({
-    revealIndex: idx,
-    rank: p.rank,
-    pseudo: p.pseudo,
-    playerId: p.playerId,
-    teamId: p.teamId || null,
-    teamName: p.teamName || null,
-    scoreTotal: p.scoreTotal || 0,
-    nickname: session?.quiz?.closingCeremony?.rankComments?.[String(p.rank)] || getNickname(p.rank, total),
-    revealed: false,
-  }));
+  const revealOrder = [...leaderboardPlayers].reverse().map((p, idx) => {
+    const playerObj = (session.players || []).find(pl => pl.id === p.playerId);
+    return {
+      revealIndex: idx,
+      rank: p.rank,
+      pseudo: p.pseudo,
+      avatar: playerObj?.avatar || '🎮',
+      playerId: p.playerId,
+      teamId: p.teamId || null,
+      teamName: p.teamName || null,
+      scoreTotal: p.scoreTotal || 0,
+      rankComment: session?.quiz?.closingCeremony?.rankComments?.[String(p.rank)] || getNickname(p.rank, total),
+      revealed: false,
+    };
+  });
   const teamsRevealOrder = [...leaderboardTeams].reverse().map((t, idx) => ({
     revealIndex: idx,
     rank: t.rank || idx + 1,
@@ -708,9 +713,17 @@ export function setupSocketHandlers(io) {
           case "final_ceremony_reveal_next_team":
           case "final_ceremony_show_team_winner":
           case "final_ceremony_reset":
-          case "ceremony_set_view":
+          case "ceremony_set_view": {
             res = handleFinalCeremonyAction(session, action, payload || {});
+            // Émettre immédiatement même si res.ok est vrai — on ne veut pas attendre
+            // la fin du switch pour les actions de cérémonie (affichage TV immédiat)
+            if (res.ok) {
+              safeAck(ack, res);
+              persistAndEmit(io, session);
+              return;
+            }
             break;
+          }
 
           // --- TEST / ADMIN ACTIONS ---
           case "add_bot": {
@@ -879,7 +892,7 @@ export function setupSocketHandlers(io) {
                   s.gameState.updatedAt = new Date().toISOString();
                   emitSessionState(io, s);
                 }
-              }, 2000);
+              }, 1000);
             }
             break;
           }
@@ -1117,6 +1130,10 @@ export function setupSocketHandlers(io) {
 
           case "return_to_question":
             res = returnToQuestion(session);
+            break;
+
+          case "vote_start_input":
+            res = startVoteInput(session);
             break;
 
           case "vote_proposal_reveal_start":

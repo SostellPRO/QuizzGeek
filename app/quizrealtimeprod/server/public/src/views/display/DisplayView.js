@@ -5,7 +5,7 @@ import { Btn, Alert, Dots } from '../../components/ui.js';
 
 // ── Display Connect Screen ────────────────────────────────────
 function DisplayConnect() {
-  const { socket, setDisplaySession, navigate } = useGame();
+  const { socket, setDisplaySession, navigate, musicMuted, toggleMute } = useGame();
   const [code, setCode] = useState('');
   const [alert, setAlert] = useState(null);
 
@@ -33,7 +33,12 @@ function DisplayConnect() {
   return html`
     <div className="flex min-h-[100dvh] items-center justify-center px-6 py-8">
       <button onClick=${() => navigate('home')} className="absolute left-6 top-6 rounded-lg app-chip px-3 py-2 text-sm font-bold text-white/58 transition-colors hover:text-white">← Accueil</button>
-      <div className="w-full max-w-lg rounded-lg app-surface p-6 text-center animate-fade-in sm:p-8">
+      <div className="w-full max-w-lg rounded-lg app-surface p-6 text-center animate-fade-in sm:p-8" style=${{ position: 'relative' }}>
+        <button
+          onClick=${toggleMute}
+          title=${musicMuted ? 'Activer la musique' : 'Couper la musique'}
+          style=${{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontSize: '1.2rem', lineHeight: '1', color: 'white' }}
+        >${musicMuted ? '🔇' : '🔊'}</button>
         <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-lg app-panel text-5xl">📺</div>
         <h1 className="font-display text-5xl font-black gradient-text">Ecran TV</h1>
         <p className="mt-3 text-sm leading-6 text-white/48">Connectez cet ecran a une session pour diffuser le quiz en grand format.</p>
@@ -167,10 +172,36 @@ function AnswerGrid({ options, revealed, correctIdx }) {
 }
 
 // ── Vote display ──────────────────────────────────────────────
-function VoteDisplay({ gs, players }) {
+function VoteDisplay({ gs, players, curQ }) {
   const mode               = gs?.phaseMeta?.answerMode;
   const voteState          = gs?.voteState;
   const proposalRevealState= gs?.proposalRevealState;
+
+  // vote_question : question affichée, joueurs en standby
+  if (mode === 'vote_question') {
+    return html`
+      <div className="flex flex-col items-center gap-8 py-10 animate-fade-in w-full">
+        ${curQ?.mediaUrl && html`
+          <div className="flex justify-center mb-2">
+            <${MediaStage} url=${curQ.mediaUrl} maxHeight="32vh" />
+          </div>
+        `}
+        ${curQ?.content && html`
+          <p className="font-display font-bold text-center"
+             style=${{ fontSize: 'clamp(1.8rem,3.5vw,3.2rem)', lineHeight: '1.2' }}>
+            ${curQ.content}
+          </p>
+        `}
+        <div className="flex flex-col items-center gap-3 mt-4">
+          <div style=${{ fontSize: 'clamp(3rem,8vw,5rem)' }}>🗳️</div>
+          <p className="text-white/50 font-bold" style=${{ fontSize: 'clamp(1.2rem,2.5vw,2rem)' }}>
+            En attente…
+          </p>
+          <${Dots} />
+        </div>
+      </div>
+    `;
+  }
 
   if (mode === 'vote_input') {
     const conn  = players.filter(p => p.connected && !p.isBot).length;
@@ -197,30 +228,59 @@ function VoteDisplay({ gs, players }) {
     `;
   }
 
-  // Proposal reveal – proposals revealed one by one before voting starts
+  // Proposal reveal – une seule proposition à la fois avec fondu
   if (mode === 'vote_proposal_reveal') {
     const proposals = proposalRevealState?.proposals || [];
     const cursor    = proposalRevealState?.revealCursor ?? -1;
-    const revealed  = proposals.slice(0, cursor + 1);
-    return html`
-      <div className="flex flex-col gap-5 animate-fade-in">
-        <h2 className="gradient-text font-display font-black text-center" style=${{ fontSize: 'clamp(1.8rem,4vw,3rem)' }}>
-          📋 Les propositions
-        </h2>
-        <div className="flex flex-col gap-3">
-          ${revealed.map((prop, i) => html`
-            <div
-              key=${i}
-              className="flex items-center gap-4 rounded-2xl border px-6 py-4 animate-fade-in"
-              style=${{ background: 'rgba(178,75,255,.1)', borderColor: 'rgba(178,75,255,.3)' }}
-            >
-              <span className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-black bg-accent/20 text-accent" style=${{ fontSize: 'clamp(.9rem,1.8vw,1.3rem)' }}>${i+1}</span>
-              <span style=${{ fontSize: 'clamp(1.1rem,2.5vw,2rem)', fontWeight: '700' }}>${prop.text || prop}</span>
+
+    if (cursor < 0) {
+      return html`
+        <div className="flex flex-col items-center gap-8 py-12 animate-fade-in w-full">
+          ${curQ?.mediaUrl && html`
+            <div className="flex justify-center mb-2">
+              <${MediaStage} url=${curQ.mediaUrl} maxHeight="22vh" />
             </div>
-          `)}
+          `}
+          ${curQ?.content && html`
+            <p className="font-display font-bold text-center text-white/60"
+               style=${{ fontSize: 'clamp(1.2rem,2.5vw,2rem)', lineHeight: '1.3' }}>
+              ${curQ.content}
+            </p>
+          `}
+          <p className="font-display font-black gradient-text text-center"
+             style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>
+            Préparez-vous…
+          </p>
+          <${Dots} />
         </div>
-        <div className="text-center text-white/40" style=${{ fontSize: 'clamp(0.9rem,1.8vw,1.3rem)' }}>
-          ${cursor + 1} / ${proposals.length} propositions
+      `;
+    }
+
+    const currentProp = proposals[cursor];
+    return html`
+      <div className="flex flex-col items-center gap-6 w-full animate-fade-in">
+        ${curQ?.mediaUrl && html`
+          <div className="flex justify-center mb-1">
+            <${MediaStage} url=${curQ.mediaUrl} maxHeight="20vh" />
+          </div>
+        `}
+        <div className="text-white/35 font-mono text-sm">${cursor + 1} / ${proposals.length}</div>
+        <div
+          key=${'prop-' + cursor}
+          className="flex items-center justify-center rounded-3xl border-2 px-10 py-8 animate-fade-in"
+          style=${{
+            background: 'rgba(178,75,255,.12)',
+            borderColor: 'rgba(178,75,255,.4)',
+            minWidth: 'clamp(260px,55vw,700px)',
+            maxWidth: '80vw',
+          }}
+        >
+          <span
+            className="font-display font-black text-center text-white"
+            style=${{ fontSize: 'clamp(2rem,5vw,4.5rem)', lineHeight: '1.2' }}
+          >
+            ${currentProp?.text || ''}
+          </span>
         </div>
       </div>
     `;
@@ -303,7 +363,7 @@ function BuzzerDisplay({ gs, players }) {
   const [hiddenAt, setHiddenAt] = useState(null);
   useEffect(() => {
     if (!blr?.at) return;
-    const t = setTimeout(() => setHiddenAt(blr.at), 2500);
+    const t = setTimeout(() => setHiddenAt(blr.at), 1250);
     return () => clearTimeout(t);
   }, [blr?.at]); // eslint-disable-line
 
@@ -342,7 +402,7 @@ function BuzzerDisplay({ gs, players }) {
 
   return html`
     <div className="flex flex-col items-center gap-6 animate-bounce-in">
-      <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🎉</div>
+      <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }} className="animate-bounce">❗</div>
       <div style=${{ fontSize: 'clamp(2.5rem,6vw,4.5rem)' }} className="flex items-center gap-4">
         <span>${firstPlayer?.avatar || '🎮'}</span>
         <span className="font-display font-black text-neon-green">${firstPlayer?.pseudo || '?'}</span>
@@ -387,9 +447,43 @@ function TVScoreboard({ leaderboard, title = 'Classement' }) {
   `;
 }
 
+// ── AllAnsweredBurst ──────────────────────────────────────────
+const BURST_CSS = '@keyframes burst-scale{0%{transform:scale(1);opacity:0}20%{transform:scale(1.2);opacity:1}70%{transform:scale(1.5);opacity:1}100%{transform:scale(2);opacity:0}}';
+function AllAnsweredBurst({ show }) {
+  useEffect(() => {
+    if (!show) return;
+    // Injecter les keyframes une seule fois
+    if (!document.getElementById('burst-style')) {
+      const el = document.createElement('style');
+      el.id = 'burst-style';
+      el.textContent = BURST_CSS;
+      document.head.appendChild(el);
+    }
+  }, [show]);
+  if (!show) return null;
+  return html`
+    <div style=${{
+      position: 'fixed', inset: 0, zIndex: 999,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      pointerEvents: 'none',
+    }}>
+      <div style=${{
+        animation: 'burst-scale 1.5s ease-out forwards',
+        fontSize: 'clamp(2rem,6vw,4rem)',
+        fontWeight: '900',
+        color: '#2dd4bf',
+        textShadow: '0 0 30px rgba(45,212,191,0.8)',
+        whiteSpace: 'nowrap',
+      }}>
+        ✅ Tous ont répondu !
+      </div>
+    </div>
+  `;
+}
+
 // ── Main Display view ─────────────────────────────────────────
 export default function DisplayView() {
-  const { socket, displaySession, setDisplaySession, gameState: gs, players, lbPlayers, lbTeams, navigate, musicMuted, toggleMute, ducking } = useGame();
+  const { socket, displaySession, setDisplaySession, gameState: gs, players, lbPlayers, lbTeams, navigate, musicMuted, toggleMute, ducking, soundPlay } = useGame();
 
   // Duck background music while challenge video is playing
   useEffect(() => {
@@ -398,6 +492,28 @@ export default function DisplayView() {
     const isPlaying = videoCtrl?.action === 'play';
     ducking(isPlaying);
   }, [gs?.videoState?.videoControl?.action, gs?.videoState?.videoControl?.at]); // eslint-disable-line
+
+  // ── "Tous ont répondu" burst + son de cloche ──────────────
+  const [showBurst, setShowBurst] = useState(false);
+  const prevAllAnswered = useRef(false);
+  useEffect(() => {
+    const curQ   = gs?.currentQuestion;
+    const phase2 = gs?.status || 'lobby';
+    const ansMode = gs?.phaseMeta?.answerMode;
+    const conn2  = (players || []).filter(p => p.connected && !p.isBot).length;
+    const answered2 = Object.keys(gs?.answers?.[curQ?.id] || {}).length;
+    const isCountable = (phase2 === 'question' || phase2 === 'waiting') &&
+      ansMode !== 'vote_input' && ansMode !== 'vote_voting' &&
+      conn2 > 0 && answered2 >= conn2;
+    if (isCountable && !prevAllAnswered.current) {
+      prevAllAnswered.current = true;
+      if (typeof soundPlay === 'function') soundPlay('bell');
+      setShowBurst(true);
+      setTimeout(() => setShowBurst(false), 1600);
+    } else if (!isCountable) {
+      prevAllAnswered.current = false;
+    }
+  }, [gs?.answers, gs?.status, gs?.currentQuestion?.id, players]); // eslint-disable-line
 
   if (!displaySession?.connected) return html`<${DisplayConnect} />`;
 
@@ -560,45 +676,52 @@ export default function DisplayView() {
         const allTop3Revealed = top3Visible.length >= Math.min(3, revealOrder.filter(x => x.rank <= 3).length);
         const MEDAL = ['🥇','🥈','🥉'];
         if (allTop3Revealed && pending === 0 && top3Visible.length > 0) {
-          const podium = lb.filter(x => x.rank <= 3).sort((a, b) => a.rank - b.rank);
-          const rest   = lb.filter(x => x.rank > 3);
+          // Trier par rang : rank1=centre(plus haut), rank2=gauche(milieu), rank3=droite(plus bas)
+          const podiumByRank = Object.fromEntries(lb.filter(x => x.rank <= 3).map(x => [x.rank, x]));
+          const rest         = lb.filter(x => x.rank > 3);
+          // Ordre visuel podium : gauche=rank2, centre=rank1, droite=rank3
+          const podiumVisual = [podiumByRank[2], podiumByRank[1], podiumByRank[3]].filter(Boolean);
+          const podiumHeights = { 1: '22vh', 2: '16vh', 3: '12vh' };
+          const podiumBg      = { 1: 'rgba(255,215,0,.22)', 2: 'rgba(192,192,192,.18)', 3: 'rgba(205,127,50,.18)' };
+          const podiumBorder  = { 1: 'rgba(255,215,0,.55)', 2: 'rgba(192,192,192,.45)', 3: 'rgba(205,127,50,.45)' };
           return html`
-            <div className="flex flex-col items-center min-h-[100dvh] px-8 py-10 gap-8 animate-fade-in">
+            <div className="flex flex-col items-center min-h-[100dvh] px-8 py-10 gap-6 animate-fade-in">
               <h1 className="font-display font-black gradient-text" style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>
                 ${ceremonyView === 'teams' ? '🏆 Classement par équipes' : '🏆 Classement Final'}
               </h1>
-              <!-- Podium top 3 -->
-              <div className="flex items-end justify-center gap-4" style=${{ minHeight:'18vh' }}>
-                ${[1, 0, 2].map(relIdx => {
-                  const p = podium[relIdx];
+              <!-- Podium top 3 : rank2 gauche, rank1 centre (plus haut), rank3 droite -->
+              <div className="flex items-end justify-center gap-6" style=${{ minHeight:'26vh' }}>
+                ${podiumVisual.map((p, idx) => {
                   if (!p) return null;
-                  const heights = ['16vh','22vh','12vh'];
-                  const scales  = ['text-3xl','text-4xl','text-2xl'];
+                  const delay = p.rank === 1 ? '0ms' : p.rank === 2 ? '200ms' : '400ms';
                   return html`
                     <div key=${p.rank} className="flex flex-col items-center gap-2 animate-bounce-in"
-                         style=${{ animationDelay: relIdx === 1 ? '0ms' : relIdx === 0 ? '200ms' : '400ms' }}>
-                      <span style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>${MEDAL[p.rank - 1]}</span>
-                      <span className="font-display font-black text-center" style=${{ fontSize: 'clamp(1.1rem,2.5vw,2rem)', maxWidth:'20vw' }}>${p.pseudo || p.name}</span>
-                      <span className="font-mono font-black text-neon-green" style=${{ fontSize: 'clamp(1rem,2vw,1.6rem)' }}>${p.scoreTotal} pts</span>
-                      <div className="rounded-t-xl w-full" style=${{
-                        height: heights[relIdx],
-                        minWidth: 'clamp(80px,12vw,160px)',
-                        background: relIdx === 0 ? 'rgba(255,215,0,.2)' : relIdx === 1 ? 'rgba(45,212,191,.15)' : 'rgba(205,127,50,.15)',
-                        border: `2px solid ${relIdx === 0 ? 'rgba(255,215,0,.5)' : relIdx === 1 ? 'rgba(45,212,191,.4)' : 'rgba(205,127,50,.4)'}`,
-                        display:'flex', alignItems:'center', justifyContent:'center',
-                        fontSize:'clamp(1.5rem,4vw,3rem)',
+                         style=${{ animationDelay: delay }}>
+                      <span style=${{ fontSize: 'clamp(1.8rem,4vw,3rem)' }}>${p.avatar || '🎮'}</span>
+                      <span style=${{ fontSize: 'clamp(2rem,4.5vw,3.5rem)' }}>${MEDAL[p.rank - 1]}</span>
+                      <span className="font-display font-black text-center" style=${{ fontSize: 'clamp(1rem,2vw,1.8rem)', maxWidth:'18vw' }}>${p.pseudo || p.name}</span>
+                      <span className="font-mono font-black text-neon-green" style=${{ fontSize: 'clamp(.9rem,1.8vw,1.4rem)' }}>${p.scoreTotal} pts</span>
+                      <div className="rounded-t-2xl w-full flex items-center justify-center" style=${{
+                        height: podiumHeights[p.rank] || '12vh',
+                        minWidth: 'clamp(90px,14vw,170px)',
+                        background: podiumBg[p.rank] || 'rgba(255,255,255,.1)',
+                        border: `2px solid ${podiumBorder[p.rank] || 'rgba(255,255,255,.2)'}`,
+                        fontSize: 'clamp(2rem,5vw,4rem)',
+                        opacity: '.45',
                       }}>${p.rank}</div>
                     </div>
                   `;
                 })}
               </div>
-              <!-- Others -->
+              <!-- Non top-3 avec avatar + rankComment -->
               ${rest.length > 0 && html`
                 <div className="flex flex-col gap-2 w-full max-w-2xl">
-                  ${rest.slice(0,5).map(p => html`
-                    <div key=${p.playerId || p.teamId} className="flex items-center gap-3 rounded-xl bg-white/5 px-5 py-2.5">
-                      <span className="font-mono text-white/30 w-8">${p.rank}.</span>
+                  ${rest.map(p => html`
+                    <div key=${p.playerId || p.teamId} className="flex items-center gap-3 rounded-xl bg-white/5 px-5 py-2.5 animate-fade-in">
+                      <span className="font-mono text-white/30 w-8 text-sm">${p.rank}.</span>
+                      <span style=${{ fontSize: 'clamp(1.2rem,2.5vw,1.8rem)' }}>${p.avatar || '🎮'}</span>
                       <span className="flex-1 font-semibold truncate">${p.pseudo || p.name}</span>
+                      ${p.rankComment && html`<span className="text-white/38 text-xs italic hidden sm:block">${p.rankComment}</span>`}
                       <span className="font-mono font-bold text-neon-green">${p.scoreTotal} pts</span>
                     </div>
                   `)}
@@ -608,12 +731,42 @@ export default function DisplayView() {
           `;
         }
 
+        // Joueurs révélés (avant que le podium soit complet) — liste avec avatar + rankComment
+        if (visible.length > 0) {
+          return html`
+            <div className="flex flex-col items-center justify-center min-h-[100dvh] px-8 py-10 gap-4">
+              <h1 className="font-display font-black gradient-text mb-2" style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>
+                ${ceremonyView === 'teams' ? '🏆 Classement par équipes' : '🏆 Classement Final'}
+              </h1>
+              <div className="flex flex-col gap-2 w-full max-w-2xl">
+                ${lb.map(p => html`
+                  <div key=${p.playerId || p.teamId} className="flex items-center gap-3 rounded-xl bg-white/5 border border-white/8 px-5 py-3 animate-fade-in">
+                    <span className="font-mono text-white/30 w-8 text-sm">${p.rank}.</span>
+                    <span style=${{ fontSize: 'clamp(1.2rem,2.5vw,1.8rem)' }}>${p.avatar || '🎮'}</span>
+                    <span className="flex-1 font-semibold truncate">${p.pseudo || p.name}</span>
+                    ${p.rankComment && html`<span className="text-white/38 text-xs italic hidden sm:block">${p.rankComment}</span>`}
+                    <span className="font-mono font-bold text-neon-green">${p.scoreTotal} pts</span>
+                  </div>
+                `)}
+              </div>
+              ${pending > 0 && html`
+                <p className="mt-4 text-white/38 font-bold tracking-[0.18em] uppercase">${pending} résultat(s) masqué(s)</p>
+              `}
+            </div>
+          `;
+        }
+
+        // Aucun joueur révélé encore
         return html`
-          <div className="flex flex-col items-center justify-center min-h-[100dvh] px-8 py-10">
-            <${TVScoreboard} leaderboard=${lb} title=${ceremonyView === 'teams' ? '🏆 Classement par équipes' : '🏆 Classement Final'} />
-            ${pending > 0 && html`
-              <p className="mt-6 text-white/38 font-bold tracking-[0.18em] uppercase">${pending} résultat(s) masqué(s)</p>
-            `}
+          <div className="flex flex-col items-center justify-center min-h-[100dvh] px-8 py-10 gap-8 animate-fade-in">
+            <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🏆</div>
+            <h1 className="font-display font-black gradient-text text-center" style=${{ fontSize: 'clamp(2.5rem,6vw,5rem)' }}>
+              ${ceremonyView === 'teams' ? 'Classement par équipes' : 'Classement Final'}
+            </h1>
+            <p className="text-white/40 text-center" style=${{ fontSize: 'clamp(1rem,2vw,1.6rem)' }}>
+              Les révélations vont commencer…
+            </p>
+            <${Dots} />
           </div>
         `;
       }
@@ -639,7 +792,7 @@ export default function DisplayView() {
     const ansMode = gs?.phaseMeta?.answerMode;
     const timer   = gs?.phaseMeta?.timer;
     const isBuzzer= ansMode === 'buzzer';
-    const isVote  = ansMode === 'vote_input' || ansMode === 'vote_voting' || ansMode === 'vote_revealing' || ansMode === 'vote_revealed';
+    const isVote  = ansMode === 'vote_question' || ansMode === 'vote_input' || ansMode === 'vote_proposal_reveal' || ansMode === 'vote_voting' || ansMode === 'vote_revealing' || ansMode === 'vote_revealed';
     const isBurger= gs?.currentRound?.type === 'burger';
     const isVC    = gs?.currentRound?.type === 'video_challenge';
     const conn    = players.filter(p => p.connected && !p.isBot).length;
@@ -697,8 +850,31 @@ export default function DisplayView() {
       const who     = selId ? players.find(p => (p.id===selId||p.playerId===selId)) : null;
       const selectedName = who?.pseudo || gs?.videoState?.selectedPseudo || '';
       const score   = gs?.videoState?.score;
-      const mediaUrl = vcPhase === 'training_playing' ? curQ?.trainingVideoUrl : (curQ?.videoUrl || curQ?.mediaUrl);
+      const isTraining = vcPhase === 'training_ready' || vcPhase === 'training_playing';
+      const mediaUrl = isTraining ? curQ?.trainingVideoUrl : (curQ?.videoUrl || curQ?.mediaUrl);
       const control = vcPhase === 'training_playing' ? gs?.videoState?.trainingVideoControl : gs?.videoState?.videoControl;
+      // training_playing et playing partagent la même mise en page : vidéo en grand, candidat en dessous
+      if (vcPhase === 'training_playing' || vcPhase === 'playing' || vcPhase === 'eval' || vcPhase === 'scored') {
+        return html`
+          <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-6 px-8 animate-fade-in">
+            <div className="text-xs font-bold uppercase tracking-widest opacity-40">
+              ${vcPhase === 'training_playing' ? '🏋️ Entraînement' : '🎬 Challenge Vidéo'}
+            </div>
+            <${ControlledVideo} url=${mediaUrl} control=${control} maxHeight="56vh" />
+            ${who && html`
+              <p className="text-white/70 text-center font-display font-black" style=${{ fontSize: 'clamp(1.4rem,3vw,2.5rem)' }}>
+                ${who.avatar || '🎮'} <span className="text-white">${who.pseudo}</span>
+              </p>
+            `}
+            ${score != null && html`
+              <div className="font-display font-black text-neon-green"
+                   style=${{ fontSize: 'clamp(5rem,18vw,10rem)' }}>
+                ${score}
+              </div>
+            `}
+          </div>
+        `;
+      }
       return html`
         <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-8 px-8 animate-fade-in">
           <div style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>🎬</div>
@@ -717,15 +893,8 @@ export default function DisplayView() {
           ${vcPhase === 'ready' && html`
             <p className="text-rose-300 text-center font-display font-black" style=${{ fontSize: 'clamp(1.8rem,4vw,3rem)' }}>Preparez-vous.</p>
           `}
-          ${vcPhase === 'training_ready' && html`
-            <p className="text-amber-300 text-center font-display font-black" style=${{ fontSize: 'clamp(1.8rem,4vw,3rem)' }}>Video d'entrainement.</p>
-          `}
-          <${ControlledVideo} url=${mediaUrl} control=${control} maxHeight="46vh" />
-          ${score != null && html`
-            <div className="font-display font-black text-neon-green"
-                 style=${{ fontSize: 'clamp(5rem,18vw,10rem)' }}>
-              ${score}
-            </div>
+          ${vcPhase === 'training_ready' && curQ?.trainingVideoUrl && html`
+            <${ControlledVideo} url=${curQ.trainingVideoUrl} control=${gs?.videoState?.trainingVideoControl} maxHeight="46vh" />
           `}
           ${curQ?.content && html`<p className="text-white/50 text-center" style=${{ fontSize: 'clamp(1rem,2vw,1.5rem)', maxWidth:'70vw' }}>${curQ.content}</p>`}
         </div>
@@ -733,14 +902,17 @@ export default function DisplayView() {
     }
 
     // Vote
-    if (isVote) return html`
-      <div className="flex flex-col items-center justify-center min-h-[100dvh] px-8 py-10">
-        ${curQ?.content && html`
-          <p className="font-bold text-center mb-8" style=${{ fontSize: 'clamp(1.5rem,3.5vw,2.8rem)' }}>${curQ.content}</p>
-        `}
-        <${VoteDisplay} gs=${gs} players=${players} />
-      </div>
-    `;
+    if (isVote) {
+      const showContentHeader = ansMode === 'vote_input' || ansMode === 'vote_voting' || ansMode === 'vote_revealing' || ansMode === 'vote_revealed';
+      return html`
+        <div className="flex flex-col items-center justify-center min-h-[100dvh] px-8 py-10">
+          ${showContentHeader && curQ?.content && html`
+            <p className="font-bold text-center mb-8" style=${{ fontSize: 'clamp(1.5rem,3.5vw,2.8rem)' }}>${curQ.content}</p>
+          `}
+          <${VoteDisplay} gs=${gs} players=${players} curQ=${curQ} />
+        </div>
+      `;
+    }
 
     // Buzzer
     if (isBuzzer) return html`
@@ -759,6 +931,9 @@ export default function DisplayView() {
       if (isTrueFalse) {
       return html`
         <div className="flex flex-col min-h-[100dvh] px-[clamp(24px,4vw,64px)] py-[clamp(24px,3vh,48px)]">
+          <div className="flex justify-end mb-2">
+            <span className="text-white/40 text-sm font-mono">${answered}/${conn} réponses</span>
+          </div>
           ${curQ?.mediaUrl && html`
             <div className="flex justify-center mb-5">
               <${MediaStage} url=${curQ.mediaUrl} maxHeight="24vh" />
@@ -935,6 +1110,7 @@ export default function DisplayView() {
       <div className="relative z-10 flex flex-col min-h-[100dvh]">
         ${renderContent()}
       </div>
+      <${AllAnsweredBurst} show=${showBurst} />
       <button className="music-mute-btn" onClick=${toggleMute} title=${musicMuted ? 'Activer la musique' : 'Couper la musique'}>
         ${musicMuted ? '🔇' : '🔊'}
       </button>
