@@ -971,6 +971,20 @@ export function finishQuiz(session) {
   clearTimer(session);
   clearAutoRevealTimeout(session);
 
+  // Nettoyer les états spécifiques aux manches pour éviter les "bleeds"
+  // (ex. l'interface burger qui apparaît dans la cérémonie finale)
+  session.gameState.burgerState = null;
+  session.gameState.burgerSelectedPlayerId = null;
+  session.gameState.burgerSelectedTeamId = null;
+  session.gameState.burgerSelectedPseudo = null;
+  session.gameState.burgerFinalScore = null;
+  session.gameState.voteState = null;
+  session.gameState.proposalRevealState = null;
+  session.gameState.videoState = null;
+  session.gameState.buzzerState = null;
+  session.gameState.buzzerQueue = [];
+  session.gameState.trueFalseVotes = { yes: [], no: [] };
+
   setPhaseMeta(session, {
     playerScreenLocked: true,
     allowAnswer: false,
@@ -1332,11 +1346,16 @@ export function prevRound(session) {
   clearTimer(session);
   clearAutoRevealTimeout(session);
 
-  const curIdx = Number(session?.gameState?.currentRoundIndex ?? -1);
-  if (curIdx <= 0) return { ok: false, error: "Déjà à la première manche" };
-
   const rounds = getRounds(session);
-  const prevIdx = curIdx - 1;
+  const phase = session?.gameState?.status;
+  const curIdx = Number(session?.gameState?.currentRoundIndex ?? -1);
+
+  // Depuis la cérémonie finale (end), currentRoundIndex pointe déjà sur la dernière
+  // manche jouée — "précédente" signifie revenir à cette même manche (round_intro),
+  // pas à la manche d'avant. On ne soustrait donc pas 1 dans ce cas.
+  const prevIdx = (phase === 'end') ? curIdx : curIdx - 1;
+
+  if (prevIdx < 0) return { ok: false, error: "Déjà à la première manche" };
   if (!rounds[prevIdx]) return { ok: false, error: "Manche précédente introuvable" };
 
   session.gameState.currentRoundIndex = prevIdx;

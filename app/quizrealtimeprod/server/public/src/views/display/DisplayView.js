@@ -319,33 +319,38 @@ function VoteDisplay({ gs, players, curQ }) {
   }
 
   // Vote revealing / revealed — options with voteCount from voteState.options
+  // cursor=0 → rien révélé; cursor=N → les N premières options sont visibles
   const options = voteState?.options || [];
-  const cursor  = voteState?.revealCursor ?? options.length - 1;
-  const revealedOptions = options.slice(0, cursor + 1);
+  const cursor  = voteState?.revealCursor ?? 0;
+  const revealedOptions = options.slice(0, cursor);
   return html`
     <div className="flex flex-col gap-5 animate-fade-in">
       <h2 className="gradient-text font-display font-black text-center" style=${{ fontSize: 'clamp(1.8rem,4vw,3rem)' }}>
         Les résultats
       </h2>
       <div className="flex flex-col gap-3">
-        ${revealedOptions.map((opt, i) => html`
-          <div
-            key=${i}
-            className="flex items-center justify-between rounded-2xl border px-6 py-4 animate-fade-in"
-            style=${{
-              background: opt.isDecoy ? 'rgba(251,113,133,.1)' : 'rgba(79,172,254,.12)',
-              borderColor: opt.isDecoy ? 'rgba(251,113,133,.3)' : 'rgba(79,172,254,.3)',
-            }}
-          >
-            <span style=${{ fontSize: 'clamp(1.2rem,2.5vw,2rem)', fontWeight: '700' }}>${opt.text || opt}</span>
-            <span
-              className=${`font-display font-black ${opt.isDecoy ? 'text-rose-400' : 'text-neon-green'}`}
-              style=${{ fontSize: 'clamp(1.5rem,3.5vw,2.5rem)' }}
+        ${revealedOptions.map((opt, i) => {
+          const count = opt.voteCount ?? 0;
+          const prefix = opt.isDecoy ? '-' : '+';
+          return html`
+            <div
+              key=${i}
+              className="flex items-center justify-between rounded-2xl border px-6 py-4 animate-fade-in"
+              style=${{
+                background: opt.isDecoy ? 'rgba(251,113,133,.1)' : 'rgba(79,172,254,.12)',
+                borderColor: opt.isDecoy ? 'rgba(251,113,133,.3)' : 'rgba(79,172,254,.3)',
+              }}
             >
-              ${opt.voteCount ?? 0}
-            </span>
-          </div>
-        `)}
+              <span style=${{ fontSize: 'clamp(1.2rem,2.5vw,2rem)', fontWeight: '700' }}>${opt.text || opt}</span>
+              <span
+                className=${`font-display font-black ${opt.isDecoy ? 'text-rose-400' : 'text-neon-green'}`}
+                style=${{ fontSize: 'clamp(1.5rem,3.5vw,2.5rem)' }}
+              >
+                ${prefix}${count}
+              </span>
+            </div>
+          `;
+        })}
       </div>
     </div>
   `;
@@ -626,7 +631,12 @@ export default function DisplayView() {
       return renderQuestion();
     }
 
-    if (phase === 'answer_reveal') return renderReveal();
+    if (phase === 'answer_reveal') {
+      const _am = gs?.phaseMeta?.answerMode;
+      // Vote reveal: delegate to renderQuestion which handles VoteDisplay
+      if (_am === 'vote_revealing' || _am === 'vote_revealed') return renderQuestion();
+      return renderReveal();
+    }
 
     if (phase === 'round_end') {
       const lb = lbPlayers.length ? lbPlayers : (gs?.leaderboardPlayers || []);

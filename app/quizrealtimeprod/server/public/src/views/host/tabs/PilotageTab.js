@@ -31,7 +31,7 @@ export default function PilotageTab() {
   const curQ    = gs?.currentQuestion;
   const curRIdx = gs?.currentRoundIndex ?? -1;
   const curQIdx = gs?.currentQuestionIndex ?? -1;
-  const isBurger= curRound?.type === 'burger' || curQ?.type === 'burger';
+  const isBurger= (curRound?.type === 'burger' || curQ?.type === 'burger') && !['end', 'results'].includes(phase);
   const isBuzzer= gs?.phaseMeta?.answerMode === 'buzzer';
   const isVC    = curRound?.type === 'video_challenge';
   const videoPhase = gs?.videoState?.phase || '';
@@ -334,7 +334,12 @@ export default function PilotageTab() {
                   <${Btn} variant="ghost" size="sm"
                     disabled=${videoPhase !== 'training_playing'}
                     onClick=${() => ha('video_training_control', { ctrl: 'pause' })}>
-                    ⏸
+                    ⏸ Pause
+                  <//>
+                  <${Btn} variant="ghost" size="sm"
+                    disabled=${videoPhase !== 'training_playing'}
+                    onClick=${() => ha('video_training_control', { ctrl: 'play' })}>
+                    ▶ Reprendre
                   <//>
                   <${Btn} variant="ghost" size="sm"
                     onClick=${() => ha('video_training_control', { ctrl: 'rewind' })}>
