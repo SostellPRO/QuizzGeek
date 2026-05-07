@@ -112,12 +112,16 @@ function buildFinalCeremonyData(session) {
       revealed: false,
     };
   });
+  const totalTeams = leaderboardTeams.length;
   const teamsRevealOrder = [...leaderboardTeams].reverse().map((t, idx) => ({
     revealIndex: idx,
     rank: t.rank || idx + 1,
     name: t.name,
+    pseudo: t.name,           // alias pour compatibilité affichage TV
+    avatar: t.avatar || '👥',
     teamId: t.teamId || t.id || null,
     scoreTotal: t.scoreTotal || 0,
+    rankComment: session?.quiz?.closingCeremony?.rankComments?.[String(t.rank || idx + 1)] || getNickname(t.rank || idx + 1, totalTeams),
     revealed: false,
   }));
   return {
@@ -154,6 +158,8 @@ function emitSessionState(io, session) {
     session.gameState.quizTitle = session.quiz.title || session.gameState.quizTitle || 'Quiz Live';
     session.gameState.ceremonyBackgroundUrl = session.quiz.closingCeremony?.backgroundUrl || session.quiz.ceremonyBackgroundUrl || '';
     session.gameState.ceremonyMusicUrl = session.quiz.closingCeremony?.musicUrl || session.quiz.ceremonyMusicUrl || '';
+    // Nombre total de manches — nécessaire côté client pour détecter la dernière manche
+    session.gameState.totalRoundsCount = (session.quiz.rounds || []).length;
   }
   const { leaderboardPlayers, leaderboardTeams } = buildLeaderboards(session);
 
@@ -560,9 +566,11 @@ export function setupSocketHandlers(io) {
           case "start_timer":
             res = startTimer(session, payload.seconds, {
               emitNow: (s) => emitSessionState(io, s),
-              // Quand le timer expire : verrouiller les joueurs (écran d'attente)
-              // Le host choisit ensuite de révéler ou passer à la question suivante
-              onAutoReveal: () => {},
+              // Quand le timer expire : révélation automatique de la bonne réponse
+              onAutoReveal: (s) => {
+                revealAnswer(s);
+                emitSessionState(io, s);
+              },
             });
             break;
 

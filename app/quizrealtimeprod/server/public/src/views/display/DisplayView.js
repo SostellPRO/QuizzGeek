@@ -458,6 +458,93 @@ function TVScoreboard({ leaderboard, title = 'Classement' }) {
   `;
 }
 
+// ── TimerOverlay ──────────────────────────────────────────────
+const TIMER_CSS = `
+@keyframes timer-pulse {
+  0%,100% { transform: scale(1);   opacity: 1; }
+  50%      { transform: scale(1.18); opacity: .85; }
+}
+@keyframes timer-ring {
+  0%   { stroke-dashoffset: var(--dash); }
+  100% { stroke-dashoffset: 0; }
+}`;
+
+function TimerOverlay({ timer }) {
+  useEffect(() => {
+    if (!document.getElementById('timer-style')) {
+      const el = document.createElement('style');
+      el.id = 'timer-style';
+      el.textContent = TIMER_CSS;
+      document.head.appendChild(el);
+    }
+  }, []);
+
+  if (!timer || timer.remainingSec <= 0) return null;
+  const sec   = timer.remainingSec;
+  const total = timer.totalSec || 30;
+  const urgent = sec <= 5;
+  const pct  = Math.max(0, sec / total);
+  const R    = 54;
+  const circ = 2 * Math.PI * R;
+  const dash = circ * (1 - pct);
+  const color = urgent ? '#ff4e6a' : '#2dd4bf';
+
+  return html`
+    <div style=${{
+      position: 'fixed',
+      bottom: 'clamp(24px,4vh,48px)',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      zIndex: 80,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      pointerEvents: 'none',
+    }}>
+      <div style=${{
+        position: 'relative',
+        width: 'clamp(80px,12vw,140px)',
+        height: 'clamp(80px,12vw,140px)',
+        animation: urgent ? 'timer-pulse .6s ease-in-out infinite' : 'none',
+      }}>
+        <!-- Ring SVG -->
+        <svg
+          viewBox="0 0 120 120"
+          style=${{ position:'absolute', inset:0, width:'100%', height:'100%', transform:'rotate(-90deg)' }}
+        >
+          <!-- background track -->
+          <circle cx="60" cy="60" r=${R} fill="none" stroke="rgba(255,255,255,.1)" stroke-width="7" />
+          <!-- progress arc -->
+          <circle
+            cx="60" cy="60" r=${R}
+            fill="none"
+            stroke=${color}
+            stroke-width="7"
+            stroke-linecap="round"
+            stroke-dasharray=${circ}
+            stroke-dashoffset=${dash}
+            style=${{ transition: 'stroke-dashoffset 0.9s linear, stroke 0.3s' }}
+          />
+        </svg>
+        <!-- Number -->
+        <div style=${{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'var(--font-display, monospace)',
+          fontWeight: '900',
+          fontSize: 'clamp(2rem,5vw,3.5rem)',
+          color,
+          textShadow: urgent ? '0 0 20px ' + color : 'none',
+          background: 'rgba(0,0,0,.55)',
+          borderRadius: '50%',
+        }}>
+          ${sec}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // ── AllAnsweredBurst ──────────────────────────────────────────
 const BURST_CSS = '@keyframes burst-scale{0%{transform:scale(1);opacity:0}20%{transform:scale(1.2);opacity:1}70%{transform:scale(1.5);opacity:1}100%{transform:scale(2);opacity:0}}';
 function AllAnsweredBurst({ show }) {
@@ -496,13 +583,20 @@ function AllAnsweredBurst({ show }) {
 export default function DisplayView() {
   const { socket, displaySession, setDisplaySession, gameState: gs, players, lbPlayers, lbTeams, navigate, musicMuted, toggleMute, ducking, soundPlay } = useGame();
 
-  // Duck background music while challenge video is playing
+  // Duck background music while challenge video OR training video is playing
   useEffect(() => {
     if (!ducking) return;
-    const videoCtrl = gs?.videoState?.videoControl;
-    const isPlaying = videoCtrl?.action === 'play';
-    ducking(isPlaying);
-  }, [gs?.videoState?.videoControl?.action, gs?.videoState?.videoControl?.at]); // eslint-disable-line
+    const videoCtrl    = gs?.videoState?.videoControl;
+    const trainingCtrl = gs?.videoState?.trainingVideoControl;
+    const isMainPlaying     = videoCtrl?.action === 'play';
+    const isTrainingPlaying = trainingCtrl?.action === 'play';
+    ducking(isMainPlaying || isTrainingPlaying);
+  }, [ // eslint-disable-line
+    gs?.videoState?.videoControl?.action,
+    gs?.videoState?.videoControl?.at,
+    gs?.videoState?.trainingVideoControl?.action,
+    gs?.videoState?.trainingVideoControl?.at,
+  ]);
 
   // ── "Tous ont répondu" burst + son de cloche ──────────────
   const [showBurst, setShowBurst] = useState(false);
@@ -682,7 +776,9 @@ export default function DisplayView() {
           : (finalCeremony.revealOrder || []);
         const visible = revealOrder.filter(x => x.revealed);
         const pending = revealOrder.length - visible.length;
-        const lb = visible.map(x => ({
+        // Afficher du plus récemment révélé (rang le plus élevé) vers le bas (rang le plus faible)
+        // revealOrder va du dernier au premier, donc les derniers révélés = rangs les plus hauts
+        const lb = [...visible].reverse().map(x => ({
           ...x,
           pseudo: x.pseudo || x.name,
           scoreTotal: x.scoreTotal || 0,
@@ -1012,19 +1108,6 @@ export default function DisplayView() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-white/40 text-sm">${answered}/${conn} réponses</span>
-            ${timer?.remainingSec > 0 && html`
-              <span
-                className="font-mono font-black rounded-full w-12 h-12 flex items-center justify-center border-2"
-                style=${{
-                  fontSize: '1.2rem',
-                  borderColor: timer.remainingSec <= 5 ? '#ff4e6a' : '#2dd4bf',
-                  color:       timer.remainingSec <= 5 ? '#ff4e6a' : '#2dd4bf',
-                  background:  timer.remainingSec <= 5 ? 'rgba(255,78,106,.1)' : 'rgba(56,239,125,.1)',
-                }}
-              >
-                ${timer.remainingSec}
-              </span>
-            `}
           </div>
         </div>
 
@@ -1151,6 +1234,9 @@ export default function DisplayView() {
       <div className="relative z-10 flex flex-col min-h-[100dvh]">
         ${renderContent()}
       </div>
+      ${['question','waiting'].includes(phase) && html`
+        <${TimerOverlay} timer=${gs?.phaseMeta?.timer} />
+      `}
       <${AllAnsweredBurst} show=${showBurst} />
       <button className="music-mute-btn" onClick=${toggleMute} title=${musicMuted ? 'Activer la musique' : 'Couper la musique'}>
         ${musicMuted ? '🔇' : '🔊'}

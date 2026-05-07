@@ -31,6 +31,8 @@ export default function PilotageTab() {
   const curQ    = gs?.currentQuestion;
   const curRIdx = gs?.currentRoundIndex ?? -1;
   const curQIdx = gs?.currentQuestionIndex ?? -1;
+  const totalRounds = gs?.totalRoundsCount || 0;
+  const isLastRound = totalRounds > 0 && curRIdx >= totalRounds - 1;
   const isBurger= (curRound?.type === 'burger' || curQ?.type === 'burger') && !['end', 'results', 'round_end'].includes(phase);
   const isBuzzer= gs?.phaseMeta?.answerMode === 'buzzer';
   const isVC    = curRound?.type === 'video_challenge' && !['end', 'results', 'round_end'].includes(phase);
@@ -519,28 +521,32 @@ export default function PilotageTab() {
         </div>
       </div>
 
-      <!-- Cérémonie finale -->
-      ${(phase === 'results' || phase === 'end' || phase === 'round_end') && html`
+      <!-- Cérémonie finale — uniquement à la fin de la dernière manche -->
+      ${(phase === 'end' || ((phase === 'results' || phase === 'round_end') && isLastRound)) && html`
         <div className="rounded-xl bg-yellow-500/8 border border-yellow-500/25 p-4">
           <div className="text-xs text-white/40 uppercase tracking-widest mb-3">🏆 Cérémonie finale</div>
 
           ${!gs?.phaseMeta?.finalCeremony && html`
             <div className="flex flex-col gap-3">
-              <p className="text-xs text-white/40">Choisissez le mode de classement :</p>
+              <!-- Choix du mode : toujours affiché, Équipes désactivé si pas d'équipes -->
+              <p className="text-xs text-white/40 mb-1">Mode de classement :</p>
               <div className="flex gap-2">
                 <${Btn}
                   variant=${gs?.phaseMeta?.ceremonyView !== 'teams' ? 'primary' : 'ghost'}
                   size="sm" wide
                   onClick=${() => ha('ceremony_set_view', { view: 'players' })}
                 >👤 Individuel<//>
-                ${teams?.length > 0 && html`
-                  <${Btn}
-                    variant=${gs?.phaseMeta?.ceremonyView === 'teams' ? 'primary' : 'ghost'}
-                    size="sm" wide
-                    onClick=${() => ha('ceremony_set_view', { view: 'teams' })}
-                  >👥 Équipes<//>
-                `}
+                <${Btn}
+                  variant=${gs?.phaseMeta?.ceremonyView === 'teams' ? 'primary' : 'ghost'}
+                  size="sm" wide
+                  disabled=${!teams?.length}
+                  onClick=${() => teams?.length && ha('ceremony_set_view', { view: 'teams' })}
+                  style=${{ opacity: teams?.length ? 1 : 0.35 }}
+                >👥 Équipes<//>
               </div>
+              ${!teams?.length && html`
+                <p className="text-[11px] text-white/25 -mt-1">Aucune équipe dans cette session</p>
+              `}
               <${Btn} variant="success" wide pulse size="lg"
                 onClick=${() => ha('final_ceremony_init')}
               >
@@ -557,32 +563,36 @@ export default function PilotageTab() {
               const order = isTeams ? (fc.teamsRevealOrder || []) : (fc.revealOrder || []);
               const cursor = isTeams ? (fc.teamsRevealCursor || 0) : (fc.revealCursor || 0);
               const remaining = order.length - cursor;
+              const hasTeams = (fc.teamsRevealOrder?.length || 0) > 0 || teams?.length > 0;
               return html`
                 <div className="flex flex-col gap-2">
-                  <div className="text-xs text-white/35 mb-1">
-                    ${remaining > 0 ? html`${remaining} joueur(s) encore masqué(s)` : html`Tous révélés`}
-                  </div>
-                  <div className="flex gap-2">
+                  <!-- Switcher vue individuel / équipes -->
+                  <div className="flex gap-2 mb-1">
                     <${Btn}
                       variant=${!isTeams ? 'primary' : 'ghost'}
                       size="sm"
                       onClick=${() => ha('ceremony_set_view', { view: 'players' })}
-                    >👤 Ind.</${Btn}>
-                    ${teams?.length > 0 && html`
-                      <${Btn}
-                        variant=${isTeams ? 'primary' : 'ghost'}
-                        size="sm"
-                        onClick=${() => ha('ceremony_set_view', { view: 'teams' })}
-                      >👥 Éq.</${Btn}>
-                    `}
+                    >👤 Individuel</${Btn}>
                     <${Btn}
-                      variant="secondary" wide pulse=${remaining > 0}
-                      onClick=${() => ha(isTeams ? 'final_ceremony_reveal_next_team' : 'final_ceremony_reveal_next')}
-                      disabled=${remaining === 0}
-                    >
-                      ${remaining > 0 ? '▶ Révéler suivant' : '✅ Tous révélés'}
-                    <//>
+                      variant=${isTeams ? 'primary' : 'ghost'}
+                      size="sm"
+                      disabled=${!hasTeams}
+                      style=${{ opacity: hasTeams ? 1 : 0.35 }}
+                      onClick=${() => hasTeams && ha('ceremony_set_view', { view: 'teams' })}
+                    >👥 Équipes</${Btn}>
                   </div>
+                  <div className="text-xs text-white/35 mb-1">
+                    ${remaining > 0
+                      ? html`<span className="text-amber-400 font-bold">${remaining}</span> encore masqué(s)`
+                      : html`<span className="text-neon-green">✅ Tous révélés</span>`}
+                  </div>
+                  <${Btn}
+                    variant="secondary" wide pulse=${remaining > 0}
+                    onClick=${() => ha(isTeams ? 'final_ceremony_reveal_next_team' : 'final_ceremony_reveal_next')}
+                    disabled=${remaining === 0}
+                  >
+                    ${remaining > 0 ? '▶ Révéler suivant' : '✅ Tous révélés'}
+                  <//>
                   <${Btn} variant="ghost" size="sm"
                     onClick=${() => ha('final_ceremony_reset')}
                   >↺ Recommencer<//>
