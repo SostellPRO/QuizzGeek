@@ -1696,11 +1696,11 @@ export function voteRevealNext(session) {
           awardPointsToPlayer(session, playerId, -10);
         }
       }
-      // Points aux auteurs des réponses selon les votes reçus (10 pts par vote)
+      // Score fixe : +10 à l'auteur d'une vraie réponse qui a reçu ≥1 vote
       for (let idx = 0; idx < vs.options.length; idx++) {
         const option = vs.options[idx];
         if (!option.isDecoy && option.playerId && (option.voteCount || 0) > 0) {
-          awardPointsToPlayer(session, option.playerId, option.voteCount * 10);
+          awardPointsToPlayer(session, option.playerId, 10);
         }
       }
     }
@@ -1853,7 +1853,21 @@ export function videoMarkReady(session) {
   return { ok: true };
 }
 
-// Lance directement la vidéo d'entraînement (auto-play, pas d'étape intermédiaire)
+// Affiche la vidéo d'entraînement en pause (étape Prêt) — ne la joue pas encore
+export function videoTrainingMarkReady(session) {
+  ensureSessionRuntime(session);
+  const vs = session.gameState.videoState;
+  if (!vs) return { ok: false, error: "Pas de challenge vidéo actif" };
+  const q = getCurrentQuestion(session);
+  if (!q?.trainingVideoUrl) return { ok: false, error: "Pas de vidéo d'entraînement sur cette question" };
+  vs.phase = "training_ready";
+  vs.trainingVideoControl = { action: "pause", at: new Date().toISOString() };
+  setPhaseMeta(session, { ...session.gameState.phaseMeta, answerMode: "video_training_ready" });
+  touch(session);
+  return { ok: true };
+}
+
+// Lance directement la vidéo d'entraînement (auto-play, pas d'étape intermédiaire) — conservé pour compat
 export function videoStartTrainingReady(session) {
   ensureSessionRuntime(session);
   const vs = session.gameState.videoState;

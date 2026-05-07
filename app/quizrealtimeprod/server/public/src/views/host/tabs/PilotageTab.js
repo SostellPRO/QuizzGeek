@@ -31,17 +31,18 @@ export default function PilotageTab() {
   const curQ    = gs?.currentQuestion;
   const curRIdx = gs?.currentRoundIndex ?? -1;
   const curQIdx = gs?.currentQuestionIndex ?? -1;
-  const isBurger= (curRound?.type === 'burger' || curQ?.type === 'burger') && !['end', 'results'].includes(phase);
+  const isBurger= (curRound?.type === 'burger' || curQ?.type === 'burger') && !['end', 'results', 'round_end'].includes(phase);
   const isBuzzer= gs?.phaseMeta?.answerMode === 'buzzer';
-  const isVC    = curRound?.type === 'video_challenge';
+  const isVC    = curRound?.type === 'video_challenge' && !['end', 'results', 'round_end'].includes(phase);
   const videoPhase = gs?.videoState?.phase || '';
   const answerMode = gs?.phaseMeta?.answerMode;
-  const isVoteQuestion = answerMode === 'vote_question';
-  const isVoteInput = answerMode === 'vote_input';
-  const isVoteProposal = answerMode === 'vote_proposal_reveal';
-  const isVoteVoting = answerMode === 'vote_voting';
+  const endPhases = ['end', 'results', 'round_end'];
+  const isVoteQuestion = answerMode === 'vote_question' && !endPhases.includes(phase);
+  const isVoteInput = answerMode === 'vote_input' && !endPhases.includes(phase);
+  const isVoteProposal = answerMode === 'vote_proposal_reveal' && !endPhases.includes(phase);
+  const isVoteVoting = answerMode === 'vote_voting' && !endPhases.includes(phase);
   const isVote  = isVoteQuestion || isVoteInput || isVoteVoting || isVoteProposal;
-  const voteRevealing = answerMode === 'vote_revealing' || answerMode === 'vote_revealed';
+  const voteRevealing = (answerMode === 'vote_revealing' || answerMode === 'vote_revealed') && !endPhases.includes(phase);
   const answerablePlayers = players.filter(p => p.connected && !p.isBot);
   const conn    = answerablePlayers.length;
   const answered= Object.keys(gs?.answers?.[curQ?.id] || {}).length;
@@ -323,13 +324,13 @@ export default function PilotageTab() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <${Btn} variant="ghost" size="sm"
-                    onClick=${() => ha('video_start_training_ready')}>
-                    Afficher
+                    onClick=${() => ha('video_training_mark_ready')}>
+                    ✋ Prêt
                   <//>
                   <${Btn} variant="ghost" size="sm"
-                    disabled=${videoPhase !== 'training_ready' && videoPhase !== 'training_playing'}
+                    disabled=${videoPhase !== 'training_ready'}
                     onClick=${() => ha('video_start_training_playing')}>
-                    ▶ Lire
+                    ▶ Lancer
                   <//>
                   <${Btn} variant="ghost" size="sm"
                     disabled=${videoPhase !== 'training_playing'}
@@ -519,7 +520,7 @@ export default function PilotageTab() {
       </div>
 
       <!-- Cérémonie finale -->
-      ${(phase === 'results' || phase === 'end') && html`
+      ${(phase === 'results' || phase === 'end' || phase === 'round_end') && html`
         <div className="rounded-xl bg-yellow-500/8 border border-yellow-500/25 p-4">
           <div className="text-xs text-white/40 uppercase tracking-widest mb-3">🏆 Cérémonie finale</div>
 

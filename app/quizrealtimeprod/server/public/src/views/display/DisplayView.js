@@ -331,7 +331,10 @@ function VoteDisplay({ gs, players, curQ }) {
       <div className="flex flex-col gap-3">
         ${revealedOptions.map((opt, i) => {
           const count = opt.voteCount ?? 0;
-          const prefix = opt.isDecoy ? '-' : '+';
+          // Score fixe +10 / -10 quel que soit le nombre de votes
+          const scoreLabel = count > 0
+            ? (opt.isDecoy ? '−10' : '+10')
+            : (opt.isDecoy ? '✗' : '—');
           return html`
             <div
               key=${i}
@@ -341,12 +344,15 @@ function VoteDisplay({ gs, players, curQ }) {
                 borderColor: opt.isDecoy ? 'rgba(251,113,133,.3)' : 'rgba(79,172,254,.3)',
               }}
             >
-              <span style=${{ fontSize: 'clamp(1.2rem,2.5vw,2rem)', fontWeight: '700' }}>${opt.text || opt}</span>
+              <div className="flex flex-col gap-1">
+                <span style=${{ fontSize: 'clamp(1.2rem,2.5vw,2rem)', fontWeight: '700' }}>${opt.text || opt}</span>
+                ${count > 0 && html`<span style=${{ fontSize: 'clamp(.75rem,1.5vw,1rem)', color: 'rgba(255,255,255,.35)' }}>${count} vote(s)</span>`}
+              </div>
               <span
                 className=${`font-display font-black ${opt.isDecoy ? 'text-rose-400' : 'text-neon-green'}`}
-                style=${{ fontSize: 'clamp(1.5rem,3.5vw,2.5rem)' }}
+                style=${{ fontSize: 'clamp(1.5rem,3.5vw,2.5rem)', flexShrink: 0, marginLeft: '1rem' }}
               >
-                ${prefix}${count}
+                ${scoreLabel}
               </span>
             </div>
           `;
@@ -817,6 +823,31 @@ export default function DisplayView() {
       const totalItems = allItems.length;
       const selectedPseudo = gs?.burgerSelectedPseudo || '';
       const answering = phase === 'manual_scoring' || gs?.burgerState?.answering;
+      const bfs = gs?.burgerFinalScore;
+
+      // Score attribué → affichage flash du score
+      if (bfs?.scored) {
+        return html`
+          <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-8 px-8 animate-bounce-in">
+            <div style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>🍔</div>
+            <p className="font-display font-black text-amber-400 text-center"
+               style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>
+              ${bfs.pseudo || selectedPseudo}
+            </p>
+            <div
+              className="font-display font-black gradient-text-green"
+              style=${{ fontSize: 'clamp(6rem,20vw,12rem)', lineHeight: '1' }}
+            >
+              ${bfs.score}
+            </div>
+            <p className="text-white/40 font-bold uppercase tracking-widest"
+               style=${{ fontSize: 'clamp(1rem,2.5vw,1.8rem)' }}>
+              points
+            </p>
+          </div>
+        `;
+      }
+
       return html`
         <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-8 px-8 animate-fade-in">
           <div style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>🍔</div>

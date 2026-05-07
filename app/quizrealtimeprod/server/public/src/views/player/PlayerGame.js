@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { html, resolveMedia } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
 import { Btn, Alert, Dots, SessionBanner } from '../../components/ui.js';
@@ -20,9 +20,11 @@ const OPT_BGCOLORS = [
 
 export default function PlayerGame() {
   const { socket, gameState: gs, players, playerSession: s, setPlayerSession, navigate } = useGame();
-  const [alert, setAlert]     = useState(null);
-  const [locked, setLocked]   = useState(false);
-  const [voteText, setVoteText]= useState('');
+  const [alert, setAlert]       = useState(null);
+  const [locked, setLocked]     = useState(false);
+  const [voteText, setVoteText] = useState('');
+  const [buzzerCountdown, setBuzzerCountdown] = useState(0);
+  const cdTimerRef = useRef(null);
 
   const myPlayer = players.find(p => p.id === s?.playerId || p.playerId === s?.playerId);
 
@@ -40,6 +42,25 @@ export default function PlayerGame() {
       setVoteText('');
     }
   }, [gs?.status]); // eslint-disable-line
+
+  // ── Buzzer cooldown countdown ─────────────────────────────────
+  const cooldownExpiry = gs?.buzzerCooldowns?.[s?.playerId] || 0;
+  useEffect(() => {
+    if (cdTimerRef.current) { clearInterval(cdTimerRef.current); cdTimerRef.current = null; }
+    if (cooldownExpiry <= Date.now()) { setBuzzerCountdown(0); return; }
+    const tick = () => {
+      const rem = Math.ceil((cooldownExpiry - Date.now()) / 1000);
+      if (rem <= 0) {
+        setBuzzerCountdown(0);
+        if (cdTimerRef.current) { clearInterval(cdTimerRef.current); cdTimerRef.current = null; }
+      } else {
+        setBuzzerCountdown(rem);
+      }
+    };
+    tick();
+    cdTimerRef.current = setInterval(tick, 300);
+    return () => { if (cdTimerRef.current) clearInterval(cdTimerRef.current); };
+  }, [cooldownExpiry]); // eslint-disable-line
 
   // ── Haptic feedback helper (no-op on desktop/unsupported) ────
   const vibrate = (pattern = 50) => navigator.vibrate?.(pattern);
@@ -285,7 +306,7 @@ export default function PlayerGame() {
       const buzzerState = gs?.buzzerState;
       const firstId     = buzzerState?.firstPlayerId;
       const iFirst      = firstId === s?.playerId;
-      const cooldown    = (gs?.buzzerCooldowns?.[s?.playerId] || 0) > Date.now();
+      const isCooldown  = cooldownExpiry > Date.now();
       const buzzerLocked= gs?.phaseMeta?.playerScreenLocked;
 
       if (iFirst) return html`
@@ -307,16 +328,33 @@ export default function PlayerGame() {
         `;
       }
 
+      // Cooldown après mauvaise réponse — afficher le décompte
+      if (isCooldown) return html`
+        <div className="flex flex-col items-center gap-6 py-8 animate-fade-in">
+          <div className="text-5xl">❌</div>
+          <h2 className="text-xl font-display font-black text-rose-400">Mauvaise réponse !</h2>
+          <div className="flex flex-col items-center gap-2">
+            <div
+              className="w-28 h-28 rounded-full border-4 border-rose-500/50 bg-rose-500/10 flex items-center justify-center font-display font-black text-rose-300"
+              style=${{ fontSize: '3rem' }}
+            >
+              ${buzzerCountdown}
+            </div>
+            <p className="text-white/40 text-sm">secondes avant de rebuzzer</p>
+          </div>
+        </div>
+      `;
+
       return html`
         <div className="flex flex-col items-center gap-6 py-8">
           <div className="text-white/60 text-sm uppercase tracking-widest font-semibold">Buzzer</div>
           ${currentQ?.content && html`<p className="text-center text-base font-medium text-white/80 px-2">${currentQ.content}</p>`}
           <button
             onClick=${sendBuzzer}
-            disabled=${!!buzzerLocked || !!cooldown}
+            disabled=${!!buzzerLocked}
             className="w-48 h-48 rounded-full font-display font-black text-2xl text-white bg-gradient-to-br from-accent to-violet-900 border-4 border-accent ring-pulse shadow-accent active:scale-90 transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
           >
-            ${cooldown ? '⏳' : '🔔 BUZZ !'}
+            🔔 BUZZ !
           </button>
         </div>
       `;
@@ -530,21 +568,35 @@ export default function PlayerGame() {
   };
 
   const renderReveal = () => {
-    const revealed = gs?.revealedAnswer;
-    return html`
-      <div className="flex flex-col items-center gap-4 py-4 text-center animate-fade-in">
-        <div className="text-5xl">${revealed?.correct ? '🎉' : '📋'}</div>
-        <h2 className="text-xl font-bold">Solution</h2>
-        ${revealed?.answer && html`
-          <div className="rounded-xl bg-neon-green/10 border border-neon-green/30 px-5 py-3 font-bold text-neon-green text-lg">
-            ✓ ${revealed.answer}
+    const answerMode = gs?.phaseMeta?.answerMode;
+    const isTFReveal = answerMode === 'true_false' || roundType === 'true_false';
+
+    // Vrai / Faux : afficher la réponse correcte en couleur
+    if (isTFReveal) {
+      const revealed = gs?.revealedAnswer;
+      const correct  = (revealed?.answer || '').toLowerCase();
+      const isVrai   = correct === 'vrai' || correct === 'true';
+      return html`
+        <div className="flex flex-col items-center gap-5 py-6 text-center animate-fade-in">
+          <div className="text-5xl">${isVrai ? '✅' : '❌'}</div>
+          <div
+            className=${`rounded-2xl border-2 px-10 py-6 font-display font-black ${isVrai ? 'border-neon-green/50 bg-neon-green/10 text-neon-green' : 'border-rose-500/50 bg-rose-500/10 text-rose-400'}`}
+            style=${{ fontSize: 'clamp(2.5rem,8vw,3.5rem)' }}
+          >
+            ${isVrai ? 'VRAI' : 'FAUX'}
           </div>
-        `}
-        ${revealed?.explanation && html`
-          <p className="text-white/50 text-sm">${revealed.explanation}</p>`}
-        ${revealed?.mediaUrl && html`
-          <img src=${resolveMedia(revealed.mediaUrl)} className="max-h-48 rounded-xl object-contain" alt="media" />
-        `}
+          <p className="text-white/35 text-sm">Regardez l'écran TV !</p>
+          <${Dots} />
+        </div>
+      `;
+    }
+
+    // Toutes les autres manches : ne pas afficher la réponse — économie de bande passante
+    return html`
+      <div className="flex flex-col items-center gap-4 py-8 text-center animate-fade-in">
+        <div className="text-5xl">📋</div>
+        <h2 className="text-xl font-bold">Réponse révélée</h2>
+        <p className="text-white/45 text-sm">Regardez l'écran TV pour voir la correction !</p>
         <${Dots} />
       </div>
     `;
