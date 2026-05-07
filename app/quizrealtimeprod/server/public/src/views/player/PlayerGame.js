@@ -26,6 +26,48 @@ export default function PlayerGame() {
   const [buzzerCountdown, setBuzzerCountdown] = useState(0);
   const cdTimerRef = useRef(null);
 
+  // ── Local timer countdown ────────────────────────────────────
+  // Client-side ticking so the gradient updates even if socket is slow.
+  // startedAt + totalSec from the server = source of truth;
+  // local setInterval ticks every 200 ms for smooth display.
+  const [localTimerSec, setLocalTimerSec] = useState(0);
+  const localTimerRef = useRef(null);   // interval handle
+  const timerMetaRef  = useRef(null);   // { startedAt:ms, totalSec }
+
+  useEffect(() => {
+    const t = gs?.phaseMeta?.timer;
+    if (!t || t.totalSec <= 0) {
+      setLocalTimerSec(0);
+      timerMetaRef.current = null;
+      if (localTimerRef.current) { clearInterval(localTimerRef.current); localTimerRef.current = null; }
+      return;
+    }
+    // Parse server's startedAt to ms; fall back to "now − (total−remaining)" if missing.
+    const startMs = t.startedAt
+      ? new Date(t.startedAt).getTime()
+      : Date.now() - (t.totalSec - t.remainingSec) * 1000;
+    timerMetaRef.current = { startMs, totalSec: t.totalSec };
+
+    const tick = () => {
+      const meta = timerMetaRef.current;
+      if (!meta) return;
+      const elapsed = (Date.now() - meta.startMs) / 1000;
+      const rem = Math.max(0, meta.totalSec - elapsed);
+      setLocalTimerSec(rem);
+      if (rem <= 0 && localTimerRef.current) {
+        clearInterval(localTimerRef.current);
+        localTimerRef.current = null;
+      }
+    };
+
+    tick(); // immediate first tick
+    if (localTimerRef.current) clearInterval(localTimerRef.current);
+    localTimerRef.current = setInterval(tick, 200);
+    return () => {
+      if (localTimerRef.current) { clearInterval(localTimerRef.current); localTimerRef.current = null; }
+    };
+  }, [gs?.phaseMeta?.timer?.startedAt, gs?.phaseMeta?.timer?.totalSec]); // eslint-disable-line
+
   const myPlayer = players.find(p => p.id === s?.playerId || p.playerId === s?.playerId);
 
   // Reset answer state on each new question (two guards in case one misses)
@@ -345,21 +387,25 @@ export default function PlayerGame() {
         </div>
       `;
 
-      // Gradient dynamique selon le temps restant
-      const tmr = gs?.phaseMeta?.timer;
-      const ratio = tmr && tmr.totalSec > 0 ? tmr.remainingSec / tmr.totalSec : 1;
-      const urgent5 = tmr && tmr.remainingSec <= 5 && tmr.remainingSec > 0;
-      const bzGrad = !tmr || ratio > 0.5
-        ? 'linear-gradient(135deg, #10b981, #059669)'   // vert
-        : ratio > 0.25
-        ? 'linear-gradient(135deg, #fbbf24, #d97706)'   // jaune
-        : tmr.remainingSec > 5
-        ? 'linear-gradient(135deg, #f97316, #dc2626)'   // orange
-        : 'linear-gradient(135deg, #ef4444, #991b1b)';  // rouge
+      // Gradient dynamique selon le temps restant (via compteur local côté client)
+      const tmr      = gs?.phaseMeta?.timer;
+      const totalSec = tmr?.totalSec || 0;
+      // localTimerSec ticks at 200 ms regardless of socket latency
+      const remSec   = totalSec > 0 ? localTimerSec : 0;
+      const ratio    = totalSec > 0 ? remSec / totalSec : 1;
+      const urgent5  = remSec > 0 && remSec <= 5;
 
-      const bzBorder = !tmr || ratio > 0.5 ? '#10b981'
+      const bzGrad = !totalSec || ratio > 0.5
+        ? 'linear-gradient(135deg, #10b981, #059669)'   // vert  (>50 %)
+        : ratio > 0.25
+        ? 'linear-gradient(135deg, #fbbf24, #d97706)'   // jaune (25–50 %)
+        : remSec > 5
+        ? 'linear-gradient(135deg, #f97316, #dc2626)'   // orange (6–25 %)
+        : 'linear-gradient(135deg, #ef4444, #991b1b)';  // rouge (≤5 s)
+
+      const bzBorder = !totalSec || ratio > 0.5 ? '#10b981'
         : ratio > 0.25 ? '#f59e0b'
-        : tmr.remainingSec > 5 ? '#f97316'
+        : remSec > 5 ? '#f97316'
         : '#ef4444';
 
       return html`
@@ -374,14 +420,13 @@ export default function PlayerGame() {
               background: bzGrad,
               borderColor: bzBorder,
               boxShadow: `0 0 32px ${bzBorder}55, 0 0 8px ${bzBorder}33`,
-              transition: 'background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease',
             }}
           >
             🔔 BUZZ !
           </button>
-          ${tmr && tmr.remainingSec > 0 && html`
+          ${totalSec > 0 && remSec > 0 && html`
             <div className="text-xs font-mono font-bold" style=${{ color: bzBorder }}>
-              ${tmr.remainingSec}s
+              ${Math.ceil(remSec)}s
             </div>
           `}
         </div>
@@ -537,11 +582,11 @@ export default function PlayerGame() {
               <p className="text-base font-semibold">${currentQ.content}</p>
             </div>
           `}
-          ${timer?.remainingSec > 0 && html`
+          ${localTimerSec > 0 && html`
             <div className="flex items-center justify-between text-sm mb-1">
               <span className="text-white/40">Temps restant</span>
-              <span className=${`font-mono font-bold ${timer.remainingSec <= 5 ? 'text-rose-400' : 'text-neon-green'}`}>
-                ${timer.remainingSec}s
+              <span className=${`font-mono font-bold ${localTimerSec <= 5 ? 'text-rose-400' : 'text-neon-green'}`}>
+                ${Math.ceil(localTimerSec)}s
               </span>
             </div>
           `}

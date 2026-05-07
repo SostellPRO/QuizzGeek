@@ -486,6 +486,12 @@ const TIMER_CSS = `
 }`;
 
 function TimerOverlay({ timer }) {
+  // Local countdown ticks every 200 ms so the ring depletes smoothly
+  // even if socket updates arrive late.
+  const [localSec, setLocalSec] = useState(() => timer?.remainingSec ?? 0);
+  const ivRef      = useRef(null);
+  const metaRef    = useRef(null);
+
   useEffect(() => {
     if (!document.getElementById('timer-style')) {
       const el = document.createElement('style');
@@ -495,8 +501,33 @@ function TimerOverlay({ timer }) {
     }
   }, []);
 
-  if (!timer || timer.remainingSec <= 0) return null;
-  const sec   = timer.remainingSec;
+  useEffect(() => {
+    if (!timer || timer.totalSec <= 0) {
+      setLocalSec(0);
+      metaRef.current = null;
+      if (ivRef.current) { clearInterval(ivRef.current); ivRef.current = null; }
+      return;
+    }
+    const startMs = timer.startedAt
+      ? new Date(timer.startedAt).getTime()
+      : Date.now() - (timer.totalSec - timer.remainingSec) * 1000;
+    metaRef.current = { startMs, totalSec: timer.totalSec };
+
+    const tick = () => {
+      const meta = metaRef.current;
+      if (!meta) return;
+      const rem = Math.max(0, meta.totalSec - (Date.now() - meta.startMs) / 1000);
+      setLocalSec(rem);
+      if (rem <= 0 && ivRef.current) { clearInterval(ivRef.current); ivRef.current = null; }
+    };
+    tick();
+    if (ivRef.current) clearInterval(ivRef.current);
+    ivRef.current = setInterval(tick, 200);
+    return () => { if (ivRef.current) { clearInterval(ivRef.current); ivRef.current = null; } };
+  }, [timer?.startedAt, timer?.totalSec]); // eslint-disable-line
+
+  if (!timer || localSec <= 0) return null;
+  const sec   = localSec;
   const total = timer.totalSec || 30;
   const urgent = sec <= 5;
   const pct  = Math.max(0, sec / total);
@@ -554,7 +585,7 @@ function TimerOverlay({ timer }) {
           background: 'rgba(0,0,0,.55)',
           borderRadius: '50%',
         }}>
-          ${sec}
+          ${Math.ceil(sec)}
         </div>
       </div>
     </div>
