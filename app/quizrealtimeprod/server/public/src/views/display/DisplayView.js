@@ -257,6 +257,13 @@ function VoteDisplay({ gs, players, curQ }) {
     }
 
     const currentProp = proposals[cursor];
+    // Trouver le joueur qui a soumis cette proposition (si ce n'est pas un leurre)
+    const propPlayer = !currentProp?.isDecoy && currentProp?.playerId
+      ? players.find(p => p.id === currentProp.playerId || p.playerId === currentProp.playerId)
+      : null;
+    const propPseudo = propPlayer?.pseudo || currentProp?.pseudo || null;
+    const propAvatar = propPlayer?.avatar || null;
+
     return html`
       <div className="flex flex-col items-center gap-6 w-full animate-fade-in">
         ${curQ?.mediaUrl && html`
@@ -267,7 +274,7 @@ function VoteDisplay({ gs, players, curQ }) {
         <div className="text-white/35 font-mono text-sm">${cursor + 1} / ${proposals.length}</div>
         <div
           key=${'prop-' + cursor}
-          className="flex items-center justify-center rounded-3xl border-2 px-10 py-8 animate-fade-in"
+          className="flex flex-col items-center gap-5 rounded-3xl border-2 px-10 py-8 animate-fade-in"
           style=${{
             background: 'rgba(178,75,255,.12)',
             borderColor: 'rgba(178,75,255,.4)',
@@ -281,6 +288,15 @@ function VoteDisplay({ gs, players, curQ }) {
           >
             ${currentProp?.text || ''}
           </span>
+          ${/* Show author only after vote phase so it stays anonymous during voting */
+            propPseudo && html`
+            <div className="flex items-center gap-3 mt-2 opacity-80">
+              ${propAvatar && html`<span style=${{ fontSize: 'clamp(1.2rem,2.5vw,2rem)' }}>${propAvatar}</span>`}
+              <span className="font-bold text-accent" style=${{ fontSize: 'clamp(1rem,2vw,1.6rem)' }}>
+                ${propPseudo}
+              </span>
+            </div>
+          `}
         </div>
       </div>
     `;
@@ -916,7 +932,10 @@ export default function DisplayView() {
       const currentIdx = gs?.burgerState?.currentItemIndex ?? -1;
       const currentItem = currentIdx >= 0 ? allItems[currentIdx] : null;
       const totalItems = allItems.length;
+      const selectedId     = gs?.burgerSelectedPlayerId;
       const selectedPseudo = gs?.burgerSelectedPseudo || '';
+      const selectedPlayer = selectedId ? players.find(p => p.id === selectedId || p.playerId === selectedId) : null;
+      const selAvatar      = selectedPlayer?.avatar || '🎮';
       const answering = phase === 'manual_scoring' || gs?.burgerState?.answering;
       const bfs = gs?.burgerFinalScore;
 
@@ -943,6 +962,38 @@ export default function DisplayView() {
         `;
       }
 
+      // ── Player spotlight card (shown whenever a player is selected) ──
+      const PlayerSpotlight = selectedPseudo ? html`
+        <div
+          className="flex flex-col items-center gap-3 animate-bounce-in"
+          style=${{
+            background: 'rgba(245,158,11,.12)',
+            border: '3px solid rgba(245,158,11,.5)',
+            borderRadius: '2rem',
+            padding: 'clamp(16px,2.5vh,32px) clamp(32px,5vw,64px)',
+            boxShadow: '0 0 48px rgba(245,158,11,.3)',
+          }}
+        >
+          <span style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>${selAvatar}</span>
+          <span className="font-display font-black text-amber-400 text-center"
+                style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>
+            ${selectedPseudo}
+          </span>
+          ${answering && html`
+            <span className="text-white/80 font-bold uppercase tracking-widest"
+                  style=${{ fontSize: 'clamp(.9rem,1.8vw,1.4rem)' }}>
+              🎤 répond maintenant
+            </span>
+          `}
+          ${!answering && !currentItem && html`
+            <span className="text-white/55 font-bold uppercase tracking-widest"
+                  style=${{ fontSize: 'clamp(.9rem,1.8vw,1.4rem)' }}>
+              Préparez-vous…
+            </span>
+          `}
+        </div>
+      ` : null;
+
       return html`
         <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-8 px-8 animate-fade-in">
           <div style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>🍔</div>
@@ -955,16 +1006,7 @@ export default function DisplayView() {
               Le maître de jeu choisit un candidat.
             </p>
           `}
-          ${selectedPseudo && !answering && !currentItem && html`
-            <p className="text-white/60 text-center" style=${{ fontSize: 'clamp(1.2rem,3vw,2.2rem)' }}>
-              <strong className="text-amber-400">${selectedPseudo}</strong>, préparez-vous !
-            </p>
-          `}
-          ${selectedPseudo && answering && html`
-            <p className="text-white/70 text-center font-display font-black" style=${{ fontSize: 'clamp(2.5rem,6vw,5rem)' }}>
-              🎤 <span className="text-amber-400">${selectedPseudo}</span> répond
-            </p>
-          `}
+          ${PlayerSpotlight}
           ${currentItem && !answering && html`
             <div className="text-center mb-2">
               <span className="font-mono text-amber-400/50 text-sm">${currentIdx + 1} / ${totalItems}</span>

@@ -86,7 +86,7 @@ function MediaField({ label, value, onChange, accept = 'image/*,audio/*,video/*'
   `;
 }
 
-function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
+function QuestionRow({ q, qi, onUpdate, onDelete, onDuplicate, roundType }) {
   const [open, setOpen] = useState(false);
 
   const upd = (key, val) => onUpdate({ ...q, [key]: val });
@@ -127,6 +127,11 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
         <p className="flex-1 text-sm text-white/80 truncate">${q.content || html`<em className="text-white/25">Question sans titre</em>`}</p>
         <span className="text-white/25 text-xs flex-shrink-0">${q.type || 'qcm'}</span>
         <div className="flex gap-1 flex-shrink-0 items-center">
+          <button
+            onClick=${e => { e.stopPropagation(); onDuplicate(); }}
+            className="text-white/25 hover:text-sky-400 transition-colors text-sm px-1.5"
+            title="Dupliquer cette question"
+          >📋</button>
           <button
             onClick=${e => { e.stopPropagation(); onDelete(); }}
             className="text-white/25 hover:text-rose-400 transition-colors text-sm px-1.5"
@@ -314,7 +319,7 @@ function QuestionRow({ q, qi, onUpdate, onDelete, roundType }) {
   `;
 }
 
-function RoundPanel({ round, ri, onUpdate, onDelete }) {
+function RoundPanel({ round, ri, onUpdate, onDelete, onDuplicate }) {
   const [open, setOpen] = useState(true);
   const rt = ROUND_TYPES[round.type] || { icon: '🎯', label: round.type };
 
@@ -352,6 +357,17 @@ function RoundPanel({ round, ri, onUpdate, onDelete }) {
     onUpdate({ ...round, questions: qs });
   };
 
+  const duplicateQ = (qi) => {
+    const src = round.questions[qi];
+    const cloned = JSON.parse(JSON.stringify(src));
+    cloned.id = uid('q');
+    (cloned.options || []).forEach(o => { o.id = uid('opt'); });
+    (cloned.items   || []).forEach(i => { i.id = uid('item'); });
+    const qs = [...(round.questions || [])];
+    qs.splice(qi + 1, 0, cloned);
+    onUpdate({ ...round, questions: qs });
+  };
+
   return html`
     <div className=${`rounded-xl overflow-hidden transition-all duration-200 ${open ? 'ring-1 ring-accent/30 shadow-lg shadow-black/30' : 'app-surface'}`}
          style=${open ? { background: 'linear-gradient(180deg, rgba(124,92,255,0.07), rgba(255,255,255,0.03))', border: '1px solid rgba(124,92,255,0.22)' } : {}}>
@@ -366,6 +382,11 @@ function RoundPanel({ round, ri, onUpdate, onDelete }) {
           <div className="text-xs text-white/40 mt-0.5">${rt.label} · ${(round.questions||[]).length} question(s)</div>
         </div>
         <div className="flex gap-2 flex-shrink-0 items-center">
+          <button
+            onClick=${e => { e.stopPropagation(); onDuplicate(); }}
+            className="text-white/20 hover:text-sky-400 transition-colors text-sm px-1.5"
+            title="Dupliquer cette manche"
+          >📋</button>
           <button
             onClick=${e => { e.stopPropagation(); onDelete(); }}
             className="text-white/20 hover:text-rose-400 transition-colors text-sm px-1.5"
@@ -485,6 +506,7 @@ function RoundPanel({ round, ri, onUpdate, onDelete }) {
                   roundType=${round.type}
                   onUpdate=${(nq) => updateQ(qi, nq)}
                   onDelete=${() => deleteQ(qi)}
+                  onDuplicate=${() => duplicateQ(qi)}
                 />
               `)}
             </div>
@@ -527,6 +549,21 @@ export default function QuizEditor({ onBack }) {
   const deleteRound = (ri) => {
     if (!confirm('Supprimer cette manche ?')) return;
     setEditingQuiz({ ...q, rounds: (q.rounds || []).filter((_, i) => i !== ri) });
+  };
+
+  const duplicateRound = (ri) => {
+    const src = q.rounds[ri];
+    const cloned = JSON.parse(JSON.stringify(src));
+    cloned.id = uid('round');
+    cloned.title = (src.title || `Manche ${ri + 1}`) + ' (copie)';
+    (cloned.questions || []).forEach(cq => {
+      cq.id = uid('q');
+      (cq.options || []).forEach(o => { o.id = uid('opt'); });
+      (cq.items   || []).forEach(it => { it.id = uid('item'); });
+    });
+    const rounds = [...(q.rounds || [])];
+    rounds.splice(ri + 1, 0, cloned);
+    setEditingQuiz({ ...q, rounds });
   };
 
   const save = async () => {
@@ -638,6 +675,7 @@ export default function QuizEditor({ onBack }) {
                 ri=${ri}
                 onUpdate=${(r) => updateRound(ri, r)}
                 onDelete=${() => deleteRound(ri)}
+                onDuplicate=${() => duplicateRound(ri)}
               />
             `)}
           </div>
