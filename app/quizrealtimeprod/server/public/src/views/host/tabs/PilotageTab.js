@@ -555,8 +555,7 @@ export default function PilotageTab() {
             </div>
           `}
 
-          ${gs?.phaseMeta?.finalCeremony && html`
-            ${() => {
+          ${gs?.phaseMeta?.finalCeremony && (() => {
               const fc = gs.phaseMeta.finalCeremony;
               const view = gs.phaseMeta.ceremonyView || 'players';
               const isTeams = view === 'teams';
@@ -598,8 +597,7 @@ export default function PilotageTab() {
                   >↺ Recommencer<//>
                 </div>
               `;
-            }}()
-          `}
+            })()}
         </div>
       `}
 

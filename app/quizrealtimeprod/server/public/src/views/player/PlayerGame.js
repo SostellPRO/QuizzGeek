@@ -345,6 +345,23 @@ export default function PlayerGame() {
         </div>
       `;
 
+      // Gradient dynamique selon le temps restant
+      const tmr = gs?.phaseMeta?.timer;
+      const ratio = tmr && tmr.totalSec > 0 ? tmr.remainingSec / tmr.totalSec : 1;
+      const urgent5 = tmr && tmr.remainingSec <= 5 && tmr.remainingSec > 0;
+      const bzGrad = !tmr || ratio > 0.5
+        ? 'linear-gradient(135deg, #10b981, #059669)'   // vert
+        : ratio > 0.25
+        ? 'linear-gradient(135deg, #fbbf24, #d97706)'   // jaune
+        : tmr.remainingSec > 5
+        ? 'linear-gradient(135deg, #f97316, #dc2626)'   // orange
+        : 'linear-gradient(135deg, #ef4444, #991b1b)';  // rouge
+
+      const bzBorder = !tmr || ratio > 0.5 ? '#10b981'
+        : ratio > 0.25 ? '#f59e0b'
+        : tmr.remainingSec > 5 ? '#f97316'
+        : '#ef4444';
+
       return html`
         <div className="flex flex-col items-center gap-6 py-8">
           <div className="text-white/60 text-sm uppercase tracking-widest font-semibold">Buzzer</div>
@@ -352,10 +369,21 @@ export default function PlayerGame() {
           <button
             onClick=${sendBuzzer}
             disabled=${!!buzzerLocked}
-            className="w-48 h-48 rounded-full font-display font-black text-2xl text-white bg-gradient-to-br from-accent to-violet-900 border-4 border-accent ring-pulse shadow-accent active:scale-90 transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+            className=${`w-48 h-48 rounded-full font-display font-black text-2xl text-white border-4 active:scale-90 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center ${urgent5 ? 'animate-pulse' : 'ring-pulse'}`}
+            style=${{
+              background: bzGrad,
+              borderColor: bzBorder,
+              boxShadow: `0 0 32px ${bzBorder}55, 0 0 8px ${bzBorder}33`,
+              transition: 'background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease',
+            }}
           >
             🔔 BUZZ !
           </button>
+          ${tmr && tmr.remainingSec > 0 && html`
+            <div className="text-xs font-mono font-bold" style=${{ color: bzBorder }}>
+              ${tmr.remainingSec}s
+            </div>
+          `}
         </div>
       `;
     }

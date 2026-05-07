@@ -63,5 +63,18 @@ export function useMusic() {
     }
   }, []);
 
-  return { muted, setUrl, toggleMute, ducking };
+  // Silence total pour la durée d'une vidéo (pause complète, sans modifier l'état muted)
+  const silenceForVideo = useCallback((silence) => {
+    if (!_audioEl) return;
+    if (silence) {
+      _audioEl.pause();
+    } else {
+      if (!mutedRef.current && _currentUrl) {
+        _audioEl.volume = 1.0;
+        _audioEl.play().catch(() => {});
+      }
+    }
+  }, []);
+
+  return { muted, setUrl, toggleMute, ducking, silenceForVideo };
 }

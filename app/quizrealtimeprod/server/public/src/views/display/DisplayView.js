@@ -581,16 +581,15 @@ function AllAnsweredBurst({ show }) {
 
 // ── Main Display view ─────────────────────────────────────────
 export default function DisplayView() {
-  const { socket, displaySession, setDisplaySession, gameState: gs, players, lbPlayers, lbTeams, navigate, musicMuted, toggleMute, ducking, soundPlay } = useGame();
+  const { socket, displaySession, setDisplaySession, gameState: gs, players, lbPlayers, lbTeams, navigate, musicMuted, toggleMute, ducking, silenceForVideo, soundPlay } = useGame();
 
-  // Duck background music while challenge video OR training video is playing
+  // Couper totalement la musique quand une vidéo (challenge ou entraînement) joue
   useEffect(() => {
-    if (!ducking) return;
+    if (!silenceForVideo) return;
     const videoCtrl    = gs?.videoState?.videoControl;
     const trainingCtrl = gs?.videoState?.trainingVideoControl;
-    const isMainPlaying     = videoCtrl?.action === 'play';
-    const isTrainingPlaying = trainingCtrl?.action === 'play';
-    ducking(isMainPlaying || isTrainingPlaying);
+    const isPlaying = videoCtrl?.action === 'play' || trainingCtrl?.action === 'play';
+    silenceForVideo(isPlaying);
   }, [ // eslint-disable-line
     gs?.videoState?.videoControl?.action,
     gs?.videoState?.videoControl?.at,

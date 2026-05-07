@@ -35,7 +35,7 @@ export function GameProvider({ children }) {
   const [editingQuiz,  setEditingQuiz]  = useState(null);
 
   const { play, startCountdown, stopCountdown } = useSounds();
-  const { muted, setUrl: setMusicUrl, toggleMute, ducking } = useMusic();
+  const { muted, setUrl: setMusicUrl, toggleMute, ducking, silenceForVideo } = useMusic();
 
   // Ref to track current page inside event handlers (avoids stale closure)
   const pageRef = useRef(page);
@@ -293,7 +293,7 @@ export function GameProvider({ children }) {
     editingQuiz,   setEditingQuiz,
     hostAction, apiFetch,
     soundPlay: play,
-    musicMuted: muted, toggleMute, ducking,
+    musicMuted: muted, toggleMute, ducking, silenceForVideo,
   };
 
   return React.createElement(GameContext.Provider, { value }, children);
