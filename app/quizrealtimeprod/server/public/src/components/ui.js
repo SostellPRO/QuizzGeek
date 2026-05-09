@@ -65,7 +65,7 @@ export const Btn = ({ variant = 'primary', size = 'md', pulse, wide, onClick, di
     sizes[size] || sizes.md,
     variants[variant] || variants.primary,
     wide ? 'w-full' : '',
-    pulse ? 'ring-pulse' : '',
+    pulse ? 'ring-pulse is-next-action' : '',
     disabled ? 'opacity-50 cursor-not-allowed' : '',
     className,
   ].filter(Boolean).join(' ');
