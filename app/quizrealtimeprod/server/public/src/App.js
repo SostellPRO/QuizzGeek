@@ -101,18 +101,18 @@ function NavBar() {
               `}
             </div>
 
-            <!-- Séparateur + slider langue intégré dans le panneau, tout à droite -->
-            <div className="mx-1 h-5 w-px bg-white/12 shrink-0"></div>
-            <button
-              onClick=${toggleLang}
-              className=${`nav-lang-switch ${lang === 'en' ? 'is-en' : 'is-fr'}`}
-              title=${lang === 'en' ? 'Passer en Français' : 'Switch to English'}
-            >
-              <span className="nav-lang-face nav-lang-fr"></span>
-              <span className="nav-lang-face nav-lang-en"></span>
-              <span className="nav-lang-knob"></span>
-            </button>
           </div>
+
+          <!-- Slider langue : tout à droite, hors du panneau nav -->
+          <button
+            onClick=${toggleLang}
+            className=${`nav-lang-switch ${lang === 'en' ? 'is-en' : 'is-fr'}`}
+            title=${lang === 'en' ? 'Passer en Français' : 'Switch to English'}
+          >
+            <span className="nav-lang-face nav-lang-fr"></span>
+            <span className="nav-lang-face nav-lang-en"></span>
+            <span className="nav-lang-knob">${lang === 'en' ? 'EN' : 'FR'}</span>
+          </button>
         </div>
       </div>
     </nav>
