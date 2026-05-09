@@ -810,6 +810,9 @@ export function startTimer(session, seconds, hooks = {}) {
     }
 
     if (timer.remainingSec <= 0) {
+      // ⚠️ Sauvegarder l'ID de la question AVANT clearTimer qui le nullifie
+      const frozenQuestionId = rt.timerQuestionId;
+
       clearTimer(session);
 
       // Fin du temps: verrouiller + waiting (ou manual_scoring selon round)
@@ -843,14 +846,14 @@ export function startTimer(session, seconds, hooks = {}) {
         }
       }
 
-      // reveal auto après 5s
+      // reveal auto après 1.2 s
       clearAutoRevealTimeout(session);
       rt.autoRevealTimeout = setTimeout(() => {
         rt.autoRevealTimeout = null;
 
-        // vérifier que la question n'a pas changé
+        // vérifier que la question n'a pas changé (utilise l'ID sauvegardé)
         const qAgain = getCurrentQuestion(session);
-        if (!qAgain || qAgain.id !== rt.timerQuestionId) return;
+        if (!qAgain || qAgain.id !== frozenQuestionId) return;
 
         // seulement si on est encore sur une phase compatible
         if (!["question", "waiting"].includes(session.gameState.status)) return;

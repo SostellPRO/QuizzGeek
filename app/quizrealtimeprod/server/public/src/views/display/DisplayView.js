@@ -206,6 +206,23 @@ function VoteDisplay({ gs, players, curQ }) {
   if (mode === 'vote_input') {
     const conn  = players.filter(p => p.connected && !p.isBot).length;
     const voted = Object.keys(gs?.answers?.[gs?.currentQuestion?.id] || {}).length;
+    const locked = gs?.phaseMeta?.playerScreenLocked;
+
+    // Timer expiré → saisie bloquée, l'animateur lance le vote
+    if (locked) return html`
+      <div className="flex flex-col items-center gap-8 py-12 animate-fade-in">
+        <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🔒</div>
+        <h2 className="font-display font-black text-center text-amber-400"
+            style=${{ fontSize: 'clamp(2.5rem,7vw,5rem)' }}>
+          Saisie terminée
+        </h2>
+        <p className="text-white/50 font-bold text-center" style=${{ fontSize: 'clamp(1.2rem,2.5vw,2rem)' }}>
+          ${voted} réponse(s) reçue(s) — l'animateur lance le vote…
+        </p>
+        <${Dots} />
+      </div>
+    `;
+
     return html`
       <div className="flex flex-col items-center gap-8 py-12 animate-fade-in">
         <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🗳️</div>
@@ -308,6 +325,23 @@ function VoteDisplay({ gs, players, curQ }) {
     const votes      = voteState?.votes   || {};
     const conn       = players.filter(p => p.connected && !p.isBot).length;
     const totalVotes = Object.keys(votes).length;
+    const lockedV    = gs?.phaseMeta?.playerScreenLocked;
+
+    // Timer expiré → votes bloqués, l'animateur révèle les résultats
+    if (lockedV) return html`
+      <div className="flex flex-col items-center gap-8 py-12 animate-fade-in">
+        <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🔒</div>
+        <h2 className="font-display font-black text-center text-amber-400"
+            style=${{ fontSize: 'clamp(2.5rem,7vw,5rem)' }}>
+          Vote terminé
+        </h2>
+        <p className="text-white/50 font-bold text-center" style=${{ fontSize: 'clamp(1.2rem,2.5vw,2rem)' }}>
+          ${totalVotes} vote(s) reçu(s) — l'animateur révèle les résultats…
+        </p>
+        <${Dots} />
+      </div>
+    `;
+
     return html`
       <div className="flex flex-col gap-5 animate-fade-in">
         <h2 className="gradient-text font-display font-black text-center" style=${{ fontSize: 'clamp(1.8rem,4vw,3rem)' }}>
