@@ -178,7 +178,14 @@ export default function PlayerGame() {
         <div className="rounded-2xl bg-bg-card border border-white/8 p-6 text-center">
           <div className="text-5xl mb-4">⏳</div>
           <h2 className="text-xl font-bold mb-2">Salle d'attente</h2>
-          <p className="text-white/45 text-sm mb-5">En attente du maître de jeu…</p>
+          <p className="text-white/45 text-sm mb-4">En attente du maître de jeu…</p>
+          <!-- Rappel veille téléphone -->
+          <div className="flex items-center justify-center gap-2 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-3 mb-5">
+            <span className="text-xl flex-shrink-0">📵</span>
+            <p className="text-amber-300 font-bold text-sm leading-tight">
+              Désactivez la mise en veille de votre téléphone !
+            </p>
+          </div>
           <div className="text-xs text-white/30 uppercase tracking-widest font-semibold mb-3">
             ${connPlayers.length} joueur(s) connecté(s)
           </div>
@@ -390,8 +397,8 @@ export default function PlayerGame() {
       // Gradient dynamique selon le temps restant (via compteur local côté client)
       const tmr      = gs?.phaseMeta?.timer;
       const totalSec = tmr?.totalSec || 0;
-      // localTimerSec ticks at 200 ms regardless of socket latency
-      const remSec   = totalSec > 0 ? localTimerSec : 0;
+      // localTimerSec ticks at 200 ms ; fallback sur la valeur serveur si local = 0
+      const remSec   = localTimerSec > 0 ? localTimerSec : (tmr?.remainingSec || 0);
       const ratio    = totalSec > 0 ? remSec / totalSec : 1;
       const urgent5  = remSec > 0 && remSec <= 5;
 

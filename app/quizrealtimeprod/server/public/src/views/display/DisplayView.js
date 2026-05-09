@@ -522,8 +522,11 @@ function TimerOverlay({ timer }) {
     return () => { if (ivRef.current) { clearInterval(ivRef.current); ivRef.current = null; } };
   }, [timer?.startedAt, timer?.totalSec]); // eslint-disable-line
 
-  if (!timer || localSec <= 0) return null;
-  const sec   = localSec;
+  // Visibilité : le timer du serveur fait foi (localSec peut être 0 brièvement
+  // au premier render avant que l'effet ait tourné)
+  if (!timer || timer.remainingSec <= 0) return null;
+  // Valeur d'affichage : local (200 ms) ou fallback serveur
+  const sec   = localSec > 0 ? localSec : timer.remainingSec;
   const total = timer.totalSec || 30;
   const ratio = sec / total;
 
