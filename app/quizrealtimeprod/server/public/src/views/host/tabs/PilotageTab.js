@@ -24,6 +24,7 @@ export default function PilotageTab() {
   const [showBroadcast, setShowBroadcast] = useState(false);
   const [peekScores, setPeekScores]       = useState(false);
   const [timerSeconds, setTimerSeconds]   = useState(30);
+  const [confirmEndGame, setConfirmEndGame] = useState(false);
 
   const phase   = gs?.status || 'lobby';
   const isPaused= gs?.phaseMeta?.paused === true;
@@ -515,15 +516,24 @@ export default function PilotageTab() {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <${Btn} variant="ghost" size="sm" onClick=${() => ha('show_results')}>📊 Résultats</${Btn}>
-          <${Btn} variant="danger" size="sm" onClick=${() => {
-            if (confirm('Terminer la partie ?')) {
-              ha('end_game');
-              localStorage.removeItem('quiz_host_session_code');
-              localStorage.removeItem('quiz_host_key');
-              setHostSession({ sessionCode: '', hostKey: '', connected: false });
-              navigate('home');
-            }
-          }}>🏁 Fin de partie</${Btn}>
+          ${confirmEndGame
+            ? html`
+              <div className="col-span-2 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 flex flex-col gap-2">
+                <p className="text-sm font-bold text-rose-300 text-center">Terminer et quitter la partie ?</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <${Btn} variant="ghost" size="sm" onClick=${() => setConfirmEndGame(false)}>Annuler</${Btn}>
+                  <${Btn} variant="danger" size="sm" onClick=${() => {
+                    ha('end_game');
+                    localStorage.removeItem('quiz_host_session_code');
+                    localStorage.removeItem('quiz_host_key');
+                    setHostSession({ sessionCode: '', hostKey: '', connected: false });
+                    navigate('home');
+                  }}>✅ Confirmer</${Btn}>
+                </div>
+              </div>
+            `
+            : html`<${Btn} variant="danger" size="sm" onClick=${() => setConfirmEndGame(true)}>🏁 Fin de partie</${Btn}>`
+          }
         </div>
       </div>
 
