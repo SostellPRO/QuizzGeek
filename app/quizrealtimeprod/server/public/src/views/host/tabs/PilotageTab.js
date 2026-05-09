@@ -17,7 +17,7 @@ const PHASE_BADGE = {
 };
 
 export default function PilotageTab() {
-  const { gameState: gs, players, teams, hostAction, hostSession } = useGame();
+  const { gameState: gs, players, teams, hostAction, hostSession, navigate, setHostSession } = useGame();
   const [videoScore,  setVideoScore]  = useState(0);
   const [burgerScore, setBurgerScore] = useState(0);
   const [broadcastMsg, setBroadcastMsg] = useState('');
@@ -516,7 +516,13 @@ export default function PilotageTab() {
         <div className="grid grid-cols-2 gap-2">
           <${Btn} variant="ghost" size="sm" onClick=${() => ha('show_results')}>📊 Résultats</${Btn}>
           <${Btn} variant="danger" size="sm" onClick=${() => {
-            if (confirm('Terminer la partie ?')) ha('end_game');
+            if (confirm('Terminer la partie ?')) {
+              ha('end_game');
+              localStorage.removeItem('quiz_host_session_code');
+              localStorage.removeItem('quiz_host_key');
+              setHostSession({ sessionCode: '', hostKey: '', connected: false });
+              navigate('home');
+            }
           }}>🏁 Fin de partie</${Btn}>
         </div>
       </div>
