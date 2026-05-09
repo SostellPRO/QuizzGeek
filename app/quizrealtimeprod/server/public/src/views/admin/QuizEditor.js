@@ -137,12 +137,12 @@ function QuestionRow({ q, qi, onUpdate, onDelete, onDuplicate, roundType }) {
         <div className="flex gap-1 flex-shrink-0 items-center">
           <button
             onClick=${e => { e.stopPropagation(); onDuplicate(); }}
-            className="flex items-center gap-1 text-xs font-semibold text-sky-500/60 hover:text-sky-400 transition-colors px-2 py-0.5 rounded border border-sky-500/20 hover:border-sky-400/50 hover:bg-sky-400/8"
+            className="ui-btn ui-btn-ghost flex items-center gap-1 text-xs font-semibold text-sky-300/80 hover:text-sky-100 px-2 py-1 rounded border border-sky-500/20 hover:border-sky-400/50 hover:bg-sky-400/8"
             title="Dupliquer cette question"
           >⎘ Copier</button>
           <button
             onClick=${e => { e.stopPropagation(); onDelete(); }}
-            className="text-white/25 hover:text-rose-400 transition-colors text-sm px-1.5"
+            className="ui-btn ui-btn-ghost text-white/35 hover:text-rose-300 text-sm px-2 py-1"
           >Suppr.</button>
           <span className=${`text-xs transition-colors ${open ? 'text-neon-blue/70' : 'text-white/25'}`}>${open ? '▲' : '▼'}</span>
         </div>
@@ -302,7 +302,7 @@ function QuestionRow({ q, qi, onUpdate, onDelete, onDuplicate, roundType }) {
               `)}
               <button
                 onClick=${() => upd('items', [...(q.items || []), { id: uid('item'), text: '', mediaUrl: '' }])}
-                className="py-2 rounded-xl border border-dashed border-amber-500/30 text-amber-300/80 hover:bg-amber-500/10 text-sm font-bold"
+                className="ui-btn ui-btn-warning py-2 rounded-xl border border-dashed border-amber-500/30 text-sm font-bold"
               >
                 + Ajouter un element
               </button>
@@ -384,12 +384,12 @@ function RoundPanel({ round, ri, onUpdate, onDelete, onDuplicate }) {
         <div className="flex gap-2 flex-shrink-0 items-center">
           <button
             onClick=${e => { e.stopPropagation(); onDuplicate(); }}
-            className="flex items-center gap-1 text-xs font-semibold text-sky-500/60 hover:text-sky-400 transition-colors px-2 py-0.5 rounded border border-sky-500/20 hover:border-sky-400/50 hover:bg-sky-400/8"
+            className="ui-btn ui-btn-ghost flex items-center gap-1 text-xs font-semibold text-sky-300/80 hover:text-sky-100 px-2 py-1 rounded border border-sky-500/20 hover:border-sky-400/50 hover:bg-sky-400/8"
             title="Dupliquer cette manche"
           >⎘ Copier</button>
           <button
             onClick=${e => { e.stopPropagation(); onDelete(); }}
-            className="text-white/20 hover:text-rose-400 transition-colors text-sm px-1.5"
+            className="ui-btn ui-btn-ghost text-white/35 hover:text-rose-300 text-sm px-2 py-1"
           >Suppr.</button>
           <span className=${`text-xs transition-colors ${open ? 'text-accent/80' : 'text-white/30'}`}>${open ? '▲' : '▼'}</span>
         </div>
@@ -512,7 +512,7 @@ function RoundPanel({ round, ri, onUpdate, onDelete, onDuplicate }) {
             </div>
             <button
               onClick=${addQuestion}
-              className="mt-3 w-full py-3.5 rounded-lg border-2 border-dashed border-accent/30 text-accent/70 hover:border-accent/60 hover:text-accent hover:bg-accent/5 transition-all text-sm font-bold flex items-center justify-center gap-2"
+              className="ui-btn ui-btn-nav mt-3 w-full py-3.5 rounded-lg border-2 border-dashed border-accent/30 text-accent/80 hover:border-accent/60 hover:text-white text-sm font-bold flex items-center justify-center gap-2"
             >
               + Ajouter une question
             </button>
@@ -710,7 +710,7 @@ export default function QuizEditor({ onBack }) {
           </div>
           <button
             onClick=${addRound}
-            className="mt-4 w-full py-4 rounded-lg border-2 border-dashed border-violet-500/30 text-violet-400/70 hover:border-violet-500/60 hover:text-violet-400 hover:bg-violet-500/5 transition-all font-bold flex items-center justify-center gap-2 text-sm"
+            className="ui-btn ui-btn-primary mt-4 w-full py-4 rounded-lg border-2 border-dashed border-violet-500/30 font-bold flex items-center justify-center gap-2 text-sm"
           >
             + Ajouter une manche
           </button>

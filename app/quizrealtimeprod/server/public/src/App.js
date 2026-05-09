@@ -26,7 +26,7 @@ function NavBar() {
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
         <button
           onClick=${() => go('home')}
-          className="inline-flex min-h-[40px] items-center gap-2 rounded-lg app-chip px-3 font-display text-lg font-black transition-all hover:border-sky-300/45 hover:text-white"
+          className="ui-btn ui-btn-ghost inline-flex min-h-[40px] items-center gap-2 rounded-lg app-chip px-3 font-display text-lg font-black hover:border-sky-300/45 hover:text-white"
         >
           <span className="text-sky-300">⚡</span>
           <span className="gradient-text">QuizzGeek</span>
@@ -36,7 +36,7 @@ function NavBar() {
             <button
               key=${l.id}
               onClick=${() => go(l.id)}
-              className=${`flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-extrabold transition-all ${
+              className=${`ui-btn flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-extrabold ${
                 page === l.id
                   ? 'bg-sky-400/16 text-sky-100 shadow-neon-blue'
                   : 'text-white/48 hover:bg-white/8 hover:text-white'
@@ -48,7 +48,7 @@ function NavBar() {
           `)}
           <button
             onClick=${openDisplay}
-            className="flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-extrabold transition-all text-white/48 hover:bg-white/8 hover:text-white"
+            className="ui-btn ui-btn-ghost flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-extrabold text-white/48 hover:bg-white/8 hover:text-white"
             title="Ouvrir l'écran TV dans un nouvel onglet"
           >
             <span className="hidden sm:inline">📺</span>

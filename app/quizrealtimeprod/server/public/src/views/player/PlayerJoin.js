@@ -11,7 +11,7 @@ const AVATARS = [
 const DEFAULT_VIS = 12;
 
 export default function PlayerJoin({ suggestedCode = '' }) {
-  const { socket, setPlayerSession, teams, gameState, navigate } = useGame();
+  const { socket, setPlayerSession, teams, gameState, navigate, soundPlay } = useGame();
 
   const [code, setCode] = useState(suggestedCode);
   const [pseudo, setPseudo] = useState('');
@@ -44,6 +44,8 @@ export default function PlayerJoin({ suggestedCode = '' }) {
   }, [code]);
 
   const join = async () => {
+    soundPlay?.('answer');
+    try { navigator.vibrate?.([16, 24, 36]); } catch {}
     const sessionCode = code.trim().toUpperCase();
     const p = pseudo.trim();
     if (!sessionCode) { setAlert({ type: 'error', message: 'Code de session requis.' }); return; }
@@ -125,8 +127,8 @@ export default function PlayerJoin({ suggestedCode = '' }) {
                   ${visAvatars.map(em => html`
                     <button
                       key=${em}
-                      onClick=${() => setAvatar(em)}
-                      className=${`flex aspect-square items-center justify-center rounded-lg border text-2xl transition-all ${avatar === em ? 'scale-105 border-sky-300/70 bg-sky-400/18 shadow-neon-blue' : 'border-white/0 hover:border-white/12 hover:bg-white/8'}`}
+                      onClick=${() => { soundPlay?.('answer'); try { navigator.vibrate?.(12); } catch {}; setAvatar(em); }}
+                      className=${`mobile-choice flex aspect-square items-center justify-center rounded-lg border text-2xl transition-all ${avatar === em ? 'scale-105 border-sky-300/70 bg-sky-400/18 shadow-neon-blue' : 'border-white/0 hover:border-white/12 hover:bg-white/8'}`}
                     >
                       ${em}
                     </button>

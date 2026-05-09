@@ -1,23 +1,64 @@
 // Shared UI components
 import { html } from '../utils.js';
 
+let uiAudioCtx = null;
+let lastUiSoundAt = 0;
+
+function playUiFeedback(variant = 'primary') {
+  try {
+    navigator.vibrate?.(variant === 'danger' ? [18, 24, 18] : 14);
+  } catch {}
+
+  try {
+    const now = performance.now();
+    if (now - lastUiSoundAt < 70) return;
+    lastUiSoundAt = now;
+
+    uiAudioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = uiAudioCtx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const base = {
+      primary: 640,
+      success: 760,
+      danger: 180,
+      warning: 420,
+      secondary: 520,
+      ghost: 460,
+      tv: 690,
+      nav: 500,
+    }[variant] || 520;
+
+    osc.type = variant === 'danger' ? 'sawtooth' : 'triangle';
+    osc.frequency.setValueAtTime(base, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(base * 1.18, ctx.currentTime + 0.045);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.035, ctx.currentTime + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.09);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.1);
+  } catch {}
+}
+
 // ── Button ───────────────────────────────────────────────────
-export const Btn = ({ variant = 'primary', size = 'md', pulse, wide, onClick, disabled, children, className = '', style }) => {
-  const base = 'inline-flex items-center justify-center gap-2 font-bold rounded-lg transition-all duration-200 cursor-pointer select-none border shadow-sm hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]';
+export const Btn = ({ variant = 'primary', size = 'md', pulse, wide, onClick, disabled, children, className = '', style, feedback = true }) => {
+  const base = 'ui-btn inline-flex items-center justify-center gap-2 font-bold rounded-lg cursor-pointer select-none border shadow-sm';
   const sizes = {
-    sm: 'px-4 py-2 text-sm min-h-[38px]',
-    md: 'px-5 py-3 text-base min-h-[48px]',
-    lg: 'px-7 py-4 text-lg min-h-[56px]',
+    sm: 'px-4 py-2 text-sm min-h-[40px]',
+    md: 'px-5 py-3 text-base min-h-[50px]',
+    lg: 'px-7 py-4 text-lg min-h-[58px]',
   };
   const variants = {
-    primary:   'bg-gradient-to-r from-accent to-sky-500 hover:brightness-110 border-white/10 text-white shadow-accent',
-    success:   'bg-gradient-to-r from-teal-500 to-emerald-500 hover:brightness-110 border-white/10 text-slate-950',
-    danger:    'bg-gradient-to-r from-rose-500 to-red-500 hover:brightness-110 border-white/10 text-white',
-    warning:   'bg-gradient-to-r from-amber-400 to-orange-500 hover:brightness-110 border-white/10 text-slate-950 font-extrabold',
-    secondary: 'app-panel hover:bg-white/10 border-white/10 text-white/90',
-    ghost:     'bg-white/[0.035] hover:bg-white/10 border-white/10 text-white/70 hover:text-white',
-    tv:        'bg-gradient-to-r from-sky-500 to-cyan-400 border-white/10 text-slate-950 hover:brightness-110',
-    nav:       'app-panel hover:bg-accent/16 border-white/10 text-white/90 hover:border-sky-400/50',
+    primary:   'ui-btn-primary border-white/10 text-white shadow-accent',
+    success:   'ui-btn-success border-white/10 text-slate-950',
+    danger:    'ui-btn-danger border-white/10 text-white',
+    warning:   'ui-btn-warning border-white/10 text-slate-950 font-extrabold',
+    secondary: 'ui-btn-secondary border-white/10 text-white/90',
+    ghost:     'ui-btn-ghost border-white/10 text-white/72 hover:text-white',
+    tv:        'ui-btn-tv border-white/10 text-slate-950',
+    nav:       'ui-btn-nav border-white/10 text-white/90',
   };
   const cls = [
     base,
@@ -28,18 +69,24 @@ export const Btn = ({ variant = 'primary', size = 'md', pulse, wide, onClick, di
     disabled ? 'opacity-50 cursor-not-allowed' : '',
     className,
   ].filter(Boolean).join(' ');
+  const handleClick = (event) => {
+    if (disabled) return;
+    if (feedback) playUiFeedback(variant);
+    onClick?.(event);
+  };
 
   return html`<button
     className=${cls}
+    data-variant=${variant}
     style=${style}
-    onClick=${onClick}
+    onClick=${handleClick}
     disabled=${disabled}
   >${children}</button>`;
 };
 
 // ── Card ────────────────────────────────────────────────────
 export const Card = ({ children, className = '', style, glow }) => html`
-  <div className=${'rounded-lg app-surface p-5 ' + (glow ? 'border-sky-400/40 shadow-accent ' : '') + className} style=${style}>
+  <div className=${'animate-soft-slide-up rounded-lg app-surface p-5 ' + (glow ? 'border-sky-400/40 shadow-accent ' : '') + className} style=${style}>
     ${children}
   </div>
 `;
@@ -100,7 +147,7 @@ export const Modal = ({ show, onClose, title, children, width = 'max-w-lg' }) =>
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
       onClick=${(e) => e.target === e.currentTarget && onClose?.()}
     >
-      <div className=${'w-full ' + width + ' app-surface rounded-lg shadow-2xl animate-fade-in overflow-hidden'}>
+      <div className=${'w-full ' + width + ' app-surface rounded-lg shadow-2xl animate-soft-slide-up overflow-hidden'}>
         ${title && html`
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
             <h3 className="text-lg font-bold">${title}</h3>

@@ -132,7 +132,7 @@ function AnswerGrid({ options, revealed, correctIdx }) {
         return html`
           <div
             key=${opt.id || i}
-            className="flex items-center gap-4 rounded-lg border-2 transition-all duration-500"
+            className="choice-card flex items-center gap-4 rounded-lg border-2 transition-all duration-500"
             style=${{
               borderColor: isCorrect ? '#2dd4bf' : isWrong ? 'rgba(255,255,255,.08)' : COLORS[i % COLORS.length],
               background: isCorrect ? 'rgba(45,212,191,.15)' : isWrong ? 'rgba(255,255,255,.03)' : BGCOLORS[i % BGCOLORS.length],

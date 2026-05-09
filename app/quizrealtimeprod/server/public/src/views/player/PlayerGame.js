@@ -17,7 +17,7 @@ const OPT_BGCOLORS = [
 const getRoundMeta = (type = 'qcm') => ROUND_TYPES[type] || (type === 'speed' ? ROUND_TYPES.rapidite : null) || { icon: '🎯', label: type };
 
 export default function PlayerGame() {
-  const { socket, gameState: gs, players, playerSession: s, setPlayerSession, navigate } = useGame();
+  const { socket, gameState: gs, players, playerSession: s, setPlayerSession, navigate, soundPlay } = useGame();
   const [alert, setAlert]       = useState(null);
   const [locked, setLocked]     = useState(false);
   const [voteText, setVoteText] = useState('');
@@ -103,7 +103,9 @@ export default function PlayerGame() {
   }, [cooldownExpiry]); // eslint-disable-line
 
   // ── Haptic feedback helper (no-op on desktop/unsupported) ────
-  const vibrate = (pattern = 50) => navigator.vibrate?.(pattern);
+  const vibrate = (pattern = 50) => {
+    try { navigator.vibrate?.(pattern); } catch {}
+  };
 
   const phase    = gs?.status || 'lobby';
   const roundType= gs?.currentRound?.type || 'qcm';
@@ -112,45 +114,50 @@ export default function PlayerGame() {
 
   const sendAnswer = useCallback((answer) => {
     if (!socket || !s) return;
-    vibrate(50);
+    soundPlay?.('answer');
+    vibrate([18, 24, 42]);
     setLocked(true);
     socket.emit('player:answer', { sessionCode: s.sessionCode, playerId: s.playerId, answer }, (res) => {
       if (!res?.ok) {
+        soundPlay?.('wrong');
         setAlert({ type: 'error', message: res?.error || 'Erreur.' });
         setLocked(false);
       }
     });
-  }, [socket, s]); // eslint-disable-line
+  }, [socket, s, soundPlay]); // eslint-disable-line
 
   const sendBuzzer = useCallback(() => {
     if (!socket || !s) return;
+    soundPlay?.('buzzer');
     vibrate([30, 50, 80]); // triple pulse pour le buzz
     socket.emit('player:buzzer', { sessionCode: s.sessionCode, playerId: s.playerId }, (res) => {
       if (!res?.ok) setAlert({ type: 'error', message: res?.error || 'Buzzer refusé.' });
     });
-  }, [socket, s]); // eslint-disable-line
+  }, [socket, s, soundPlay]); // eslint-disable-line
 
   // vote_input: player submits free-text answer via player:answer
   const sendVoteText = useCallback(() => {
     const txt = voteText.trim();
     if (!txt || !socket || !s) return;
-    vibrate(50);
+    soundPlay?.('answer');
+    vibrate([18, 24, 42]);
     setLocked(true);
     socket.emit('player:answer', { sessionCode: s.sessionCode, playerId: s.playerId, answer: txt }, (res) => {
       if (res?.ok) { setVoteText(''); }
-      else { setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
+      else { soundPlay?.('wrong'); setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
     });
-  }, [socket, s, voteText]); // eslint-disable-line
+  }, [socket, s, voteText, soundPlay]); // eslint-disable-line
 
   // vote_voting: player chooses from displayed options by index via player:vote
   const sendVoteChoice = useCallback((index) => {
     if (!socket || !s || locked) return;
-    vibrate(50);
+    soundPlay?.('answer');
+    vibrate([18, 24, 42]);
     setLocked(true);
     socket.emit('player:vote', { sessionCode: s.sessionCode, playerId: s.playerId, index }, (res) => {
-      if (!res?.ok) { setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
+      if (!res?.ok) { soundPlay?.('wrong'); setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
     });
-  }, [socket, s, locked]); // eslint-disable-line
+  }, [socket, s, locked, soundPlay]); // eslint-disable-line
 
   const disconnect = () => {
     setPlayerSession(null);
@@ -421,7 +428,7 @@ export default function PlayerGame() {
           <button
             onClick=${sendBuzzer}
             disabled=${!!buzzerLocked}
-            className=${`w-48 h-48 rounded-full font-display font-black text-2xl text-white border-4 active:scale-90 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center ${urgent5 ? 'animate-pulse' : 'ring-pulse'}`}
+            className=${`mobile-choice w-48 h-48 rounded-full font-display font-black text-2xl text-white border-4 active:scale-90 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center ${urgent5 ? 'animate-pulse' : 'ring-pulse'}`}
             style=${{
               background: bzGrad,
               borderColor: bzBorder,
@@ -459,14 +466,14 @@ export default function PlayerGame() {
           <div className="grid grid-cols-1 gap-4">
             <button
               onClick=${() => sendAnswer('vrai')}
-              className="flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-neon-green/40 bg-neon-green/8 font-display font-black text-xl text-neon-green active:scale-95 transition-all hover:bg-neon-green/15"
+              className="mobile-choice flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-neon-green/40 bg-neon-green/8 font-display font-black text-xl text-neon-green active:scale-95 transition-all hover:bg-neon-green/15"
             >
               <span className="text-4xl">✅</span>
               VRAI
             </button>
             <button
               onClick=${() => sendAnswer('faux')}
-              className="flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-rose-500/40 bg-rose-500/8 font-display font-black text-xl text-rose-400 active:scale-95 transition-all hover:bg-rose-500/15"
+              className="mobile-choice flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-rose-500/40 bg-rose-500/8 font-display font-black text-xl text-rose-400 active:scale-95 transition-all hover:bg-rose-500/15"
             >
               <span className="text-4xl">❌</span>
               FAUX
@@ -559,7 +566,7 @@ export default function PlayerGame() {
                   onClick=${() => !isOwn && sendVoteChoice(i)}
                   disabled=${isOwn}
                   style=${{ borderColor: color, background: bgColor, opacity: isOwn ? 0.4 : 1, cursor: isOwn ? 'not-allowed' : 'pointer' }}
-                  className="flex items-center gap-4 p-4 rounded-xl border-2 font-semibold text-left transition-all ${isOwn ? '' : 'active:scale-95 hover:brightness-125'}"
+                  className="mobile-choice flex items-center gap-4 p-4 rounded-xl border-2 font-semibold text-left transition-all ${isOwn ? '' : 'active:scale-95 hover:brightness-125'}"
                   title=${isOwn ? 'Votre réponse — vous ne pouvez pas voter pour vous-même' : ''}
                 >
                   <span
@@ -632,7 +639,7 @@ export default function PlayerGame() {
                   onClick=${() => sendAnswer(opt.text)}
                   disabled=${locked}
                   style=${{ borderColor: color, background: bgColor }}
-                  className="flex items-center gap-4 p-4 rounded-xl border-2 font-semibold text-left transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-125"
+                  className="mobile-choice flex items-center gap-4 p-4 rounded-xl border-2 font-semibold text-left transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-125"
                 >
                   <span
                     style=${{ color, borderColor: color, background: `${color}22` }}
