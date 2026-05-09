@@ -41,7 +41,7 @@ function NavBar() {
         </button>
 
         <div className="ml-auto flex min-w-0 items-center gap-2">
-          <div className="hidden min-w-0 gap-1 overflow-x-auto rounded-lg app-panel p-1 sm:flex">
+          <div className="hidden min-w-0 gap-1 overflow-visible rounded-lg app-panel p-1 sm:flex">
             ${NAV_LINKS.map(l => html`
               <button
                 key=${l.id}
@@ -65,54 +65,53 @@ function NavBar() {
               <span>${t('nav.screen')}</span>
               <span className="text-[10px] text-white/30">↗</span>
             </button>
+            <div className="relative shrink-0">
+              <button
+                onClick=${() => setThemeMenuOpen(open => !open)}
+                className=${`ui-btn ui-btn-ghost flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-extrabold ${
+                  themeMenuOpen ? 'bg-sky-400/16 text-sky-100 shadow-neon-blue' : 'text-white/48 hover:bg-white/8 hover:text-white'
+                }`}
+                title=${t('home.theme')}
+                aria-expanded=${themeMenuOpen}
+              >
+                <span>${THEMES[theme]?.icon || '🎨'}</span>
+                <span>${t('home.theme')}</span>
+                <span className="text-[10px] text-white/30">${themeMenuOpen ? '▲' : '▼'}</span>
+              </button>
+              ${themeMenuOpen && html`
+                <div className="theme-menu absolute right-0 top-[calc(100%+8px)] z-50 min-w-[190px] rounded-xl app-surface p-1.5">
+                  ${THEME_ORDER.map(id => {
+                    const meta = THEMES[id];
+                    const active = theme === id;
+                    return html`
+                      <button
+                        key=${id}
+                        onClick=${() => chooseTheme(id)}
+                        className=${`theme-menu-item ui-btn flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-extrabold ${
+                          active ? 'is-active text-sky-100' : 'text-white/58 hover:text-white'
+                        }`}
+                      >
+                        <span className="text-base">${meta?.icon || '🎨'}</span>
+                        <span className="flex-1">${t(meta?.labelKey || 'home.theme')}</span>
+                        ${active && html`<span className="text-xs text-sky-200">✓</span>`}
+                      </button>
+                    `;
+                  })}
+                </div>
+              `}
+            </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1 rounded-lg app-panel p-1">
+          <div className="ml-auto flex shrink-0 items-center gap-1 rounded-lg app-panel p-1">
             <button
               onClick=${toggleLang}
               className=${`nav-lang-switch ${lang === 'en' ? 'is-en' : 'is-fr'}`}
               title=${t('home.language')}
             >
-              <span className="nav-lang-face nav-lang-fr"><span aria-hidden="true">🇫🇷</span> FR</span>
-              <span className="nav-lang-face nav-lang-en"><span aria-hidden="true">🇬🇧</span> EN</span>
+              <span className="nav-lang-face nav-lang-fr"><span aria-hidden="true">🇫🇷</span></span>
+              <span className="nav-lang-face nav-lang-en"><span aria-hidden="true">🇬🇧</span></span>
               <span className="nav-lang-knob">${lang === 'en' ? 'EN' : 'FR'}</span>
             </button>
-          </div>
-
-          <div className="relative flex shrink-0 items-center gap-1 rounded-lg app-panel p-1">
-            <button
-              onClick=${() => setThemeMenuOpen(open => !open)}
-              className=${`ui-btn ui-btn-ghost flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-extrabold ${
-                themeMenuOpen ? 'bg-sky-400/16 text-sky-100 shadow-neon-blue' : 'text-white/48 hover:bg-white/8 hover:text-white'
-              }`}
-              title=${t('home.theme')}
-              aria-expanded=${themeMenuOpen}
-            >
-              <span>${THEMES[theme]?.icon || '🎨'}</span>
-              <span>${t('home.theme')}</span>
-              <span className="text-[10px] text-white/30">${themeMenuOpen ? '▲' : '▼'}</span>
-            </button>
-            ${themeMenuOpen && html`
-              <div className="theme-menu absolute right-0 top-[calc(100%+8px)] z-50 min-w-[190px] rounded-xl app-surface p-1.5">
-                ${THEME_ORDER.map(id => {
-                  const meta = THEMES[id];
-                  const active = theme === id;
-                  return html`
-                    <button
-                      key=${id}
-                      onClick=${() => chooseTheme(id)}
-                      className=${`theme-menu-item ui-btn flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-extrabold ${
-                        active ? 'is-active text-sky-100' : 'text-white/58 hover:text-white'
-                      }`}
-                    >
-                      <span className="text-base">${meta?.icon || '🎨'}</span>
-                      <span className="flex-1">${t(meta?.labelKey || 'home.theme')}</span>
-                      ${active && html`<span className="text-xs text-sky-200">✓</span>`}
-                    </button>
-                  `;
-                })}
-              </div>
-            `}
           </div>
         </div>
       </div>
