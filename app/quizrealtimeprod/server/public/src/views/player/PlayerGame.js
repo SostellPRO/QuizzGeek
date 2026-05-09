@@ -17,7 +17,7 @@ const OPT_BGCOLORS = [
 const getRoundMeta = (type = 'qcm') => ROUND_TYPES[type] || (type === 'speed' ? ROUND_TYPES.rapidite : null) || { icon: '🎯', label: type };
 
 export default function PlayerGame() {
-  const { socket, gameState: gs, players, playerSession: s, setPlayerSession, navigate, soundPlay } = useGame();
+  const { socket, gameState: gs, players, playerSession: s, setPlayerSession, navigate, soundPlay, t } = useGame();
   const [alert, setAlert]       = useState(null);
   const [locked, setLocked]     = useState(false);
   const [voteText, setVoteText] = useState('');
@@ -222,7 +222,7 @@ export default function PlayerGame() {
         <div className="flex flex-col items-center gap-5 py-8 text-center animate-fade-in">
           <div className="text-6xl">${rtIcon}</div>
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/15 border border-accent/30 text-sm font-semibold text-accent">
-            ${rtIcon} ${getRoundMeta(round?.type).label}
+            ${rtIcon} ${t(`round.${round?.type}`, getRoundMeta(round?.type).label)}
           </div>
           <h2 className="text-2xl font-bold">${round?.title || 'Nouvelle manche'}</h2>
           ${round?.shortRules && html`<p className="text-white/45 text-sm">${round.shortRules}</p>`}

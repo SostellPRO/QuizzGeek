@@ -1,6 +1,6 @@
 import { html } from './utils.js';
 import { useGame } from './contexts/GameContext.js';
-import { LANGS, THEMES } from './i18n.js';
+import { THEMES } from './i18n.js';
 import Home from './views/Home.js';
 import PlayerView from './views/player/PlayerView.js';
 import HostView from './views/host/HostView.js';
@@ -67,11 +67,13 @@ function NavBar() {
           <div className="flex shrink-0 items-center gap-1 rounded-lg app-panel p-1">
             <button
               onClick=${toggleLang}
-              className=${`ui-btn nav-lang-btn flag-${lang} flex min-h-[36px] items-center gap-2 rounded-lg px-2.5 text-xs font-black text-white`}
+              className=${`nav-lang-switch ${lang === 'en' ? 'is-en' : 'is-fr'}`}
               title=${t('home.language')}
+              aria-label=${t('home.language')}
             >
-              <span className="text-lg">${LANGS[lang]?.flag}</span>
-              <span className="hidden sm:inline">${LANGS[lang]?.short}</span>
+              <span className="nav-lang-face nav-lang-fr"><span>🇫🇷</span><strong>FR</strong></span>
+              <span className="nav-lang-face nav-lang-en"><span>🇬🇧</span><strong>EN</strong></span>
+              <span className="nav-lang-knob" aria-hidden="true">${lang === 'en' ? 'FR' : 'EN'}</span>
             </button>
             <button
               onClick=${cycleTheme}

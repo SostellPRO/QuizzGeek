@@ -4,13 +4,13 @@ import { useGame } from '../../contexts/GameContext.js';
 import { Btn, Alert } from '../../components/ui.js';
 
 const Q_TYPES = [
-  { value: 'qcm',       label: 'QCM (4 options)' },
-  { value: 'true_false',label: 'Vrai / Faux' },
-  { value: 'rapidite',  label: 'Buzzer / rapidite' },
-  { value: 'vote',      label: 'Vote' },
-  { value: 'free',      label: 'Reponse libre' },
-  { value: 'burger',    label: 'Burger de la mort' },
-  { value: 'video_challenge', label: 'Challenge video' },
+  { value: 'qcm',       labelKey: 'qtype.qcm' },
+  { value: 'true_false',labelKey: 'qtype.true_false' },
+  { value: 'rapidite',  labelKey: 'qtype.rapidite' },
+  { value: 'vote',      labelKey: 'qtype.vote' },
+  { value: 'free',      labelKey: 'qtype.free' },
+  { value: 'burger',    labelKey: 'qtype.burger' },
+  { value: 'video_challenge', labelKey: 'qtype.video_challenge' },
 ];
 
 const Q_TYPE_BY_ROUND = {
@@ -96,7 +96,7 @@ function MediaField({ label, value, onChange, accept = 'image/*,audio/*,video/*'
   `;
 }
 
-function QuestionRow({ q, qi, onUpdate, onDelete, onDuplicate, roundType }) {
+function QuestionRow({ q, qi, onUpdate, onDelete, onDuplicate, roundType, t }) {
   const [open, setOpen] = useState(false);
 
   const upd = (key, val) => onUpdate({ ...q, [key]: val });
@@ -133,7 +133,7 @@ function QuestionRow({ q, qi, onUpdate, onDelete, onDuplicate, roundType }) {
       >
         <span className=${`font-mono text-sm flex-shrink-0 w-6 transition-colors ${open ? 'text-neon-blue' : 'text-white/30'}`}>${qi+1}.</span>
         <p className="flex-1 text-sm text-white/80 truncate">${q.content || html`<em className="text-white/25">Question sans titre</em>`}</p>
-        <span className="text-white/25 text-xs flex-shrink-0">${q.type || 'qcm'}</span>
+        <span className="text-white/25 text-xs flex-shrink-0">${t(`qtype.${q.type || 'qcm'}`, q.type || 'qcm')}</span>
         <div className="flex gap-1 flex-shrink-0 items-center">
           <button
             onClick=${e => { e.stopPropagation(); onDuplicate(); }}
@@ -199,7 +199,7 @@ function QuestionRow({ q, qi, onUpdate, onDelete, onDuplicate, roundType }) {
                 onChange=${e => changeType(e.target.value)}
                 className="bg-bg-input border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:border-accent/60 outline-none transition-colors min-h-[42px] cursor-pointer"
               >
-                ${Q_TYPES.map(t => html`<option key=${t.value} value=${t.value}>${t.label}</option>`)}
+                ${Q_TYPES.map(type => html`<option key=${type.value} value=${type.value}>${t(type.labelKey)}</option>`)}
               </select>
             </div>
             <div className="flex flex-col gap-1.5">
@@ -327,7 +327,7 @@ function QuestionRow({ q, qi, onUpdate, onDelete, onDuplicate, roundType }) {
   `;
 }
 
-function RoundPanel({ round, ri, onUpdate, onDelete, onDuplicate }) {
+function RoundPanel({ round, ri, onUpdate, onDelete, onDuplicate, t }) {
   const [open, setOpen] = useState(true);
   const rt = ROUND_TYPES[round.type] || { icon: '🎯', label: round.type };
 
@@ -379,7 +379,7 @@ function RoundPanel({ round, ri, onUpdate, onDelete, onDuplicate }) {
         <span className="text-2xl">${rt.icon}</span>
         <div className="flex-1 min-w-0">
           <div className=${`font-bold text-sm transition-colors ${open ? 'text-white' : 'text-white/90'}`}>${round.title || `Manche ${ri+1}`}</div>
-          <div className="text-xs text-white/40 mt-0.5">${rt.label} · ${(round.questions||[]).length} question(s)</div>
+          <div className="text-xs text-white/40 mt-0.5">${t(`round.${round.type}`, rt.label)} · ${(round.questions||[]).length} question(s)</div>
         </div>
         <div className="flex gap-2 flex-shrink-0 items-center">
           <button
@@ -459,7 +459,7 @@ function RoundPanel({ round, ri, onUpdate, onDelete, onDuplicate }) {
                 className="bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:border-accent/60 outline-none transition-colors min-h-[42px] cursor-pointer"
               >
                 ${Object.entries(ROUND_TYPES).map(([v, r]) => html`
-                  <option key=${v} value=${v}>${r.icon} ${r.label}</option>
+                  <option key=${v} value=${v}>${r.icon} ${t(`round.${v}`, r.label)}</option>
                 `)}
               </select>
             </div>
@@ -504,6 +504,7 @@ function RoundPanel({ round, ri, onUpdate, onDelete, onDuplicate }) {
                   q=${q}
                   qi=${qi}
                   roundType=${round.type}
+                  t=${t}
                   onUpdate=${(nq) => updateQ(qi, nq)}
                   onDelete=${() => deleteQ(qi)}
                   onDuplicate=${() => duplicateQ(qi)}
@@ -525,7 +526,7 @@ function RoundPanel({ round, ri, onUpdate, onDelete, onDuplicate }) {
 }
 
 export default function QuizEditor({ onBack }) {
-  const { editingQuiz, setEditingQuiz, apiFetch, setAdminQuizzes, navigate } = useGame();
+  const { editingQuiz, setEditingQuiz, apiFetch, setAdminQuizzes, navigate, t } = useGame();
   const [alert,   setAlert]   = useState(null);
   const [saving,  setSaving]  = useState(false);
 
@@ -702,6 +703,7 @@ export default function QuizEditor({ onBack }) {
                 key=${round.id || ri}
                 round=${round}
                 ri=${ri}
+                t=${t}
                 onUpdate=${(r) => updateRound(ri, r)}
                 onDelete=${() => deleteRound(ri)}
                 onDuplicate=${() => duplicateRound(ri)}

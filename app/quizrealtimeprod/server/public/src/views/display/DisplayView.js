@@ -800,8 +800,8 @@ export default function DisplayView() {
                      padding: 'clamp(10px, 1.4vw, 22px) clamp(24px, 3.5vw, 52px)',
                      letterSpacing: '0.06em',
                    }}>
-                <span style=${{ fontSize: 'clamp(1.5rem, 3vw, 2.6rem)' }}>${rt.icon}</span>
-                ${rt.label}
+                <span style=${{ fontSize: 'clamp(1.5rem, 3vw, 2.6rem)' }}>${rt?.icon || '🎯'}</span>
+                ${t(`round.${round?.type}`, rt?.label || round?.type || '')}
               </div>
             `}
             <div style=${{ fontSize: 'clamp(4rem,12vw,9rem)', marginTop: '0.5rem' }}>${rt?.icon || '🎯'}</div>

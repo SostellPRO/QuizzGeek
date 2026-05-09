@@ -1,6 +1,5 @@
 import { html } from '../utils.js';
 import { useGame } from '../contexts/GameContext.js';
-import { LANGS, THEMES } from '../i18n.js';
 
 const ROLES = [
   { id: 'player', icon: '🎮', labelKey: 'role.player.label', subKey: 'role.player.sub', color: 'from-sky-500 to-violet-600', glow: 'rgba(124,92,255,.30)', accent: '#7c5cff' },
@@ -10,12 +9,12 @@ const ROLES = [
 ];
 
 const MODES = [
-  { icon: '🧠', label: 'QCM', color: '#7c5cff' },
-  { icon: '✅', labelKey: 'mode.trueFalse', color: '#2dd4bf' },
-  { icon: '⚡', label: 'Buzzer', color: '#f59e0b' },
-  { icon: '🗳️', label: 'Vote', color: '#38bdf8' },
-  { icon: '🍔', label: 'Burger', color: '#fb923c' },
-  { icon: '🎬', labelKey: 'mode.video', color: '#fb7185' },
+  { icon: '🧠', labelKey: 'qtype.qcm', color: '#7c5cff' },
+  { icon: '✅', labelKey: 'qtype.true_false', color: '#2dd4bf' },
+  { icon: '⚡', labelKey: 'qtype.rapidite', color: '#f59e0b' },
+  { icon: '🗳️', labelKey: 'qtype.vote', color: '#38bdf8' },
+  { icon: '🍔', labelKey: 'qtype.burger', color: '#fb923c' },
+  { icon: '🎬', labelKey: 'qtype.video_challenge', color: '#fb7185' },
 ];
 
 const FEATURES = [
@@ -28,7 +27,7 @@ const FEATURES = [
 ];
 
 export default function Home() {
-  const { navigate, lang, setLang, theme, setTheme, t } = useGame();
+  const { navigate, t } = useGame();
 
   const go = (id) => {
     if (id === 'display' || id === 'player') {
@@ -59,52 +58,10 @@ export default function Home() {
           </p>
         </div>
 
-        <section className="grid gap-3 rounded-2xl app-surface p-4 sm:grid-cols-[1fr_1.35fr] sm:p-5">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs font-black uppercase tracking-[0.18em] text-white/42">${t('home.language')}</span>
-              <span className="text-2xl">${LANGS[lang]?.flag}</span>
-            </div>
-            <label className="lang-switch relative flex min-h-[48px] items-center rounded-full app-panel p-1">
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="1"
-                value=${lang === 'en' ? 1 : 0}
-                onInput=${e => setLang(Number(e.target.value) === 1 ? 'en' : 'fr')}
-                aria-label=${t('home.language')}
-              />
-              <span className=${`lang-switch-thumb ${lang === 'en' ? 'right' : 'left'}`}></span>
-              <span className="relative z-10 flex flex-1 items-center justify-center gap-2 text-sm font-black">${LANGS.fr.flag} FR</span>
-              <span className="relative z-10 flex flex-1 items-center justify-center gap-2 text-sm font-black">${LANGS.en.flag} EN</span>
-            </label>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <div>
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-white/42">${t('home.theme')}</div>
-              <p className="mt-1 text-xs text-white/36">${t('home.themeHint')}</p>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              ${Object.entries(THEMES).map(([id, meta]) => html`
-                <button
-                  key=${id}
-                  onClick=${() => setTheme(id)}
-                  className=${`ui-btn rounded-xl border px-2 py-3 text-center text-xs font-black transition-all ${theme === id ? 'is-next-action border-sky-300/80 text-white' : 'app-panel text-white/58 hover:text-white'}`}
-                >
-                  <span className="block text-xl">${meta.icon}</span>
-                  <span className="mt-1 block">${t(meta.labelKey)}</span>
-                </button>
-              `)}
-            </div>
-          </div>
-        </section>
-
         <div className="flex flex-wrap justify-center gap-2">
           ${MODES.map(m => html`
-            <span key=${m.label || m.labelKey} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold" style=${{ background: m.color + '18', border: '1px solid ' + m.color + '40', color: m.color }}>
-              ${m.icon} ${m.labelKey ? t(m.labelKey) : m.label}
+            <span key=${m.labelKey} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold" style=${{ background: m.color + '18', border: '1px solid ' + m.color + '40', color: m.color }}>
+              ${m.icon} ${t(m.labelKey)}
             </span>
           `)}
         </div>
