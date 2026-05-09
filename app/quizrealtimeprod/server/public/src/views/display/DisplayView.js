@@ -684,7 +684,7 @@ function AllAnsweredBurst({ show }) {
 
 // ── Main Display view ─────────────────────────────────────────
 export default function DisplayView() {
-  const { socket, displaySession, setDisplaySession, gameState: gs, players, lbPlayers, lbTeams, navigate, musicMuted, toggleMute, ducking, silenceForVideo, soundPlay } = useGame();
+  const { socket, displaySession, setDisplaySession, gameState: gs, players, lbPlayers, lbTeams, navigate, musicMuted, toggleMute, ducking, silenceForVideo, soundPlay, t } = useGame();
 
   // Couper totalement la musique quand une vidéo (challenge ou entraînement) joue
   useEffect(() => {
@@ -1351,6 +1351,15 @@ export default function DisplayView() {
     <div className="display-fullscreen bg-bg"
          style=${bgUrl ? { backgroundImage:'url(' + bgUrl + ')', backgroundSize:'cover', backgroundPosition:'center' } : {}}>
       ${bgUrl && html`<div className="bg-overlay" />`}
+      ${(displaySession?.connected || gs?.sessionCode) && html`
+        <div className="join-code-badge">
+          <span className="text-xl">📱</span>
+          <span className="flex flex-col gap-1">
+            <span className="label">${t('common.sessionCode')}</span>
+            <span className="code">${gs?.sessionCode || displaySession?.sessionCode || ''}</span>
+          </span>
+        </div>
+      `}
       ${gs?.phaseMeta?.broadcast && html`
         <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center px-6 py-3"
              style=${{ background: 'rgba(124,92,255,0.92)', backdropFilter: 'blur(8px)' }}>
