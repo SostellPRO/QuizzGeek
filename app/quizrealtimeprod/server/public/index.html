@@ -159,84 +159,65 @@
       position: relative;
       display: inline-flex;
       align-items: center;
-      width: 92px;
-      height: 36px;
+      width: 62px;
+      height: 28px;
       flex: 0 0 auto;
       border: 1px solid rgba(255,255,255,.16);
-      border-radius: 12px;
+      border-radius: 9px;
       overflow: hidden;
       isolation: isolate;
       cursor: pointer;
       background: rgba(255,255,255,.055);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 10px 28px rgba(0,0,0,.18);
-      transition: transform .2s var(--ease-spring), filter .22s var(--ease-out), border-color .22s var(--ease-out);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 4px 12px rgba(0,0,0,.18);
+      transition: filter .2s ease, border-color .2s ease;
     }
     .nav-lang-switch:hover {
-      transform: translateY(-2px);
-      filter: saturate(1.12) brightness(1.05);
-      border-color: rgba(125,211,252,.38);
+      filter: brightness(1.1);
+      border-color: rgba(125,211,252,.35);
     }
-    .nav-lang-switch:active { transform: translateY(1px) scale(.98); }
+    .nav-lang-switch:active { filter: brightness(.94); }
+    /* Faces : recouvrent chacune la moitié de la piste */
     .nav-lang-face {
       position: absolute;
       top: 0;
       bottom: 0;
-      width: 52px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-      font-size: 12px;
-      font-weight: 950;
-      letter-spacing: .04em;
+      width: 34px;         /* moitié du slider */
       opacity: 0;
-      transform: translateX(0);
-      transition: opacity .22s var(--ease-out), transform .28s var(--ease-spring);
-      text-shadow: 0 1px 8px rgba(0,0,0,.35);
+      transition: opacity .22s ease;
+      font-size: 0;        /* masque tout texte résiduel */
+      line-height: 0;
     }
-    /* Drapeau FR — côté GAUCHE (visible quand le knob est à droite, mode FR par défaut) */
+    /* Drapeau FR — côté GAUCHE (visible quand knob à droite = mode FR) */
     .nav-lang-fr {
       left: 0;
-      color: #07101d;
       background: linear-gradient(90deg, #002395 0 33%, #fff 33% 66%, #ed2939 66% 100%);
-      text-shadow: 0 1px 6px rgba(255,255,255,.55);
     }
-    /* Drapeau EN — côté DROIT (visible quand le knob est à gauche, mode EN) */
+    /* Drapeau EN (Union Jack simplifié) — côté DROIT (visible quand knob à gauche = mode EN) */
     .nav-lang-en {
       right: 0;
-      color: #fff;
       background:
-        linear-gradient(90deg, transparent 42%, rgba(255,255,255,.96) 42% 58%, transparent 58%),
-        linear-gradient(0deg, transparent 38%, rgba(255,255,255,.96) 38% 62%, transparent 62%),
-        linear-gradient(90deg, transparent 46%, rgba(200,16,46,.98) 46% 54%, transparent 54%),
-        linear-gradient(0deg, transparent 43%, rgba(200,16,46,.98) 43% 57%, transparent 57%),
-        linear-gradient(135deg, transparent 43%, rgba(255,255,255,.88) 43% 48%, rgba(200,16,46,.95) 48% 52%, rgba(255,255,255,.88) 52% 57%, transparent 57%),
-        linear-gradient(45deg, transparent 43%, rgba(255,255,255,.88) 43% 48%, rgba(200,16,46,.95) 48% 52%, rgba(255,255,255,.88) 52% 57%, transparent 57%),
+        linear-gradient(90deg, transparent 40%, rgba(255,255,255,.9) 40% 60%, transparent 60%),
+        linear-gradient(0deg,  transparent 35%, rgba(255,255,255,.9) 35% 65%, transparent 65%),
+        linear-gradient(90deg, transparent 44%, rgba(200,16,46,.95)  44% 56%, transparent 56%),
+        linear-gradient(0deg,  transparent 40%, rgba(200,16,46,.95)  40% 60%, transparent 60%),
         #012169;
     }
-    /* Afficher le bon drapeau selon la langue active */
     .nav-lang-switch.is-fr .nav-lang-fr { opacity: 1; }
     .nav-lang-switch.is-en .nav-lang-en { opacity: 1; }
-    /* Knob : par défaut à DROITE (mode FR) */
+    /* Knob blanc — par défaut à DROITE (mode FR) */
     .nav-lang-knob {
       position: absolute;
       top: 3px;
       left: 3px;
       z-index: 2;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 34px;
-      height: 30px;
-      border-radius: 9px;
-      background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(226,232,240,.9));
-      color: #0b1020;
-      font-size: 14px;
-      font-weight: 950;
-      letter-spacing: .04em;
-      box-shadow: 0 8px 18px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.8);
-      transform: translateX(52px);
-      transition: transform .3s var(--ease-spring);
+      width: 24px;
+      height: 22px;
+      border-radius: 6px;
+      background: linear-gradient(180deg, rgba(255,255,255,.97), rgba(220,228,240,.92));
+      box-shadow: 0 2px 8px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.8);
+      transform: translateX(32px);   /* 62 - 24 - 3 - 3 = 32 */
+      transition: transform .28s cubic-bezier(.34,1.56,.64,1);
+      font-size: 0;  /* masque tout texte */
     }
     /* Mode EN : knob se déplace à GAUCHE */
     .nav-lang-switch.is-en .nav-lang-knob {

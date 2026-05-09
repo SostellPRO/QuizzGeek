@@ -41,7 +41,7 @@ function NavBar() {
         </button>
 
         <div className="ml-auto flex min-w-0 items-center gap-2">
-          <div className="hidden min-w-0 gap-1 overflow-visible rounded-lg app-panel p-1 sm:flex">
+          <div className="hidden min-w-0 gap-1 overflow-visible rounded-lg app-panel p-1 sm:flex items-center">
             ${NAV_LINKS.map(l => html`
               <button
                 key=${l.id}
@@ -100,17 +100,17 @@ function NavBar() {
                 </div>
               `}
             </div>
-          </div>
 
-          <div className="ml-auto flex shrink-0 items-center gap-1 rounded-lg app-panel p-1">
+            <!-- Séparateur + slider langue intégré dans le panneau, tout à droite -->
+            <div className="mx-1 h-5 w-px bg-white/12 shrink-0"></div>
             <button
               onClick=${toggleLang}
               className=${`nav-lang-switch ${lang === 'en' ? 'is-en' : 'is-fr'}`}
-              title=${t('home.language')}
+              title=${lang === 'en' ? 'Passer en Français' : 'Switch to English'}
             >
-              <span className="nav-lang-face nav-lang-fr"><span aria-hidden="true">🇫🇷</span></span>
-              <span className="nav-lang-face nav-lang-en"><span aria-hidden="true">🇬🇧</span></span>
-              <span className="nav-lang-knob">${lang === 'en' ? 'EN' : 'FR'}</span>
+              <span className="nav-lang-face nav-lang-fr"></span>
+              <span className="nav-lang-face nav-lang-en"></span>
+              <span className="nav-lang-knob"></span>
             </button>
           </div>
         </div>
