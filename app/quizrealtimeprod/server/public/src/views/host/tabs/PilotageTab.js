@@ -17,7 +17,7 @@ const PHASE_BADGE = {
 };
 
 export default function PilotageTab() {
-  const { gameState: gs, players, teams, hostAction, hostSession, navigate, setHostSession } = useGame();
+  const { gameState: gs, players, teams, hostAction, hostSession, navigate, setHostSession, t } = useGame();
   const [videoScore,  setVideoScore]  = useState(0);
   const [burgerScore, setBurgerScore] = useState(0);
   const [broadcastMsg, setBroadcastMsg] = useState('');
@@ -120,7 +120,7 @@ export default function PilotageTab() {
             className="flex-1 bg-bg-input border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/30 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
             onKeyDown=${e => e.key === 'Enter' && sendBroadcast()}
           />
-          <${Btn} variant="primary" size="sm" onClick=${sendBroadcast}>Envoyer<//>
+          <${Btn} variant="primary" size="sm" onClick=${sendBroadcast}>${t('host.send')}<//>
         </div>
       `}
 
@@ -148,7 +148,7 @@ export default function PilotageTab() {
             onClick=${() => setPeekScores(!peekScores)}
             className="flex items-center gap-2 text-xs text-white/40 hover:text-white/70 transition-colors mb-2"
           >
-            ${peekScores ? '▼' : '▶'} Classement actuel
+            ${peekScores ? '▼' : '▶'} ${t('host.currentRanking')}
           </button>
           ${peekScores && html`
             <div className="rounded-xl app-surface p-3 flex flex-col gap-1.5">
@@ -171,7 +171,7 @@ export default function PilotageTab() {
           <div className="text-xs text-white/40 uppercase tracking-widest mb-2">Quiz : ${gs?.quizTitle || '—'}</div>
           <p className="text-white/60 text-sm mb-4">${conn} joueur(s) connecté(s)</p>
           <${Btn} variant="success" wide pulse size="lg" onClick=${() => ha('start_quiz')}>
-            ▶️ Lancer la partie
+            ▶️ ${t('host.startGame')}
           <//>
         </div>
       `}
@@ -182,16 +182,16 @@ export default function PilotageTab() {
           <div className="text-xs text-white/40 uppercase tracking-widest mb-3">⚡ Contrôles</div>
           <div className="grid grid-cols-2 gap-2">
             ${isPaused
-              ? html`<${Btn} variant="success" wide onClick=${() => ha('resume_game')}>▶ Reprendre<//>`
-              : html`<${Btn} variant="secondary" onClick=${() => ha('pause_game')}>⏸ Pause<//>` }
+              ? html`<${Btn} variant="success" wide onClick=${() => ha('resume_game')}>▶ ${t('host.resume')}<//>`
+              : html`<${Btn} variant="secondary" onClick=${() => ha('pause_game')}>⏸ ${t('host.pause')}<//>` }
             ${!isBurger && !isVC && !isVote && !['answer_reveal'].includes(phase) && html`
-              <${Btn} variant="secondary" pulse onClick=${() => ha('reveal_answer')}>📋 Solution<//>
+              <${Btn} variant="secondary" pulse onClick=${() => ha('reveal_answer')}>📋 ${t('host.solution')}<//>
             `}
             ${!isVote && !['answer_reveal'].includes(phase) && html`
-              <${Btn} variant="ghost" size="sm" onClick=${() => ha('refresh_question')}>🔁 Reset Q<//>
+              <${Btn} variant="ghost" size="sm" onClick=${() => ha('refresh_question')}>🔁 ${t('host.resetQuestion')}<//>
             `}
             ${phase === 'answer_reveal' && html`
-              <${Btn} variant="secondary" onClick=${() => ha('return_to_question')}>↩ Retour Q<//>
+              <${Btn} variant="secondary" onClick=${() => ha('return_to_question')}>↩ ${t('host.backQuestion')}<//>
             `}
           </div>
         </div>
@@ -209,8 +209,8 @@ export default function PilotageTab() {
               })()}
             </div>
             <div className="flex gap-2">
-              <${Btn} variant="success" wide onClick=${() => ha('buzzer_mark_correct')}>✅ Correct<//>
-              <${Btn} variant="danger" wide onClick=${() => ha('buzzer_mark_wrong')}>❌ Faux<//>
+              <${Btn} variant="success" wide onClick=${() => ha('buzzer_mark_correct')}>✅ ${t('host.correct')}<//>
+              <${Btn} variant="danger" wide onClick=${() => ha('buzzer_mark_wrong')}>❌ ${t('host.wrong')}<//>
             </div>
           ` : html`
             <p className="text-white/40 text-sm text-center">En attente d'un buzzer…</p>
@@ -240,7 +240,7 @@ export default function PilotageTab() {
             ${isVoteInput && html`
               <div className="text-xs text-white/35 mb-1">${answered}/${conn} réponse(s) reçue(s)</div>
               <${Btn} variant="primary" wide pulse=${allAnswered} onClick=${() => ha('vote_close')}>
-                🗳️ Lancer les votes
+                🗳️ ${t('host.startVotes')}
               <//>
             `}
             ${isVoteProposal && (() => {
@@ -252,12 +252,12 @@ export default function PilotageTab() {
                 <div className="text-xs text-white/35 mb-1">${cursor + 1} / ${total} propositions affichées</div>
                 ${!allShown && html`
                   <${Btn} variant="secondary" wide onClick=${() => ha('vote_proposal_reveal_next')}>
-                    ▶ Proposition suivante
+                    ▶ ${t('host.nextProposal')}
                   <//>
                 `}
                 ${allShown && html`
                   <${Btn} variant="primary" wide pulse onClick=${() => ha('vote_start_voting')}>
-                    🗳️ Ouvrir le vote
+                    🗳️ ${t('host.openVote')}
                   <//>
                 `}
               `;
@@ -265,7 +265,7 @@ export default function PilotageTab() {
             ${isVoteVoting && html`
               <div className="text-xs text-white/35 mb-1">${voteCount}/${conn} vote(s) reçu(s)</div>
               <${Btn} variant="primary" wide pulse=${voteCount >= conn && conn > 0} onClick=${() => ha('vote_reveal')}>
-                🔍 Révéler les résultats
+                🔍 ${t('host.revealResults')}
               <//>
             `}
             ${voteRevealing && (() => {
@@ -273,10 +273,10 @@ export default function PilotageTab() {
               return html`
                 <div className="flex gap-2">
                   ${!isRevealed && html`
-                    <${Btn} variant="secondary" wide pulse onClick=${() => ha('vote_reveal_next')}>▶ Révéler suivant<//>
+                    <${Btn} variant="secondary" wide pulse onClick=${() => ha('vote_reveal_next')}>▶ ${t('host.revealNext')}<//>
                   `}
                   ${isRevealed && html`
-                    <${Btn} variant="success" wide onClick=${() => ha('vote_end')}>✓ Terminer<//>
+                    <${Btn} variant="success" wide onClick=${() => ha('vote_end')}>✓ ${t('host.finish')}<//>
                   `}
                 </div>
               `;
@@ -293,7 +293,7 @@ export default function PilotageTab() {
 
             <!-- Candidat -->
             <div>
-              <div className="text-xs text-white/30 mb-1.5">Candidat</div>
+              <div className="text-xs text-white/30 mb-1.5">${t('host.candidate')}</div>
               <div className="flex flex-wrap gap-1.5">
                 ${answerablePlayers.map(p => html`
                   <${Btn}
@@ -328,22 +328,22 @@ export default function PilotageTab() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <${Btn} variant="ghost" size="sm"
                     onClick=${() => ha('video_training_mark_ready')}>
-                    ✋ Prêt
+                    ✋ ${t('host.ready')}
                   <//>
                   <${Btn} variant="ghost" size="sm"
                     disabled=${videoPhase !== 'training_ready'}
                     onClick=${() => ha('video_start_training_playing')}>
-                    ▶ Lancer
+                    ▶ ${t('host.launch')}
                   <//>
                   <${Btn} variant="ghost" size="sm"
                     disabled=${videoPhase !== 'training_playing'}
                     onClick=${() => ha('video_training_control', { ctrl: 'pause' })}>
-                    ⏸ Pause
+                    ⏸ ${t('host.pause')}
                   <//>
                   <${Btn} variant="ghost" size="sm"
                     disabled=${videoPhase !== 'training_playing'}
                     onClick=${() => ha('video_training_control', { ctrl: 'play' })}>
-                    ▶ Reprendre
+                    ▶ ${t('host.resume')}
                   <//>
                   <${Btn} variant="ghost" size="sm"
                     onClick=${() => ha('video_training_control', { ctrl: 'rewind' })}>
@@ -362,23 +362,23 @@ export default function PilotageTab() {
                 <${Btn} variant="primary" size="sm"
                   pulse=${(!!gs?.videoState?.selectedPlayerId || !!gs?.videoState?.selectedTeamId) && videoPhase !== 'ready'}
                   onClick=${() => ha('video_mark_ready')}>
-                  ✋ Prêt
+                  ✋ ${t('host.ready')}
                 <//>
                 <${Btn} variant="primary" size="sm"
                   pulse=${videoPhase === 'ready'}
                   disabled=${!gs?.videoState?.selectedPlayerId && !gs?.videoState?.selectedTeamId}
                   onClick=${() => ha('video_start_playing')}>
-                  ▶ Lancer
+                  ▶ ${t('host.launch')}
                 <//>
                 <${Btn} variant="ghost" size="sm"
                   disabled=${videoPhase !== 'playing'}
                   onClick=${() => ha('video_control', { ctrl: 'pause' })}>
-                  ⏸ Pause
+                  ⏸ ${t('host.pause')}
                 <//>
                 <${Btn} variant="ghost" size="sm"
                   disabled=${videoPhase !== 'playing'}
                   onClick=${() => ha('video_control', { ctrl: 'play' })}>
-                  ▶ Reprendre
+                  ▶ ${t('host.resume')}
                 <//>
                 <${Btn} variant="ghost" size="sm"
                   onClick=${() => ha('video_control', { ctrl: 'rewind' })}>
@@ -391,7 +391,7 @@ export default function PilotageTab() {
                 <${Btn} variant="secondary" size="sm"
                   disabled=${videoPhase !== 'playing'}
                   onClick=${() => ha('video_start_eval')}>
-                  Évaluer
+                  ${t('host.evaluate')}
                 <//>
                 <input
                   type="number"
@@ -404,7 +404,7 @@ export default function PilotageTab() {
                 />
                 <${Btn} variant="success" size="sm"
                   onClick=${() => ha('video_set_score', { score: videoScore })}>
-                  ✅ Valider
+                  ✅ ${t('host.validate')}
                 <//>
               </div>
             </div>
@@ -489,7 +489,7 @@ export default function PilotageTab() {
                 <${Btn} variant="danger" onClick=${() => ha('stop_timer')}>⏹ Stopper<//>
               `
               : html`
-                <${Btn} variant="primary" pulse onClick=${() => ha('start_timer', { seconds: timerSeconds })}>▶ Lancer<//>
+                <${Btn} variant="primary" pulse onClick=${() => ha('start_timer', { seconds: timerSeconds })}>▶ ${t('host.launch')}<//>
               `
             }
           </div>
@@ -503,36 +503,36 @@ export default function PilotageTab() {
 
       <!-- Navigation -->
       <div className="rounded-xl app-surface p-4">
-        <div className="text-xs text-white/40 uppercase tracking-widest mb-3">🧭 Navigation</div>
+        <div className="text-xs text-white/40 uppercase tracking-widest mb-3">🧭 ${t('host.navigation')}</div>
         ${phase !== 'round_end' && phase !== 'end' && phase !== 'results' && html`
           <div className="grid grid-cols-2 gap-2 mb-2">
-            <${Btn} variant="nav" onClick=${() => ha('prev_question')}>◀ Question</${Btn}>
-            <${Btn} variant="nav" pulse=${nextPulse} onClick=${() => ha('next_question')}>Question ▶</${Btn}>
+            <${Btn} variant="nav" onClick=${() => ha('prev_question')}>◀ ${t('host.prevQuestion')}</${Btn}>
+            <${Btn} variant="nav" pulse=${nextPulse} onClick=${() => ha('next_question')}>${t('host.nextQuestion')} ▶</${Btn}>
           </div>
         `}
         <div className="grid grid-cols-2 gap-2 mb-2">
-          <${Btn} variant="ghost" size="sm" onClick=${() => ha('prev_round')}>◀◀ Manche</${Btn}>
-          <${Btn} variant="ghost" size="sm" onClick=${() => ha('next_round')}>Manche ▶▶</${Btn}>
+          <${Btn} variant="ghost" size="sm" onClick=${() => ha('prev_round')}>◀◀ ${t('host.prevRound')}</${Btn}>
+          <${Btn} variant="ghost" size="sm" onClick=${() => ha('next_round')}>${t('host.nextRound')} ▶▶</${Btn}>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <${Btn} variant="ghost" size="sm" onClick=${() => ha('show_results')}>📊 Résultats</${Btn}>
+          <${Btn} variant="ghost" size="sm" onClick=${() => ha('show_results')}>📊 ${t('host.results')}</${Btn}>
           ${confirmEndGame
             ? html`
               <div className="col-span-2 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 flex flex-col gap-2">
-                <p className="text-sm font-bold text-rose-300 text-center">Terminer et quitter la partie ?</p>
+                <p className="text-sm font-bold text-rose-300 text-center">${t('host.endConfirm')}</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <${Btn} variant="ghost" size="sm" onClick=${() => setConfirmEndGame(false)}>Annuler</${Btn}>
+                  <${Btn} variant="ghost" size="sm" onClick=${() => setConfirmEndGame(false)}>${t('common.cancel')}</${Btn}>
                   <${Btn} variant="danger" size="sm" onClick=${() => {
                     ha('end_game');
                     localStorage.removeItem('quiz_host_session_code');
                     localStorage.removeItem('quiz_host_key');
                     setHostSession({ sessionCode: '', hostKey: '', connected: false });
                     navigate('home');
-                  }}>✅ Confirmer</${Btn}>
+                  }}>✅ ${t('common.confirm')}</${Btn}>
                 </div>
               </div>
             `
-            : html`<${Btn} variant="danger" size="sm" onClick=${() => setConfirmEndGame(true)}>🏁 Fin de partie</${Btn}>`
+            : html`<${Btn} variant="danger" size="sm" onClick=${() => setConfirmEndGame(true)}>🏁 ${t('host.endGame')}</${Btn}>`
           }
         </div>
       </div>
@@ -540,7 +540,7 @@ export default function PilotageTab() {
       <!-- Cérémonie finale — uniquement à la fin de la dernière manche -->
       ${(phase === 'end' || ((phase === 'results' || phase === 'round_end') && isLastRound)) && html`
         <div className="rounded-xl bg-yellow-500/8 border border-yellow-500/25 p-4">
-          <div className="text-xs text-white/40 uppercase tracking-widest mb-3">🏆 Cérémonie finale</div>
+          <div className="text-xs text-white/40 uppercase tracking-widest mb-3">🏆 ${t('host.finalCeremony')}</div>
 
           ${!gs?.phaseMeta?.finalCeremony && html`
             <div className="flex flex-col gap-3">
@@ -551,22 +551,22 @@ export default function PilotageTab() {
                   variant=${gs?.phaseMeta?.ceremonyView !== 'teams' ? 'primary' : 'ghost'}
                   size="sm" wide
                   onClick=${() => ha('ceremony_set_view', { view: 'players' })}
-                >👤 Individuel<//>
+                >👤 ${t('host.individual')}<//>
                 <${Btn}
                   variant=${gs?.phaseMeta?.ceremonyView === 'teams' ? 'primary' : 'ghost'}
                   size="sm" wide
                   disabled=${!teams?.length}
                   onClick=${() => teams?.length && ha('ceremony_set_view', { view: 'teams' })}
                   style=${{ opacity: teams?.length ? 1 : 0.35 }}
-                >👥 Équipes<//>
+                >👥 ${t('host.teams')}<//>
               </div>
               ${!teams?.length && html`
-                <p className="text-[11px] text-white/25 -mt-1">Aucune équipe dans cette session</p>
+                <p className="text-[11px] text-white/25 -mt-1">${t('host.noTeams')}</p>
               `}
               <${Btn} variant="success" wide pulse size="lg"
                 onClick=${() => ha('final_ceremony_init')}
               >
-                🎬 Lancer la cérémonie
+                🎬 ${t('host.startCeremony')}
               <//>
             </div>
           `}
@@ -587,14 +587,14 @@ export default function PilotageTab() {
                       variant=${!isTeams ? 'primary' : 'ghost'}
                       size="sm"
                       onClick=${() => ha('ceremony_set_view', { view: 'players' })}
-                    >👤 Individuel</${Btn}>
+                    >👤 ${t('host.individual')}</${Btn}>
                     <${Btn}
                       variant=${isTeams ? 'primary' : 'ghost'}
                       size="sm"
                       disabled=${!hasTeams}
                       style=${{ opacity: hasTeams ? 1 : 0.35 }}
                       onClick=${() => hasTeams && ha('ceremony_set_view', { view: 'teams' })}
-                    >👥 Équipes</${Btn}>
+                    >👥 ${t('host.teams')}</${Btn}>
                   </div>
                   <div className="text-xs text-white/35 mb-1">
                     ${remaining > 0
@@ -606,7 +606,7 @@ export default function PilotageTab() {
                     onClick=${() => ha(isTeams ? 'final_ceremony_reveal_next_team' : 'final_ceremony_reveal_next')}
                     disabled=${remaining === 0}
                   >
-                    ${remaining > 0 ? '▶ Révéler suivant' : '✅ Tous révélés'}
+                    ${remaining > 0 ? `▶ ${t('host.revealNext')}` : `✅ ${t('host.finish')}`}
                   <//>
                   <${Btn} variant="ghost" size="sm"
                     onClick=${() => ha('final_ceremony_reset')}

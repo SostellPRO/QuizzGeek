@@ -11,7 +11,7 @@ const AVATARS = [
 const DEFAULT_VIS = 12;
 
 export default function PlayerJoin({ suggestedCode = '' }) {
-  const { socket, setPlayerSession, teams, gameState, navigate, soundPlay } = useGame();
+  const { socket, setPlayerSession, teams, gameState, navigate, soundPlay, t } = useGame();
 
   const [code, setCode] = useState(suggestedCode);
   const [pseudo, setPseudo] = useState('');
@@ -48,8 +48,8 @@ export default function PlayerJoin({ suggestedCode = '' }) {
     try { navigator.vibrate?.([16, 24, 36]); } catch {}
     const sessionCode = code.trim().toUpperCase();
     const p = pseudo.trim();
-    if (!sessionCode) { setAlert({ type: 'error', message: 'Code de session requis.' }); return; }
-    if (!p) { setAlert({ type: 'error', message: 'Pseudonyme requis.' }); return; }
+    if (!sessionCode) { setAlert({ type: 'error', message: `${t('common.sessionCode')} requis.` }); return; }
+    if (!p) { setAlert({ type: 'error', message: `${t('player.pseudo')} requis.` }); return; }
     if (!socket) return;
     setLoading(true);
     setAlert(null);
@@ -81,21 +81,21 @@ export default function PlayerJoin({ suggestedCode = '' }) {
     <div className="flex min-h-[100dvh] items-center justify-center px-4 py-6">
       <div className="w-full max-w-md animate-fade-in">
         <button onClick=${() => navigate('home')} className="mb-5 inline-flex rounded-lg app-chip px-3 py-2 text-sm font-bold text-white/58 transition-colors hover:text-white">
-          ← Accueil
+          ← ${t('common.home')}
         </button>
 
         <div className="rounded-lg app-surface p-5 sm:p-6">
           <div className="mb-6 text-center">
             <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-lg app-panel text-4xl">${avatar}</div>
-            <h1 className="font-display text-4xl font-black gradient-text">Rejoindre</h1>
-            <p className="mt-2 text-sm text-white/48">Entrez le code de la partie et choisissez votre profil.</p>
+            <h1 className="font-display text-4xl font-black gradient-text">${t('player.joinTitle')}</h1>
+            <p className="mt-2 text-sm text-white/48">${t('player.joinDesc')}</p>
           </div>
 
           ${alert && html`<div className="mb-4"><${Alert} type=${alert.type} message=${alert.message} /></div>`}
 
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-white/70">Code de session</label>
+              <label className="text-sm font-semibold text-white/70">${t('common.sessionCode')}</label>
               <input
                 type="text"
                 value=${code}
@@ -108,12 +108,12 @@ export default function PlayerJoin({ suggestedCode = '' }) {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-white/70">Pseudo</label>
+              <label className="text-sm font-semibold text-white/70">${t('player.pseudo')}</label>
               <input
                 type="text"
                 value=${pseudo}
                 onInput=${e => setPseudo(e.target.value)}
-                placeholder="Votre prenom ou surnom"
+                placeholder=${t('player.pseudoPlaceholder')}
                 maxLength="24"
                 className="min-h-[50px] rounded-lg border border-white/10 bg-bg-input/90 px-4 py-3 text-base text-white outline-none transition-colors placeholder-white/30 focus:border-sky-400/70"
                 onKeyDown=${e => e.key === 'Enter' && join()}
@@ -121,7 +121,7 @@ export default function PlayerJoin({ suggestedCode = '' }) {
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-white/70">Avatar</label>
+              <label className="text-sm font-semibold text-white/70">${t('player.avatar')}</label>
               <div className="rounded-lg app-panel p-3">
                 <div className="grid grid-cols-6 gap-2">
                   ${visAvatars.map(em => html`
@@ -134,37 +134,24 @@ export default function PlayerJoin({ suggestedCode = '' }) {
                     </button>
                   `)}
                 </div>
-                <button
-                  onClick=${() => setShowAll(!showAll)}
-                  className="mt-3 w-full rounded-lg bg-white/5 px-3 py-2 text-center text-xs font-bold text-white/50 transition-colors hover:bg-white/9 hover:text-white/80"
-                >
-                  ${showAll ? 'Voir moins' : `Voir plus (${AVATARS.length - DEFAULT_VIS})`}
+                <button onClick=${() => setShowAll(!showAll)} className="mt-3 w-full rounded-lg bg-white/5 px-3 py-2 text-center text-xs font-bold text-white/50 transition-colors hover:bg-white/9 hover:text-white/80">
+                  ${showAll ? t('player.showLess') : `${t('player.showMore')} (${AVATARS.length - DEFAULT_VIS})`}
                 </button>
               </div>
             </div>
 
             ${hasTeams && html`
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-semibold text-white/70">Equipe</label>
-                <select
-                  value=${teamId}
-                  onChange=${e => setTeamId(e.target.value)}
-                  className="min-h-[50px] rounded-lg border border-white/10 bg-bg-input/90 px-4 py-3 text-base text-white outline-none transition-colors focus:border-sky-400/70"
-                >
-                  <option value="">— Choisir une équipe —</option>
+                <label className="text-sm font-semibold text-white/70">${t('player.team')}</label>
+                <select value=${teamId} onChange=${e => setTeamId(e.target.value)} className="min-h-[50px] rounded-lg border border-white/10 bg-bg-input/90 px-4 py-3 text-base text-white outline-none transition-colors focus:border-sky-400/70">
+                  <option value="">- ${t('player.chooseTeam')} -</option>
                   ${teamsList.map(t => html`<option key=${t.id} value=${t.id}>${t.name}</option>`)}
                 </select>
               </div>
             `}
 
-            <${Btn}
-              variant="primary"
-              wide
-              size="lg"
-              onClick=${join}
-              disabled=${loading}
-            >
-              ${loading ? '⏳ Connexion…' : '🎮 Rejoindre la partie'}
+            <${Btn} variant="primary" wide size="lg" onClick=${join} disabled=${loading}>
+              ${loading ? `⏳ ${t('player.connecting')}` : `🎮 ${t('player.joinGame')}`}
             <//>
           </div>
         </div>

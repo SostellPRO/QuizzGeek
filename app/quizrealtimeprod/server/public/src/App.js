@@ -7,16 +7,14 @@ import DisplayView from './views/display/DisplayView.js';
 import AdminView from './views/admin/AdminView.js';
 
 const NAV_LINKS = [
-  { id: 'player', icon: '📱', label: 'Jouer' },
-  { id: 'host', icon: '🎮', label: 'Host' },
-  { id: 'admin', icon: '⚙️', label: 'Studio' },
+  { id: 'player', icon: '📱', labelKey: 'nav.play' },
+  { id: 'host', icon: '🎮', labelKey: 'nav.host' },
+  { id: 'admin', icon: '⚙️', labelKey: 'nav.studio' },
 ];
 
 function NavBar() {
-  const { page, navigate } = useGame();
-
+  const { page, navigate, t } = useGame();
   const go = (p) => { navigate(p); };
-
   const openDisplay = () => {
     window.open(window.location.origin + window.location.pathname + '#display', '_blank');
   };
@@ -43,16 +41,16 @@ function NavBar() {
               }`}
             >
               <span className="hidden sm:inline">${l.icon}</span>
-              <span>${l.label}</span>
+              <span>${t(l.labelKey)}</span>
             </button>
           `)}
           <button
             onClick=${openDisplay}
             className="ui-btn ui-btn-ghost flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-extrabold text-white/48 hover:bg-white/8 hover:text-white"
-            title="Ouvrir l'écran TV dans un nouvel onglet"
+            title=${t('nav.openScreen')}
           >
             <span className="hidden sm:inline">📺</span>
-            <span>Ecran</span>
+            <span>${t('nav.screen')}</span>
             <span className="text-[10px] text-white/30">↗</span>
           </button>
         </div>
@@ -66,9 +64,7 @@ const FULL_PAGES = new Set(['display', 'player']);
 
 export default function App() {
   const { page, editingQuiz } = useGame();
-
   const PageComponent = PAGES[page] || Home;
-  // Masquer la NavBar globale quand on édite un quiz : le header sticky du QuizEditor prend le relai
   const showNav = !FULL_PAGES.has(page) && !(page === 'admin' && editingQuiz);
 
   return html`

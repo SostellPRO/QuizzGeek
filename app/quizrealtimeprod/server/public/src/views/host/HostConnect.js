@@ -4,7 +4,7 @@ import { useGame } from '../../contexts/GameContext.js';
 import { Btn, Alert, Card } from '../../components/ui.js';
 
 export default function HostConnect() {
-  const { socket, hostSession, setHostSession, navigate } = useGame();
+  const { socket, hostSession, setHostSession, navigate, t } = useGame();
 
   const [code, setCode] = useState(hostSession?.sessionCode || localStorage.getItem('quiz_host_session_code') || '');
   const [key, setKey] = useState(hostSession?.hostKey || localStorage.getItem('quiz_host_key') || '');
@@ -15,7 +15,7 @@ export default function HostConnect() {
     const sessionCode = code.trim().toUpperCase();
     const hostKey = key.trim();
     if (!sessionCode || !hostKey) {
-      setAlert({ type: 'error', message: 'Code de session et cle host requis.' });
+      setAlert({ type: 'error', message: `${t('common.sessionCode')} + ${t('common.hostKey')}` });
       return;
     }
     if (!socket) return;
@@ -37,15 +37,15 @@ export default function HostConnect() {
     <div className="flex min-h-[100dvh] items-center justify-center px-4 py-6">
       <div className="w-full max-w-xl animate-fade-in">
         <button onClick=${() => navigate('home')} className="mb-5 inline-flex items-center rounded-lg app-chip px-3 py-2 text-sm font-bold text-white/58 transition-colors hover:text-white">
-          ← Accueil
+          ← ${t('common.home')}
         </button>
 
         <${Card} className="p-6 sm:p-7">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
-              <div className="mb-2 inline-flex rounded-full app-chip px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-teal-200">Regie live</div>
-              <h1 className="font-display text-4xl font-black gradient-text">Maitre de jeu</h1>
-              <p className="mt-2 text-sm leading-6 text-white/52">Connectez-vous a une session existante pour piloter le rythme, les questions et les scores.</p>
+              <div className="mb-2 inline-flex rounded-full app-chip px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-teal-200">${t('host.badge')}</div>
+              <h1 className="font-display text-4xl font-black gradient-text">${t('host.title')}</h1>
+              <p className="mt-2 text-sm leading-6 text-white/52">${t('host.desc')}</p>
             </div>
             <div className="hidden h-14 w-14 items-center justify-center rounded-lg app-panel text-3xl sm:flex">🎬</div>
           </div>
@@ -54,7 +54,7 @@ export default function HostConnect() {
 
           <div className="grid gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-white/70">Code de session</label>
+              <label className="text-sm font-semibold text-white/70">${t('common.sessionCode')}</label>
               <input
                 type="text"
                 value=${code}
@@ -67,7 +67,7 @@ export default function HostConnect() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-white/70">Cle host</label>
+              <label className="text-sm font-semibold text-white/70">${t('common.hostKey')}</label>
               <input
                 type="text"
                 value=${key}
@@ -79,18 +79,15 @@ export default function HostConnect() {
             </div>
 
             <${Btn} variant="primary" wide pulse onClick=${connect} disabled=${loading}>
-              ${loading ? 'Connexion...' : 'Se connecter en host'}
+              ${loading ? t('host.connecting') : t('host.connectHost')}
             <//>
           </div>
         <//>
 
         <div className="mt-5 rounded-lg app-panel p-3 text-center">
-          <span className="text-sm text-white/38">Pas encore de session ? </span>
-          <button
-            onClick=${() => navigate('admin')}
-            className="text-sm font-extrabold text-sky-300 transition-colors hover:text-sky-100"
-          >
-            Creer un quiz dans le Studio
+          <span className="text-sm text-white/38">${t('host.noSession')} </span>
+          <button onClick=${() => navigate('admin')} className="text-sm font-extrabold text-sky-300 transition-colors hover:text-sky-100">
+            ${t('host.createInStudio')}
           </button>
         </div>
       </div>

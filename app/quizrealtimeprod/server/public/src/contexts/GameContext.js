@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { useSounds } from '../hooks/useSounds.js';
 import { useMusic } from '../hooks/useMusic.js';
 import { resolveMedia } from '../utils.js';
+import { translate } from '../i18n.js';
 
 const GameContext = createContext(null);
 export const useGame = () => useContext(GameContext);
@@ -14,6 +15,8 @@ export function GameProvider({ children }) {
   const [teams, setTeams]     = useState([]);
   const [lbPlayers, setLbP]   = useState([]);
   const [lbTeams, setLbT]     = useState([]);
+  const [lang, setLangState] = useState(() => localStorage.getItem('quiz_ui_lang') || 'fr');
+  const [theme, setThemeState] = useState(() => localStorage.getItem('quiz_ui_theme') || 'business');
 
   // Player session
   const [playerSession, setPlayerSession] = useState(() => {
@@ -36,6 +39,25 @@ export function GameProvider({ children }) {
 
   const { play, startCountdown, stopCountdown } = useSounds();
   const { muted, setUrl: setMusicUrl, toggleMute, ducking, silenceForVideo } = useMusic();
+
+  const setLang = useCallback((next) => {
+    const safe = next === 'en' ? 'en' : 'fr';
+    localStorage.setItem('quiz_ui_lang', safe);
+    setLangState(safe);
+  }, []);
+
+  const setTheme = useCallback((next) => {
+    const safe = ['business', 'party', 'tvshow'].includes(next) ? next : 'business';
+    localStorage.setItem('quiz_ui_theme', safe);
+    setThemeState(safe);
+  }, []);
+
+  const t = useCallback((key, fallback) => translate(lang, key, fallback), [lang]);
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+    document.body.dataset.theme = theme;
+  }, [lang, theme]);
 
   // Ref to track current page inside event handlers (avoids stale closure)
   const pageRef = useRef(page);
@@ -284,6 +306,7 @@ export function GameProvider({ children }) {
 
   const value = useMemo(() => ({
     page, navigate,
+    lang, setLang, theme, setTheme, t,
     socket,
     gameState, players, teams, lbPlayers, lbTeams,
     playerSession, setPlayerSession,
@@ -296,6 +319,7 @@ export function GameProvider({ children }) {
     musicMuted: muted, toggleMute, ducking, silenceForVideo,
   }), [
     page, navigate,
+    lang, setLang, theme, setTheme, t,
     socket,
     gameState, players, teams, lbPlayers, lbTeams,
     playerSession,

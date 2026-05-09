@@ -9,7 +9,7 @@ function LaunchModal({ quiz, onClose, socket, setHostSession, navigate }) {
   const [hostKey, setHostKey] = useState('demo-host');
   const [bots, setBots] = useState(3);
   const [alert, setAlert] = useState(null);
-  const { apiFetch } = useGame();
+  const { apiFetch, t } = useGame();
 
   const launch = async (testMode) => {
     const sessionCode = code.trim().toUpperCase() || randCode();
@@ -43,7 +43,7 @@ function LaunchModal({ quiz, onClose, socket, setHostSession, navigate }) {
   };
 
   return html`
-    <${Modal} show=${true} onClose=${onClose} title="Lancer le quiz">
+    <${Modal} show=${true} onClose=${onClose} title=${t('admin.launch')}>
       <div className="flex flex-col gap-4">
         <div className="rounded-lg app-panel p-3">
           <div className="text-xs font-bold uppercase tracking-[0.16em] text-white/38">Quiz selectionne</div>
@@ -52,7 +52,7 @@ function LaunchModal({ quiz, onClose, socket, setHostSession, navigate }) {
         ${alert && html`<${Alert} type=${alert.type} message=${alert.message} />`}
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-white/50">Code de session</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-white/50">${t('common.sessionCode')}</label>
             <input
               type="text"
               value=${code}
@@ -61,7 +61,7 @@ function LaunchModal({ quiz, onClose, socket, setHostSession, navigate }) {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-white/50">Cle host</label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-white/50">${t('common.hostKey')}</label>
             <input
               type="text"
               value=${hostKey}
@@ -76,7 +76,7 @@ function LaunchModal({ quiz, onClose, socket, setHostSession, navigate }) {
             <div className="text-lg font-black text-white">Partie reelle</div>
             <p className="mt-1 min-h-[42px] text-sm text-white/46">Lance la session pour les joueurs connectes.</p>
             <div className="mt-4">
-              <${Btn} variant="success" wide onClick=${() => launch(false)}>Lancer<//>
+              <${Btn} variant="success" wide onClick=${() => launch(false)}>${t('admin.launch')}<//>
             </div>
           </div>
           <div className="rounded-lg border border-amber-400/25 bg-amber-400/8 p-4">
@@ -102,7 +102,7 @@ function LaunchModal({ quiz, onClose, socket, setHostSession, navigate }) {
   `;
 }
 
-function QuizItem({ quiz, onEdit, onLaunch, onDelete }) {
+function QuizItem({ quiz, onEdit, onLaunch, onDelete, t }) {
   const rounds = (quiz.rounds || []).length;
   const questions = (quiz.rounds || []).reduce((acc, r) => acc + (r.questions || []).length, 0);
 
@@ -117,9 +117,9 @@ function QuizItem({ quiz, onEdit, onLaunch, onDelete }) {
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-shrink-0">
-          <${Btn} variant="ghost" size="sm" onClick=${onEdit}>Editer<//>
-          <${Btn} variant="success" size="sm" onClick=${onLaunch}>Lancer<//>
-          <${Btn} variant="danger" size="sm" onClick=${onDelete}>Suppr.<//>
+          <${Btn} variant="ghost" size="sm" onClick=${onEdit}>${t('admin.edit')}<//>
+          <${Btn} variant="success" size="sm" onClick=${onLaunch}>${t('admin.launch')}<//>
+          <${Btn} variant="danger" size="sm" onClick=${onDelete}>${t('admin.delete')}<//>
         </div>
       </div>
     </div>
@@ -127,7 +127,7 @@ function QuizItem({ quiz, onEdit, onLaunch, onDelete }) {
 }
 
 export default function AdminView() {
-  const { apiFetch, adminQuizzes, setAdminQuizzes, editingQuiz, setEditingQuiz, socket, setHostSession, navigate } = useGame();
+  const { apiFetch, adminQuizzes, setAdminQuizzes, editingQuiz, setEditingQuiz, socket, setHostSession, navigate, t } = useGame();
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState(null);
   const [launchQuiz, setLaunchQuiz] = useState(null);
@@ -178,10 +178,10 @@ export default function AdminView() {
           <div>
             <button onClick=${() => navigate('home')} className="mb-3 text-sm font-bold text-white/42 transition-colors hover:text-white">← Accueil</button>
             <div className="text-xs font-bold uppercase tracking-[0.18em] text-sky-200">Studio</div>
-            <h1 className="mt-1 font-display text-4xl font-black gradient-text">Mes quiz</h1>
-            <p className="mt-2 text-sm text-white/48">Creez, testez et lancez vos experiences live.</p>
+            <h1 className="mt-1 font-display text-4xl font-black gradient-text">${t('admin.myQuizzes')}</h1>
+            <p className="mt-2 text-sm text-white/48">${t('admin.subtitle')}</p>
           </div>
-          <${Btn} variant="primary" onClick=${newQuiz}>Nouveau quiz<//>
+          <${Btn} variant="primary" onClick=${newQuiz}>${t('admin.newQuiz')}<//>
         </header>
 
         ${alert && html`<${Alert} type=${alert.type} message=${alert.message} />`}
@@ -196,7 +196,7 @@ export default function AdminView() {
             <h2 className="text-xl font-black text-white">Aucun quiz pour le moment</h2>
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-white/46">Demarrez avec un premier quiz, ajoutez vos manches, vos medias et vos transitions de jeu.</p>
             <div className="mt-5">
-              <${Btn} variant="primary" onClick=${newQuiz}>Creer un quiz<//>
+              <${Btn} variant="primary" onClick=${newQuiz}>${t('admin.newQuiz')}<//>
             </div>
           </div>
         `}
@@ -208,6 +208,7 @@ export default function AdminView() {
             onEdit=${() => editQuiz(q.id)}
             onLaunch=${() => setLaunchQuiz(q)}
             onDelete=${() => deleteQuiz(q.id)}
+            t=${t}
           />
         `)}
       </div>
