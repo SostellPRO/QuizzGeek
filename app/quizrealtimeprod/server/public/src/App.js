@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { html } from './utils.js';
 import { useGame } from './contexts/GameContext.js';
 import { THEMES } from './i18n.js';
@@ -16,14 +17,16 @@ const THEME_ORDER = ['business', 'party', 'tvshow'];
 
 function NavBar() {
   const { page, navigate, lang, setLang, theme, setTheme, t } = useGame();
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+
   const go = (p) => { navigate(p); };
   const openDisplay = () => {
     window.open(window.location.origin + window.location.pathname + '#display', '_blank');
   };
   const toggleLang = () => setLang(lang === 'en' ? 'fr' : 'en');
-  const cycleTheme = () => {
-    const idx = THEME_ORDER.indexOf(theme);
-    setTheme(THEME_ORDER[(idx + 1) % THEME_ORDER.length] || 'business');
+  const chooseTheme = (nextTheme) => {
+    setTheme(nextTheme);
+    setThemeMenuOpen(false);
   };
 
   return html`
@@ -65,26 +68,51 @@ function NavBar() {
           </div>
 
           <div className="flex shrink-0 items-center gap-1 rounded-lg app-panel p-1">
-            <!-- Slider langue : knob à droite = FR (défaut), knob à gauche = EN -->
             <button
               onClick=${toggleLang}
               className=${`nav-lang-switch ${lang === 'en' ? 'is-en' : 'is-fr'}`}
               title=${t('home.language')}
             >
-              <span className="nav-lang-face nav-lang-fr">🇫🇷 FR</span>
-              <span className="nav-lang-face nav-lang-en">🇬🇧 EN</span>
-              <span className="nav-lang-knob">${lang === 'en' ? '🇬🇧' : '🇫🇷'}</span>
+              <span className="nav-lang-face nav-lang-fr"><span aria-hidden="true">🇫🇷</span> FR</span>
+              <span className="nav-lang-face nav-lang-en"><span aria-hidden="true">🇬🇧</span> EN</span>
+              <span className="nav-lang-knob">${lang === 'en' ? 'EN' : 'FR'}</span>
             </button>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1 rounded-lg app-panel p-1">
+          <div className="relative flex shrink-0 items-center gap-1 rounded-lg app-panel p-1">
             <button
-              onClick=${cycleTheme}
-              className="ui-btn ui-btn-ghost flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-extrabold text-white/48 hover:bg-white/8 hover:text-white"
+              onClick=${() => setThemeMenuOpen(open => !open)}
+              className=${`ui-btn ui-btn-ghost flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-extrabold ${
+                themeMenuOpen ? 'bg-sky-400/16 text-sky-100 shadow-neon-blue' : 'text-white/48 hover:bg-white/8 hover:text-white'
+              }`}
               title=${t('home.theme')}
+              aria-expanded=${themeMenuOpen}
             >
               <span>${THEMES[theme]?.icon || '🎨'}</span>
+              <span>${t('home.theme')}</span>
+              <span className="text-[10px] text-white/30">${themeMenuOpen ? '▲' : '▼'}</span>
             </button>
+            ${themeMenuOpen && html`
+              <div className="theme-menu absolute right-0 top-[calc(100%+8px)] z-50 min-w-[190px] rounded-xl app-surface p-1.5">
+                ${THEME_ORDER.map(id => {
+                  const meta = THEMES[id];
+                  const active = theme === id;
+                  return html`
+                    <button
+                      key=${id}
+                      onClick=${() => chooseTheme(id)}
+                      className=${`theme-menu-item ui-btn flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-extrabold ${
+                        active ? 'is-active text-sky-100' : 'text-white/58 hover:text-white'
+                      }`}
+                    >
+                      <span className="text-base">${meta?.icon || '🎨'}</span>
+                      <span className="flex-1">${t(meta?.labelKey || 'home.theme')}</span>
+                      ${active && html`<span className="text-xs text-sky-200">✓</span>`}
+                    </button>
+                  `;
+                })}
+              </div>
+            `}
           </div>
         </div>
       </div>
@@ -95,7 +123,6 @@ function NavBar() {
 export default function App() {
   const { page } = useGame();
 
-  // Ecran TV — pas de NavBar
   if (page === 'display') return html`<${DisplayView} />`;
 
   return html`

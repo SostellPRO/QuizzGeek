@@ -206,8 +206,13 @@
       right: 0;
       color: #fff;
       background:
-        linear-gradient(135deg, rgba(1,33,105,.96), rgba(200,16,46,.92)),
-        linear-gradient(90deg, rgba(255,255,255,.22), transparent);
+        linear-gradient(90deg, transparent 42%, rgba(255,255,255,.96) 42% 58%, transparent 58%),
+        linear-gradient(0deg, transparent 38%, rgba(255,255,255,.96) 38% 62%, transparent 62%),
+        linear-gradient(90deg, transparent 46%, rgba(200,16,46,.98) 46% 54%, transparent 54%),
+        linear-gradient(0deg, transparent 43%, rgba(200,16,46,.98) 43% 57%, transparent 57%),
+        linear-gradient(135deg, transparent 43%, rgba(255,255,255,.88) 43% 48%, rgba(200,16,46,.95) 48% 52%, rgba(255,255,255,.88) 52% 57%, transparent 57%),
+        linear-gradient(45deg, transparent 43%, rgba(255,255,255,.88) 43% 48%, rgba(200,16,46,.95) 48% 52%, rgba(255,255,255,.88) 52% 57%, transparent 57%),
+        #012169;
     }
     /* Afficher le bon drapeau selon la langue active */
     .nav-lang-switch.is-fr .nav-lang-fr { opacity: 1; }
@@ -227,6 +232,8 @@
       background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(226,232,240,.9));
       color: #0b1020;
       font-size: 14px;
+      font-weight: 950;
+      letter-spacing: .04em;
       box-shadow: 0 8px 18px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.8);
       transform: translateX(52px);
       transition: transform .3s var(--ease-spring);
@@ -234,6 +241,24 @@
     /* Mode EN : knob se déplace à GAUCHE */
     .nav-lang-switch.is-en .nav-lang-knob {
       transform: translateX(0);
+    }
+    .theme-menu {
+      box-shadow:
+        0 22px 56px rgba(0,0,0,.38),
+        inset 0 1px 0 rgba(255,255,255,.08);
+      animation: menuDrop .18s var(--ease-out);
+    }
+    .theme-menu-item {
+      justify-content: flex-start;
+      border: 1px solid transparent;
+    }
+    .theme-menu-item.is-active {
+      border-color: rgba(56,189,248,.28);
+      background: rgba(56,189,248,.13);
+    }
+    @keyframes menuDrop {
+      from { opacity: 0; transform: translateY(-6px) scale(.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
     .ui-btn {
