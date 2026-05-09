@@ -1,11 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { html, resolveMedia } from '../../utils.js';
+import { html, resolveMedia, ROUND_TYPES, OPTION_LABELS } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
 import { Btn, Alert, Dots, SessionBanner } from '../../components/ui.js';
-
-const ROUND_ICONS = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', burger:'🍔', vote:'🗳️', video_challenge:'🎬' };
-const ROUND_LABELS= { qcm:'QCM', rapidite:'Rapidité', speed:'Rapidité', true_false:'Vrai / Faux', burger:'Burger', vote:'Vote', video_challenge:'Challenge Vidéo' };
-const OPTION_LABELS = ['A','B','C','D','E','F'];
 
 // Color palette matching the TV display screen
 const OPT_COLORS   = ['#b24bff','#38ef7d','#4facfe','#f7971e','#ff4e6a','#a78bfa'];
@@ -17,6 +13,8 @@ const OPT_BGCOLORS = [
   'rgba(255,78,106,.15)',
   'rgba(167,139,250,.15)',
 ];
+
+const getRoundMeta = (type = 'qcm') => ROUND_TYPES[type] || (type === 'speed' ? ROUND_TYPES.rapidite : null) || { icon: '🎯', label: type };
 
 export default function PlayerGame() {
   const { socket, gameState: gs, players, playerSession: s, setPlayerSession, navigate } = useGame();
@@ -109,7 +107,8 @@ export default function PlayerGame() {
 
   const phase    = gs?.status || 'lobby';
   const roundType= gs?.currentRound?.type || 'qcm';
-  const rtIcon   = ROUND_ICONS[roundType] || '🎯';
+  const roundMeta = getRoundMeta(roundType);
+  const rtIcon   = roundMeta.icon;
 
   const sendAnswer = useCallback((answer) => {
     if (!socket || !s) return;
@@ -216,7 +215,7 @@ export default function PlayerGame() {
         <div className="flex flex-col items-center gap-5 py-8 text-center animate-fade-in">
           <div className="text-6xl">${rtIcon}</div>
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/15 border border-accent/30 text-sm font-semibold text-accent">
-            ${rtIcon} ${ROUND_LABELS[round?.type] || round?.type}
+            ${rtIcon} ${getRoundMeta(round?.type).label}
           </div>
           <h2 className="text-2xl font-bold">${round?.title || 'Nouvelle manche'}</h2>
           ${round?.shortRules && html`<p className="text-white/45 text-sm">${round.shortRules}</p>`}

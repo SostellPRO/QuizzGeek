@@ -18,6 +18,15 @@ function vibrate(pattern) {
 
 export function useSounds() {
   const countdownRef = useRef(null);
+  const audioCacheRef = useRef(new Map());
+
+  const getBaseAudio = useCallback((type, src) => {
+    const cache = audioCacheRef.current;
+    if (!cache.has(type)) {
+      cache.set(type, new Audio(src));
+    }
+    return cache.get(type);
+  }, []);
 
   const play = useCallback((type) => {
     if (type === 'answer')                           vibrate(25);
@@ -29,11 +38,11 @@ export function useSounds() {
     const s = SND_MAP[type];
     if (!s?.src) return;
     try {
-      const a = new Audio(s.src);
+      const a = getBaseAudio(type, s.src).cloneNode();
       a.volume = s.vol;
       a.play().catch(() => {});
     } catch {}
-  }, []);
+  }, [getBaseAudio]);
 
   const stopCountdown = useCallback(() => {
     if (countdownRef.current) {

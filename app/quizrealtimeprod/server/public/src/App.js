@@ -6,16 +6,16 @@ import HostView from './views/host/HostView.js';
 import DisplayView from './views/display/DisplayView.js';
 import AdminView from './views/admin/AdminView.js';
 
+const NAV_LINKS = [
+  { id: 'player', icon: '📱', label: 'Jouer' },
+  { id: 'host', icon: '🎮', label: 'Host' },
+  { id: 'admin', icon: '⚙️', label: 'Studio' },
+];
+
 function NavBar() {
   const { page, navigate } = useGame();
 
   const go = (p) => { navigate(p); };
-
-  const links = [
-    { id: 'player', icon: '📱', label: 'Jouer' },
-    { id: 'host', icon: '🎮', label: 'Host' },
-    { id: 'admin', icon: '⚙️', label: 'Studio' },
-  ];
 
   const openDisplay = () => {
     window.open(window.location.origin + window.location.pathname + '#display', '_blank');
@@ -32,7 +32,7 @@ function NavBar() {
           <span className="gradient-text">QuizzGeek</span>
         </button>
         <div className="flex min-w-0 gap-1 overflow-x-auto rounded-lg app-panel p-1">
-          ${links.map(l => html`
+          ${NAV_LINKS.map(l => html`
             <button
               key=${l.id}
               onClick=${() => go(l.id)}

@@ -82,6 +82,8 @@ function safeAck(ack, payload) {
   } catch {}
 }
 
+const REVEAL_PHASES = new Set(["answer_reveal", "results", "end"]);
+
 function getNickname(rank, total) {
   if (rank === 1) return "🏆 Champion Absolu";
   if (rank === 2) return "🥈 Vice-Champion";
@@ -164,11 +166,10 @@ function emitSessionState(io, session) {
   const { leaderboardPlayers, leaderboardTeams } = buildLeaderboards(session);
 
   // Sanitize gameState for public broadcast: hide correctOptionIndex until answer_reveal
-  const revealPhases = new Set(['answer_reveal', 'results', 'end']);
   const publicGameState = { ...session.gameState };
   if (
     publicGameState.currentQuestion &&
-    !revealPhases.has(session.gameState.status)
+    !REVEAL_PHASES.has(session.gameState.status)
   ) {
     const { correctOptionIndex, correctAnswer, ...safeQuestion } = publicGameState.currentQuestion;
     publicGameState.currentQuestion = safeQuestion;

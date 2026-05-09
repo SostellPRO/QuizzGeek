@@ -504,8 +504,8 @@ export function buildLeaderboards(session) {
       avatar: p.avatar || null,
       teamId: p.teamId,
       teamName: p.teamName,
-          scoreTotal: p.scoreTotal || 0,
-          isBot: !!p.isBot,
+      scoreTotal: p.scoreTotal || 0,
+      isBot: !!p.isBot,
       connected: !!p.connected,
     }));
 

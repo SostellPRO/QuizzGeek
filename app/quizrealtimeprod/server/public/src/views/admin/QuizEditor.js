@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { html, uid, emptyRound, emptyQuestion, ROUND_TYPES, resolveMedia, mediaKind } from '../../utils.js';
+import { html, uid, emptyRound, emptyQuestion, ROUND_TYPES, resolveMedia, mediaKind, cloneData, OPTION_LABELS } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
 import { Btn, Alert } from '../../components/ui.js';
 
@@ -13,6 +13,16 @@ const Q_TYPES = [
   { value: 'video_challenge', label: 'Challenge video' },
 ];
 
+const Q_TYPE_BY_ROUND = {
+  true_false: 'true_false',
+  rapidite: 'rapidite',
+  speed: 'rapidite',
+  vote: 'vote',
+  burger: 'burger',
+  video_challenge: 'video_challenge',
+};
+
+const RANKS = [1,2,3,4,5,6,7,8,9,10];
 
 function MediaPreview({ url }) {
   if (!url) return null;
@@ -112,8 +122,6 @@ function QuestionRow({ q, qi, onUpdate, onDelete, onDuplicate, roundType }) {
     if (type === 'burger' && !(q.items || []).length) next.items = emptyQuestion('burger').items;
     onUpdate(next);
   };
-
-  const LABELS = ['A','B','C','D'];
 
   return html`
     <div className="rounded-lg overflow-hidden transition-all duration-150"
@@ -222,13 +230,13 @@ function QuestionRow({ q, qi, onUpdate, onDelete, onDuplicate, roundType }) {
                       title="Marquer comme bonne reponse"
                       className=${`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black transition-all ${q.correctOptionIndex === oi ? 'bg-neon-green/20 border-2 border-neon-green/60 text-neon-green' : 'bg-white/5 border-2 border-white/10 text-white/30 hover:border-white/30'}`}
                     >
-                      ${LABELS[oi] || oi+1}
+                      ${OPTION_LABELS[oi] || oi+1}
                     </button>
                     <input
                       type="text"
                       value=${opt.text || ''}
                       onInput=${e => updOpt(oi, 'text', e.target.value)}
-                      placeholder=${`Texte de la reponse ${LABELS[oi] || oi+1}...`}
+                      placeholder=${`Texte de la reponse ${OPTION_LABELS[oi] || oi+1}...`}
                       className="flex-1 bg-bg-input border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-white/25 focus:border-accent/60 outline-none transition-colors min-h-[42px]"
                     />
                   </div>
@@ -326,15 +334,7 @@ function RoundPanel({ round, ri, onUpdate, onDelete, onDuplicate }) {
   const upd = (key, val) => onUpdate({ ...round, [key]: val });
 
   const addQuestion = () => {
-    const qTypeByRound = {
-      true_false: 'true_false',
-      rapidite: 'rapidite',
-      speed: 'rapidite',
-      vote: 'vote',
-      burger: 'burger',
-      video_challenge: 'video_challenge',
-    };
-    const q = emptyQuestion(qTypeByRound[round.type] || 'qcm');
+    const q = emptyQuestion(Q_TYPE_BY_ROUND[round.type] || 'qcm');
     if (round.type === 'true_false') {
       q.options = [
         { id: uid('opt'), text: 'Vrai',  mediaUrl: '' },
@@ -359,7 +359,7 @@ function RoundPanel({ round, ri, onUpdate, onDelete, onDuplicate }) {
 
   const duplicateQ = (qi) => {
     const src = round.questions[qi];
-    const cloned = JSON.parse(JSON.stringify(src));
+    const cloned = cloneData(src);
     cloned.id = uid('q');
     (cloned.options || []).forEach(o => { o.id = uid('opt'); });
     (cloned.items   || []).forEach(i => { i.id = uid('item'); });
@@ -553,7 +553,7 @@ export default function QuizEditor({ onBack }) {
 
   const duplicateRound = (ri) => {
     const src = q.rounds[ri];
-    const cloned = JSON.parse(JSON.stringify(src));
+    const cloned = cloneData(src);
     cloned.id = uid('round');
     cloned.title = (src.title || `Manche ${ri + 1}`) + ' (copie)';
     (cloned.questions || []).forEach(cq => {
@@ -665,7 +665,7 @@ export default function QuizEditor({ onBack }) {
             </div>
             <p className="text-xs text-white/35 mb-2">Ce texte apparaît sous le nom de chaque joueur lors de la cérémonie de remise des prix.</p>
             <div className="flex flex-col gap-1.5">
-              ${[1,2,3,4,5,6,7,8,9,10].map(rank => {
+              ${RANKS.map(rank => {
                 const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
                 return html`
                   <div key=${rank} className="flex items-center gap-2">
@@ -728,4 +728,3 @@ export default function QuizEditor({ onBack }) {
     </div>
   `;
 }
-

@@ -28,6 +28,16 @@ export const mediaKind = (url = '') => {
   return 'image';
 };
 
+export const cloneData = (value) => {
+  try {
+    return structuredClone(value);
+  } catch {
+    return JSON.parse(JSON.stringify(value));
+  }
+};
+
+export const OPTION_LABELS = ['A','B','C','D','E','F'];
+
 // Empty quiz template
 export const emptyQuiz = () => ({
   id: uid('quiz_q'),
@@ -102,5 +112,4 @@ export const ROUND_TYPES = {
   vote:            { label: 'Vote',            icon: '🗳️', color: '#4facfe' },
   video_challenge: { label: 'Challenge Vidéo', icon: '🎬', color: '#ff4e6a' },
 };
-
 

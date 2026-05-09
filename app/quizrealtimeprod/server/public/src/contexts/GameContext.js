@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSounds } from '../hooks/useSounds.js';
 import { useMusic } from '../hooks/useMusic.js';
 import { resolveMedia } from '../utils.js';
@@ -79,7 +79,7 @@ export function GameProvider({ children }) {
       setMusicUrl('');
       stopCountdown();
     }
-  }, [page]); // eslint-disable-line
+  }, [page, setMusicUrl, stopCountdown]);
 
   // ── Socket init ──────────────────────────────────────────────
   useEffect(() => {
@@ -271,7 +271,7 @@ export function GameProvider({ children }) {
       }
       if (cb) cb(res);
     });
-  }, [socket, hostSession]);
+  }, [socket, hostSession.sessionCode, hostSession.hostKey]);
 
   // ── API helper ───────────────────────────────────────────────
   const apiFetch = useCallback(async (path, opts = {}) => {
@@ -282,7 +282,7 @@ export function GameProvider({ children }) {
     return res.json();
   }, []);
 
-  const value = {
+  const value = useMemo(() => ({
     page, navigate,
     socket,
     gameState, players, teams, lbPlayers, lbTeams,
@@ -294,7 +294,19 @@ export function GameProvider({ children }) {
     hostAction, apiFetch,
     soundPlay: play,
     musicMuted: muted, toggleMute, ducking, silenceForVideo,
-  };
+  }), [
+    page, navigate,
+    socket,
+    gameState, players, teams, lbPlayers, lbTeams,
+    playerSession,
+    hostSession,
+    displaySession,
+    adminQuizzes,
+    editingQuiz,
+    hostAction, apiFetch,
+    play,
+    muted, toggleMute, ducking, silenceForVideo,
+  ]);
 
   return React.createElement(GameContext.Provider, { value }, children);
 }

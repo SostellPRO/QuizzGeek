@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { html, resolveMedia, mediaKind, ROUND_TYPES } from '../../utils.js';
+import { html, resolveMedia, mediaKind, ROUND_TYPES, OPTION_LABELS } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
 import { Btn, Alert, Dots } from '../../components/ui.js';
 
@@ -63,7 +63,6 @@ function DisplayConnect() {
   `;
 }
 // Answer grid for QCM ───────────────────────────────────────
-const LABELS  = ['A','B','C','D','E','F'];
 const COLORS  = ['#7c5cff','#2dd4bf','#38bdf8','#f59e0b','#fb7185','#a78bfa'];
 const BGCOLORS= ['rgba(124,92,255,.15)','rgba(45,212,191,.15)','rgba(56,189,248,.15)','rgba(245,158,11,.15)','rgba(251,113,133,.15)','rgba(167,139,250,.15)'];
 
@@ -107,11 +106,12 @@ function ControlledVideo({ url, control, maxHeight = '46vh' }) {
   }, [control?.action, control?.at]);
 
   if (!url) return null;
+  const src = resolveMedia(url);
   return html`
     <video
-      key=${resolveMedia(url)}
+      key=${src}
       ref=${ref}
-      src=${resolveMedia(url)}
+      src=${src}
       className="max-w-full rounded-lg object-contain border border-white/10 shadow-2xl"
       style=${{ maxHeight }}
       controls
@@ -151,7 +151,7 @@ function AnswerGrid({ options, revealed, correctIdx }) {
                 fontSize:  'clamp(1.3rem,2.5vw,2rem)',
               }}
             >
-              ${isCorrect ? '✓' : LABELS[i]}
+              ${isCorrect ? '✓' : OPTION_LABELS[i]}
             </span>
             <span
               className="font-bold flex-1"
