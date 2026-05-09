@@ -36,7 +36,22 @@ export const emptyQuiz = () => ({
   welcomeMusicUrl: '',
   ceremonyBackgroundUrl: '',
   ceremonyMusicUrl: '',
-  closingCeremony: { backgroundUrl: '', musicUrl: '', rankComments: {} },
+  closingCeremony: {
+    backgroundUrl: '',
+    musicUrl: '',
+    rankComments: {
+      '1':  '🏆 Champion(ne) absolu(e) !',
+      '2':  '🥈 Vice-champion(ne)',
+      '3':  '🥉 Sur le podium !',
+      '4':  '4ème… si près du podium !',
+      '5':  '5ème place — bien joué !',
+      '6':  '6ème — bonne tentative',
+      '7':  '7ème — dans la moyenne',
+      '8':  '8ème — il y a du progrès',
+      '9':  '9ème — la prochaine fois !',
+      '10': '10ème — tu as participé, c\'est déjà ça',
+    },
+  },
   rounds: [],
 });
 

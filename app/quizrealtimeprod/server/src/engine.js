@@ -865,7 +865,7 @@ export function startTimer(session, seconds, hooks = {}) {
         } else {
           revealAnswer(session);
         }
-      }, 5000);
+      }, 1200);
     }
   }, 1000);
 

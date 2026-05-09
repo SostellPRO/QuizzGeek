@@ -476,14 +476,10 @@ function TVScoreboard({ leaderboard, title = 'Classement' }) {
 
 // ── TimerOverlay ──────────────────────────────────────────────
 const TIMER_CSS = `
-@keyframes timer-pulse {
-  0%,100% { transform: scale(1);   opacity: 1; }
-  50%      { transform: scale(1.18); opacity: .85; }
-}
-@keyframes timer-ring {
-  0%   { stroke-dashoffset: var(--dash); }
-  100% { stroke-dashoffset: 0; }
-}`;
+@keyframes tp-sm { 0%,100%{transform:scale(1);opacity:1}   50%{transform:scale(1.07);opacity:.92} }
+@keyframes tp-md { 0%,100%{transform:scale(1);opacity:1}   50%{transform:scale(1.15);opacity:.84} }
+@keyframes tp-lg { 0%,100%{transform:scale(1);opacity:1}   50%{transform:scale(1.28);opacity:.76} }
+`;
 
 function TimerOverlay({ timer }) {
   // Local countdown ticks every 200 ms so the ring depletes smoothly
@@ -529,12 +525,35 @@ function TimerOverlay({ timer }) {
   if (!timer || localSec <= 0) return null;
   const sec   = localSec;
   const total = timer.totalSec || 30;
+  const ratio = sec / total;
+
+  // ── 4 couleurs selon le temps restant ────────────────────────
   const urgent = sec <= 5;
+  const orange = !urgent && ratio <= 0.25;
+  const yellow = !urgent && !orange && ratio <= 0.5;
+  const color  = urgent ? '#ff4e6a'
+    : orange ? '#f97316'
+    : yellow ? '#fbbf24'
+    : '#2dd4bf';
+
+  // ── Pulse + taille du conteneur croissants ───────────────────
+  const anim = urgent ? 'tp-lg .4s ease-in-out infinite'
+    : orange ? 'tp-md .7s ease-in-out infinite'
+    : yellow ? 'tp-sm 1.2s ease-in-out infinite'
+    : 'none';
+  const size = urgent ? 'clamp(110px,16vw,180px)'
+    : orange ? 'clamp(96px,14vw,158px)'
+    : yellow ? 'clamp(86px,13vw,148px)'
+    : 'clamp(80px,12vw,140px)';
+  const numFontSize = urgent ? 'clamp(2.8rem,7vw,5rem)'
+    : orange ? 'clamp(2.3rem,6vw,4.2rem)'
+    : yellow ? 'clamp(2rem,5.5vw,3.7rem)'
+    : 'clamp(1.8rem,4.5vw,3.2rem)';
+
   const pct  = Math.max(0, sec / total);
   const R    = 54;
   const circ = 2 * Math.PI * R;
   const dash = circ * (1 - pct);
-  const color = urgent ? '#ff4e6a' : '#2dd4bf';
 
   return html`
     <div style=${{
@@ -550,27 +569,26 @@ function TimerOverlay({ timer }) {
     }}>
       <div style=${{
         position: 'relative',
-        width: 'clamp(80px,12vw,140px)',
-        height: 'clamp(80px,12vw,140px)',
-        animation: urgent ? 'timer-pulse .6s ease-in-out infinite' : 'none',
+        width: size,
+        height: size,
+        animation: anim,
+        transition: 'width .3s, height .3s',
       }}>
         <!-- Ring SVG -->
         <svg
           viewBox="0 0 120 120"
           style=${{ position:'absolute', inset:0, width:'100%', height:'100%', transform:'rotate(-90deg)' }}
         >
-          <!-- background track -->
-          <circle cx="60" cy="60" r=${R} fill="none" stroke="rgba(255,255,255,.1)" stroke-width="7" />
-          <!-- progress arc -->
+          <circle cx="60" cy="60" r=${R} fill="none" stroke="rgba(255,255,255,.1)" stroke-width="8" />
           <circle
             cx="60" cy="60" r=${R}
             fill="none"
             stroke=${color}
-            stroke-width="7"
+            stroke-width="8"
             stroke-linecap="round"
             stroke-dasharray=${circ}
             stroke-dashoffset=${dash}
-            style=${{ transition: 'stroke-dashoffset 0.9s linear, stroke 0.3s' }}
+            style=${{ transition: 'stroke-dashoffset 0.85s linear, stroke 0.3s' }}
           />
         </svg>
         <!-- Number -->
@@ -579,11 +597,12 @@ function TimerOverlay({ timer }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontFamily: 'var(--font-display, monospace)',
           fontWeight: '900',
-          fontSize: 'clamp(2rem,5vw,3.5rem)',
+          fontSize: numFontSize,
           color,
-          textShadow: urgent ? '0 0 20px ' + color : 'none',
-          background: 'rgba(0,0,0,.55)',
+          textShadow: (urgent || orange) ? `0 0 ${urgent?30:18}px ${color}` : 'none',
+          background: 'rgba(0,0,0,.6)',
           borderRadius: '50%',
+          transition: 'font-size .3s, color .3s',
         }}>
           ${Math.ceil(sec)}
         </div>
@@ -1306,7 +1325,8 @@ export default function DisplayView() {
       <div className="relative z-10 flex flex-col min-h-[100dvh]">
         ${renderContent()}
       </div>
-      ${['question','waiting'].includes(phase) && html`
+      ${['question','waiting'].includes(phase) &&
+        !['burger','video_challenge'].includes(gs?.currentRound?.type) && html`
         <${TimerOverlay} timer=${gs?.phaseMeta?.timer} />
       `}
       <${AllAnsweredBurst} show=${showBurst} />

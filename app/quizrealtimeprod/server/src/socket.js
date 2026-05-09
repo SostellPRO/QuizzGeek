@@ -567,7 +567,14 @@ export function setupSocketHandlers(io) {
             res = startTimer(session, payload.seconds, {
               emitNow: (s) => emitSessionState(io, s),
               // Quand le timer expire : révélation automatique de la bonne réponse
+              // Exception : pour les phases de vote, verrouiller sans révéler
+              // (l'animateur gère le flux manuellement)
               onAutoReveal: (s) => {
+                const ansMode = s.gameState?.phaseMeta?.answerMode;
+                if (ansMode === 'vote_input' || ansMode === 'vote_voting') {
+                  emitSessionState(io, s);
+                  return;
+                }
                 revealAnswer(s);
                 emitSessionState(io, s);
               },

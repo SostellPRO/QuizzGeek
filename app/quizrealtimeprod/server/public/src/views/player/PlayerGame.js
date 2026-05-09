@@ -582,14 +582,22 @@ export default function PlayerGame() {
               <p className="text-base font-semibold">${currentQ.content}</p>
             </div>
           `}
-          ${localTimerSec > 0 && html`
-            <div className="flex items-center justify-between text-sm mb-1">
-              <span className="text-white/40">Temps restant</span>
-              <span className=${`font-mono font-bold ${localTimerSec <= 5 ? 'text-rose-400' : 'text-neon-green'}`}>
-                ${Math.ceil(localTimerSec)}s
-              </span>
-            </div>
-          `}
+          ${localTimerSec > 0 && gs?.phaseMeta?.timer?.totalSec > 0 && (() => {
+            const tTotal  = gs.phaseMeta.timer.totalSec;
+            const tRatio  = localTimerSec / tTotal;
+            const tColor  = localTimerSec <= 5 ? 'text-rose-400'
+              : tRatio <= 0.25 ? 'text-orange-400'
+              : tRatio <= 0.5  ? 'text-yellow-400'
+              : 'text-neon-green';
+            return html`
+              <div className="flex items-center justify-between text-sm mb-1">
+                <span className="text-white/40">Temps restant</span>
+                <span className=${`font-mono font-bold ${tColor}`}>
+                  ${Math.ceil(localTimerSec)}s
+                </span>
+              </div>
+            `;
+          })()}
           <div className="grid grid-cols-1 gap-3">
             ${currentQ.options.map((opt, i) => {
               const color   = OPT_COLORS[i % OPT_COLORS.length];

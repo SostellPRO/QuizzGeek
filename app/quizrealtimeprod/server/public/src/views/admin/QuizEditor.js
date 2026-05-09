@@ -129,9 +129,9 @@ function QuestionRow({ q, qi, onUpdate, onDelete, onDuplicate, roundType }) {
         <div className="flex gap-1 flex-shrink-0 items-center">
           <button
             onClick=${e => { e.stopPropagation(); onDuplicate(); }}
-            className="text-white/25 hover:text-sky-400 transition-colors text-sm px-1.5"
+            className="flex items-center gap-1 text-xs font-semibold text-sky-500/60 hover:text-sky-400 transition-colors px-2 py-0.5 rounded border border-sky-500/20 hover:border-sky-400/50 hover:bg-sky-400/8"
             title="Dupliquer cette question"
-          >📋</button>
+          >⎘ Copier</button>
           <button
             onClick=${e => { e.stopPropagation(); onDelete(); }}
             className="text-white/25 hover:text-rose-400 transition-colors text-sm px-1.5"
@@ -384,9 +384,9 @@ function RoundPanel({ round, ri, onUpdate, onDelete, onDuplicate }) {
         <div className="flex gap-2 flex-shrink-0 items-center">
           <button
             onClick=${e => { e.stopPropagation(); onDuplicate(); }}
-            className="text-white/20 hover:text-sky-400 transition-colors text-sm px-1.5"
+            className="flex items-center gap-1 text-xs font-semibold text-sky-500/60 hover:text-sky-400 transition-colors px-2 py-0.5 rounded border border-sky-500/20 hover:border-sky-400/50 hover:bg-sky-400/8"
             title="Dupliquer cette manche"
-          >📋</button>
+          >⎘ Copier</button>
           <button
             onClick=${e => { e.stopPropagation(); onDelete(); }}
             className="text-white/20 hover:text-rose-400 transition-colors text-sm px-1.5"
@@ -655,6 +655,35 @@ export default function QuizEditor({ onBack }) {
               accept="audio/*"
               placeholder="/uploads/ceremonie.mp3"
             />
+          </div>
+
+          <!-- Titres de classement -->
+          <div className="flex flex-col gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">🏆</span>
+              <label className="text-sm font-bold text-amber-400 uppercase tracking-wider">Titres selon le classement final</label>
+            </div>
+            <p className="text-xs text-white/35 mb-2">Ce texte apparaît sous le nom de chaque joueur lors de la cérémonie de remise des prix.</p>
+            <div className="flex flex-col gap-1.5">
+              ${[1,2,3,4,5,6,7,8,9,10].map(rank => {
+                const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
+                return html`
+                  <div key=${rank} className="flex items-center gap-2">
+                    <span className="text-base flex-shrink-0 w-8 text-center">${medal}</span>
+                    <input
+                      type="text"
+                      value=${(q.closingCeremony?.rankComments || {})[String(rank)] || ''}
+                      onInput=${e => updQ('closingCeremony', {
+                        ...(q.closingCeremony || {}),
+                        rankComments: { ...(q.closingCeremony?.rankComments || {}), [String(rank)]: e.target.value }
+                      })}
+                      placeholder=${`Titre pour la ${rank === 1 ? '1ère' : rank + 'ème'} place…`}
+                      className="flex-1 bg-bg-input border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-white/25 focus:border-amber-400/50 outline-none transition-colors min-h-[38px]"
+                    />
+                  </div>
+                `;
+              })}
+            </div>
           </div>
         </div>
 
