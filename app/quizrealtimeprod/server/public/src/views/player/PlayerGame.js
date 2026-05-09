@@ -489,6 +489,15 @@ export default function PlayerGame() {
 
     // ── Vote : saisie libre ──────────────────────────────────────
     if (isVoteInput) {
+      const serverLocked = gs?.phaseMeta?.playerScreenLocked;
+      if (serverLocked) return html`
+        <div className="text-center py-6">
+          <div className="text-5xl mb-4">🔒</div>
+          <h2 className="text-xl font-bold text-amber-400">Saisie terminée</h2>
+          <p className="text-white/40 text-sm mt-2">L'animateur va lancer le vote…</p>
+          <${Dots} />
+        </div>
+      `;
       if (locked) return html`
         <div className="text-center py-6">
           <div className="text-5xl mb-4">✅</div>
@@ -520,6 +529,15 @@ export default function PlayerGame() {
     // ── Vote : choix parmi les propositions ──────────────────────
     if (isVoteVoting) {
       const options = gs?.voteState?.options || [];
+      const serverLockedVoting = gs?.phaseMeta?.playerScreenLocked;
+      if (serverLockedVoting) return html`
+        <div className="text-center py-6">
+          <div className="text-5xl mb-4">🔒</div>
+          <h2 className="text-xl font-bold text-amber-400">Vote terminé</h2>
+          <p className="text-white/40 text-sm mt-2">L'animateur va révéler les résultats…</p>
+          <${Dots} />
+        </div>
+      `;
       if (locked) return html`
         <div className="text-center py-6">
           <div className="text-5xl mb-4">✅</div>
