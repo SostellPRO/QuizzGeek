@@ -55,11 +55,94 @@ function alert$(containerId, msg, type = 'info') {
   const c = document.getElementById(containerId);
   if (!c) return;
   c.innerHTML = msg ? `<div class="alert alert-${type}">${msg}</div>` : '';
+  if (msg) playAlertSound(type);
 }
 
 function resolveMedia(url) {
   if (!url) return '';
   return /^https?:\/\//i.test(url) ? url : (url.startsWith('/') ? url : '/' + url);
+}
+
+function svgWrap(kind, name, viewBox, body, label = '') {
+  const labelHtml = label ? `<span class="sr-only">${label}</span>` : '';
+  return `<span class="${kind} ${kind}-${name}" aria-hidden="true"><svg viewBox="${viewBox}" focusable="false">${body}</svg></span>${labelHtml}`;
+}
+
+const UI_ICON_PATHS = {
+  settings: '<path d="M9.4 3.1 10 1h4l.6 2.1 1.8.8 1.9-1 2.8 2.8-1 1.9.8 1.8L23 10v4l-2.1.6-.8 1.8 1 1.9-2.8 2.8-1.9-1-1.8.8L14 23h-4l-.6-2.1-1.8-.8-1.9 1-2.8-2.8 1-1.9-.8-1.8L1 14v-4l2.1-.6.8-1.8-1-1.9 2.8-2.8 1.9 1 1.8-.8Z"/><circle cx="12" cy="12" r="3.2"/>',
+  back: '<path d="M14 5 7 12l7 7"/><path d="M8 12h13"/>',
+  profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.1-6 8-6s6.5 2 8 6"/>',
+  volume: '<path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="M16 9.2a4 4 0 0 1 0 5.6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/>',
+  menu: '<path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/>',
+  close: '<path d="M6 6 18 18"/><path d="M18 6 6 18"/>',
+  home: '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+  play: '<path d="M8 5v14l11-7Z"/>',
+  reset: '<path d="M5 7h8a6 6 0 1 1-5.4 8.7"/><path d="M5 7v5h5"/>',
+  upload: '<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v4h16v-4"/>',
+};
+
+function uiIcon(name, label = '') {
+  return svgWrap('ui-icon', name, '0 0 24 24', UI_ICON_PATHS[name] || UI_ICON_PATHS.menu, label);
+}
+
+const GAME_ICON_PATHS = {
+  buzzer: '<circle cx="32" cy="32" r="27" fill="#240817"/><circle cx="32" cy="33" r="22" fill="#631427"/><ellipse cx="32" cy="27" rx="17" ry="12" fill="#ff4964"/><path d="M17 44c7 8 23 8 30 0" fill="none" stroke="#ffb3be" stroke-width="3" stroke-linecap="round"/><path d="M15 14 8 8M49 14l7-6M8 32H2M62 32h-6" stroke="#ffd166" stroke-width="4" stroke-linecap="round"/>',
+  round: '<path d="M18 54V11" stroke="#d7e2ff" stroke-width="5" stroke-linecap="round"/><path d="M20 12c10-7 18 7 28 0v24c-10 7-18-7-28 0V12Z" fill="#4facfe"/><path d="M26 14v20M34 17v20M42 14v20" stroke="#12213d" stroke-width="3" opacity=".55"/><path d="M12 55h20" stroke="#f8fafc" stroke-width="5" stroke-linecap="round"/>',
+  category: '<rect x="10" y="14" width="32" height="36" rx="5" fill="#32245f"/><rect x="18" y="8" width="36" height="38" rx="5" fill="#4facfe"/><path d="M25 18h20M25 27h15M25 36h20" stroke="#ecfeff" stroke-width="4" stroke-linecap="round"/>',
+  scores: '<rect x="9" y="34" width="12" height="18" rx="3" fill="#60a5fa"/><rect x="26" y="20" width="12" height="32" rx="3" fill="#ffd166"/><rect x="43" y="28" width="12" height="24" rx="3" fill="#38ef7d"/><path d="M7 54h50" stroke="#f8fafc" stroke-width="4" stroke-linecap="round"/><path d="m32 7 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1 3-6Z" fill="#f5576c"/>',
+  bonus: '<path d="M32 5 39 21l17 2-13 11 4 17-15-9-15 9 4-17L8 23l17-2 7-16Z" fill="#ffd166"/><circle cx="32" cy="31" r="10" fill="#241027"/><path d="M28 31h8M32 27v8" stroke="#ffd166" stroke-width="4" stroke-linecap="round"/>',
+  rapidite: '<path d="M36 4 14 35h15l-4 25 25-35H34l2-21Z" fill="#ffcc00"/><path d="M13 15H5M18 25H3M51 44h8" stroke="#f8fafc" stroke-width="4" stroke-linecap="round"/>',
+  vote: '<rect x="11" y="28" width="42" height="24" rx="5" fill="#4f2678"/><path d="M20 28h24l-4-8H24l-4 8Z" fill="#a78bfa"/><rect x="21" y="10" width="24" height="18" rx="3" fill="#f8fafc"/><path d="M27 19h12" stroke="#4f2678" stroke-width="4" stroke-linecap="round"/><path d="M24 42h16" stroke="#e9d5ff" stroke-width="4" stroke-linecap="round"/>',
+  burger: '<path d="M15 27c3-11 31-11 34 0H15Z" fill="#f8b84e"/><path d="M13 31h38" stroke="#38ef7d" stroke-width="5" stroke-linecap="round"/><path d="M15 38h34" stroke="#ff4964" stroke-width="6" stroke-linecap="round"/><path d="M16 45h32" stroke="#ffd166" stroke-width="6" stroke-linecap="round"/><path d="M18 52h28" stroke="#f8b84e" stroke-width="7" stroke-linecap="round"/><circle cx="26" cy="21" r="1.8" fill="#fff7d6"/><circle cx="35" cy="19" r="1.8" fill="#fff7d6"/>',
+  karaoke: '<rect x="10" y="13" width="27" height="36" rx="5" fill="#1d2b53"/><path d="M17 23h13M17 32h9" stroke="#9ee7ff" stroke-width="4" stroke-linecap="round"/><circle cx="46" cy="20" r="8" fill="#f5576c"/><path d="M42 26 31 49M27 54l8-7" stroke="#f8fafc" stroke-width="5" stroke-linecap="round"/>',
+  music: '<path d="M24 15v29a7 7 0 1 1-4-6V13l26-5v28a7 7 0 1 1-4-6V18l-18 4Z" fill="#38ef7d"/><path d="M11 18c4-5 8-5 12 0M43 49c4 2 8 2 12 0" stroke="#f8fafc" stroke-width="4" stroke-linecap="round"/>',
+  correct: '<circle cx="32" cy="32" r="26" fill="#103d2a"/><path d="m19 33 8 8 18-20" stroke="#38ef7d" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>',
+  wrong: '<circle cx="32" cy="32" r="26" fill="#4a1018"/><path d="M22 22 42 42M42 22 22 42" stroke="#ff6b7a" stroke-width="8" stroke-linecap="round"/>',
+  profile: '<circle cx="32" cy="22" r="12" fill="#4facfe"/><path d="M12 55c4-13 12-20 20-20s16 7 20 20" fill="#1d4ed8"/><path d="M22 44c5 5 15 5 20 0" stroke="#bfdbfe" stroke-width="4" stroke-linecap="round"/>',
+  host: '<path d="M18 45h28l5-23H13l5 23Z" fill="#f093fb"/><path d="M24 45v8M40 45v8M18 53h28" stroke="#f8fafc" stroke-width="4" stroke-linecap="round"/><circle cx="24" cy="30" r="3" fill="#231733"/><circle cx="40" cy="30" r="3" fill="#231733"/><path d="M30 36h4" stroke="#231733" stroke-width="3" stroke-linecap="round"/>',
+  display: '<rect x="8" y="12" width="48" height="32" rx="5" fill="#16213e"/><path d="M17 23h30M17 32h18" stroke="#4facfe" stroke-width="4" stroke-linecap="round"/><path d="M26 50h12M32 44v6" stroke="#f8fafc" stroke-width="4" stroke-linecap="round"/>',
+  gamepad: '<path d="M18 22h28c7 0 12 7 10 14l-3 10c-1 4-7 5-10 2l-5-5H26l-5 5c-3 3-9 2-10-2L8 36c-2-7 3-14 10-14Z" fill="#f5576c"/><path d="M20 34h12M26 28v12" stroke="#fff" stroke-width="4" stroke-linecap="round"/><circle cx="43" cy="32" r="3" fill="#fff"/><circle cx="49" cy="38" r="3" fill="#fff"/>',
+};
+
+function gameIcon(name, label = '') {
+  return svgWrap('game-icon', name, '0 0 64 64', GAME_ICON_PATHS[name] || GAME_ICON_PATHS.category, label);
+}
+
+const ROUND_TYPE_META = {
+  qcm: { label: 'QCM', icon: 'category' },
+  rapidite: { label: 'Rapidité', icon: 'rapidite' },
+  speed: { label: 'Rapidité', icon: 'rapidite' },
+  true_false: { label: 'Vrai / Faux', icon: 'correct' },
+  burger: { label: 'Burger', icon: 'burger' },
+  vote: { label: 'Vote', icon: 'vote' },
+  video_challenge: { label: 'Karaoké', icon: 'karaoke' },
+};
+
+function roundTypeMeta(type) {
+  return ROUND_TYPE_META[type] || { label: type || 'Quiz', icon: 'category' };
+}
+
+function roundTypeIcon(type, label = '') {
+  const meta = roundTypeMeta(type);
+  return gameIcon(meta.icon, label || meta.label);
+}
+
+function hydrateNavIcons() {
+  const nav = document.querySelector('nav');
+  if (!nav) return;
+  const brand = nav.querySelector('.nav-brand');
+  if (brand) brand.innerHTML = `${gameIcon('gamepad')} <span>Quiz Live</span>`;
+  const buttons = nav.querySelectorAll('button[data-page]');
+  const map = {
+    player: `${uiIcon('profile')} Jouer`,
+    host: `${gameIcon('host')} Host`,
+    display: `${gameIcon('display')} Écran`,
+    admin: `${uiIcon('settings')} Admin`,
+  };
+  buttons.forEach(btn => {
+    const page = btn.getAttribute('data-page');
+    if (map[page]) btn.innerHTML = map[page];
+  });
 }
 
 function uid(pre = 'id') { return `${pre}_${Math.random().toString(36).slice(2,9)}_${Date.now()}`; }
@@ -72,6 +155,8 @@ let _currentMusicUrl      = null;
 let _buzzerCooldownTimer  = null;  // setInterval pour le compte à rebours du cooldown
 let _lastVoteRevealCursor = null;  // pour détecter un nouveau reveal de vote
 let _showAllTeams         = false; // afficher toutes les équipes dans le formulaire de connexion
+let _lastAllAnsweredSoundKey = null;
+let _lastAllVotedSoundKey    = null;
 
 // ── P6 : Sons d'interaction (Web Audio API) ───────────────────
 let _audioCtx = null;
@@ -88,7 +173,7 @@ function vibrate(pattern) {
   } catch { /* noop si non supporté */ }
 }
 
-function playSound(type) {
+function playLegacySound(type) {
   // Vibration haptique adaptée au type de son (silencieuse si mobile mute)
   if (type === 'answer')       vibrate(25);
   else if (type === 'buzzer')  vibrate(40);
@@ -168,6 +253,116 @@ function playSound(type) {
   } catch { /* noop si Web Audio non supporté */ }
 }
 
+const SOUND_FILES = {
+  nav: '/sounds/04button.mp3',
+  button: '/sounds/04button.mp3',
+  answer: '/sounds/04button.mp3',
+  select: '/sounds/04button.mp3',
+  vote: '/sounds/04button.mp3',
+  buzzer: '/sounds/buzzer.mp3',
+  correct: '/sounds/05confirm%20success.mp3',
+  success: '/sounds/05confirm%20success.mp3',
+  rightNotification: '/sounds/02right%20notification.mp3',
+  notification: '/sounds/03notification.mp3',
+  allAnswered: '/sounds/03notification.mp3',
+  wrong: '/sounds/01wrong%20answer.mp3',
+  error: '/sounds/06error2.mp3',
+  cashRegister: '/sounds/cashregister.mp3',
+  countdown: '/sounds/countdown.mp3',
+};
+const SOUND_VOLUMES = {
+  nav: 0.34,
+  button: 0.42,
+  answer: 0.46,
+  vote: 0.46,
+  buzzer: 0.72,
+  correct: 0.76,
+  success: 0.68,
+  rightNotification: 0.54,
+  notification: 0.58,
+  allAnswered: 0.62,
+  wrong: 0.72,
+  error: 0.66,
+  cashRegister: 0.58,
+  countdown: 0.5,
+};
+const SOUND_THROTTLE_MS = 95;
+const _soundCache = new Map();
+const _lastSoundAt = new Map();
+
+function getSoundElement(src) {
+  let audio = _soundCache.get(src);
+  if (!audio) {
+    audio = new Audio(src);
+    audio.preload = 'auto';
+    _soundCache.set(src, audio);
+  }
+  return audio;
+}
+
+function playFallbackTone(type = 'button') {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const now = ctx.currentTime;
+    const tones = {
+      answer: [660, 0.16, 'sine', 0.18],
+      button: [520, 0.08, 'sine', 0.12],
+      nav: [400, 0.08, 'sine', 0.1],
+      buzzer: [880, 0.22, 'square', 0.2],
+      correct: [784, 0.28, 'sine', 0.22],
+      success: [700, 0.18, 'sine', 0.18],
+      rightNotification: [680, 0.12, 'triangle', 0.16],
+      notification: [620, 0.14, 'triangle', 0.16],
+      allAnswered: [620, 0.14, 'triangle', 0.16],
+      wrong: [220, 0.28, 'sawtooth', 0.18],
+      error: [180, 0.22, 'sawtooth', 0.16],
+      cashRegister: [1200, 0.16, 'triangle', 0.2],
+    };
+    const [freq, duration, wave, volume] = tones[type] || tones.button;
+    osc.type = wave;
+    osc.frequency.setValueAtTime(freq, now);
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    osc.start(now);
+    osc.stop(now + duration);
+  } catch { /* noop si Web Audio non supporté */ }
+}
+
+function playSound(type = 'button') {
+  if (type === 'answer' || type === 'button' || type === 'vote') vibrate(18);
+  else if (type === 'buzzer') vibrate(40);
+  else if (type === 'correct' || type === 'success') vibrate([30, 40, 60]);
+  else if (type === 'wrong' || type === 'error') vibrate([50, 30, 50]);
+  else if (type === 'cashRegister') vibrate([20, 30, 40]);
+  else if (type === 'nav') vibrate(15);
+
+  const src = SOUND_FILES[type] || SOUND_FILES.button;
+  const throttleKey = src || type;
+  const nowMs = Date.now();
+  if (nowMs - (_lastSoundAt.get(throttleKey) || 0) < SOUND_THROTTLE_MS) return;
+  _lastSoundAt.set(throttleKey, nowMs);
+
+  try {
+    const base = getSoundElement(src);
+    const audio = base.cloneNode(true);
+    audio.volume = SOUND_VOLUMES[type] ?? 0.5;
+    audio.play().catch(() => playFallbackTone(type));
+  } catch {
+    playFallbackTone(type);
+  }
+}
+
+function playAlertSound(type = 'info') {
+  if (type === 'error') playSound('error');
+  else if (type === 'success') playSound('success');
+  else playSound('notification');
+}
+
 // ── Musique de fond (gestion persistante – ne redémarre pas au re-render) ──
 function updateRoundMusic(url) {
   let el = document.getElementById('bg-round-music');
@@ -205,6 +400,7 @@ function initSocket() {
 
   state.socket.on('player:message', (bm) => {
     // Message ciblé direct (vers un joueur ou une équipe spécifique)
+    playSound('notification');
     showPlayerDirectMessage(bm);
   });
 
@@ -230,6 +426,7 @@ function initSocket() {
 
     // Fermer le récap joueur si nouvelle question
     checkAndCloseRecapOnNewQuestion();
+    maybePlayCompletionSounds();
 
     // Synchroniser la vue cérémonie depuis le serveur
     const serverCeremonyView = state.gameState?.phaseMeta?.ceremonyView;
@@ -314,38 +511,38 @@ async function apiFetch(path, opts = {}) {
 pageInits.home = function() {
   html('page-home', `
     <div class="home-hero">
-      <div class="home-hero-logo">🎮</div>
+      <div class="home-hero-logo">${gameIcon('gamepad')}</div>
       <h1 class="home-hero-title">QuizzGeek</h1>
       <p class="home-hero-sub">Quiz en temps réel · Buzzers · Votes · Podium</p>
     </div>
     <div class="home-roles">
       <button class="home-role-btn home-role-player" onclick="navigate('player');playSound('nav')">
-        <span class="home-role-icon">📱</span>
+        <span class="home-role-icon">${gameIcon('profile')}</span>
         <span class="home-role-label">Jouer</span>
         <span class="home-role-sub">Rejoindre une partie</span>
       </button>
       <button class="home-role-btn home-role-host" onclick="navigate('host');playSound('nav')">
-        <span class="home-role-icon">🎤</span>
+        <span class="home-role-icon">${gameIcon('host')}</span>
         <span class="home-role-label">Maître de jeu</span>
         <span class="home-role-sub">Animer et piloter</span>
       </button>
       <button class="home-role-btn home-role-display" onclick="navigate('display');playSound('nav')">
-        <span class="home-role-icon">📺</span>
+        <span class="home-role-icon">${gameIcon('display')}</span>
         <span class="home-role-label">Écran TV</span>
         <span class="home-role-sub">Affichage grand écran</span>
       </button>
       <button class="home-role-btn home-role-admin" onclick="navigate('admin');playSound('nav')">
-        <span class="home-role-icon">⚙️</span>
+        <span class="home-role-icon">${uiIcon('settings')}</span>
         <span class="home-role-label">Admin</span>
         <span class="home-role-sub">Créer les quiz</span>
       </button>
     </div>
     <div class="home-round-types">
-      <div class="home-rt home-rt-qcm">🔘 QCM</div>
-      <div class="home-rt home-rt-rapide">⚡ Rapidité</div>
-      <div class="home-rt home-rt-tf">✅ Vrai/Faux</div>
-      <div class="home-rt home-rt-burger">🍔 Burger</div>
-      <div class="home-rt home-rt-vote">🗳️ Vote</div>
+      <div class="home-rt home-rt-qcm">${gameIcon('category')} QCM</div>
+      <div class="home-rt home-rt-rapide">${gameIcon('rapidite')} Rapidité</div>
+      <div class="home-rt home-rt-tf">${gameIcon('correct')} Vrai/Faux</div>
+      <div class="home-rt home-rt-burger">${gameIcon('burger')} Burger</div>
+      <div class="home-rt home-rt-vote">${gameIcon('vote')} Vote</div>
     </div>
   `);
 };
@@ -500,7 +697,7 @@ function renderPlayerJoin(suggestedCode = '') {
 
   html('page-player', `
     <div class="card" style="text-align:center;background:linear-gradient(135deg,rgba(240,147,251,.1),rgba(245,87,108,.1));">
-      <h1>📱 Quiz Live</h1>
+      <h1>${gameIcon('profile')} Quiz Live</h1>
       <p class="muted">Rejoins une partie et joue avec tes amis !</p>
     </div>
     <div id="player-alert"></div>
@@ -602,14 +799,13 @@ function renderPlayerGame() {
   const phase = gs?.status || 'lobby';
 
   const roundType = gs?.currentRound?.type || gs?.currentQuestion?.type || 'qcm';
-  const roundTypeIcons = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', burger:'🍔', vote:'🗳️', video_challenge:'🎬' };
-  const rtIcon = roundTypeIcons[roundType] || '🎯';
+  const rtIcon = roundTypeIcon(roundType);
 
   let content = `
-    <div class="session-banner">
-      <span>Session : <strong class="session-code">${s.sessionCode}</strong></span>
-      <span>${s.avatar || '🎮'} <strong>${s.pseudo}</strong>${s.teamName ? ` · ${s.teamName}` : ''}</span>
-      <span style="margin-left:auto;color:#38ef7d;font-weight:700;">Score : ${myPlayer?.scoreTotal ?? 0}</span>
+      <div class="session-banner">
+        <span>Session : <strong class="session-code">${s.sessionCode}</strong></span>
+      <span>${uiIcon('profile')} ${s.avatar || gameIcon('gamepad')} <strong>${s.pseudo}</strong>${s.teamName ? ` · ${s.teamName}` : ''}</span>
+      <span style="margin-left:auto;color:#38ef7d;font-weight:700;">${gameIcon('scores')} Score : ${myPlayer?.scoreTotal ?? 0}</span>
     </div>
     <div class="player-game-wrap" data-round-type="${roundType}">
     <div id="player-alert"></div>
@@ -644,8 +840,7 @@ function renderPlayerGame() {
       </div>`;
   } else if (phase === 'round_intro') {
     const round = gs.currentRound;
-    const rtLabels = { qcm:'QCM', rapidite:'Rapidité', speed:'Rapidité', true_false:'Vrai / Faux', burger:'Burger', vote:'Vote' };
-    const rtLabel = rtLabels[round?.type] || round?.type || 'Quiz';
+    const rtLabel = roundTypeMeta(round?.type).label;
     content += `
       <div class="player-round-intro">
         <div class="round-intro-icon">${rtIcon}</div>
@@ -667,7 +862,7 @@ function renderPlayerGame() {
         const isTeam = !!burgerSelectedTeam;
         content += `
           <div class="card" style="text-align:center;padding:50px 20px;background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
-            <div style="font-size:4rem;margin-bottom:16px;animation:end-bounce 1s ease-in-out infinite;">🍔</div>
+            <div style="font-size:4rem;margin-bottom:16px;animation:end-bounce 1s ease-in-out infinite;">${gameIcon('burger')}</div>
             <h2 style="color:#f7971e;">${isTeam ? 'C\'est le tour de votre équipe !' : 'C\'est ton tour !'}</h2>
             <p style="margin-top:12px;font-size:1.1rem;">Regardez l'écran principal et mémorisez les éléments.</p>
             <p class="muted" style="margin-top:8px;">Quand c'est fini, récitez-les tous dans l'ordre !</p>
@@ -678,7 +873,7 @@ function renderPlayerGame() {
         const isTeamMode   = !!burgerSelectedTeam;
         content += `
           <div class="card" style="text-align:center;padding:40px;">
-            <div style="font-size:3rem;margin-bottom:14px;">🍔</div>
+            <div style="font-size:3rem;margin-bottom:14px;">${gameIcon('burger')}</div>
             <h2>Épreuve Burger</h2>
             <p class="muted" style="margin-top:8px;font-size:1rem;">${isTeamMode ? 'L\'équipe' : ''} <strong style="color:#fff;">${burgerPseudo}</strong> passe l'épreuve</p>
             <p class="muted" style="margin-top:10px;">Regardez l'écran principal !</p>
@@ -695,7 +890,7 @@ function renderPlayerGame() {
     if (gs?.buzzerState?.firstPseudo) {
       content += `
         <div class="card" style="text-align:center;padding:40px;">
-          <div style="font-size:3rem;">🔔</div>
+          <div style="font-size:3rem;">${gameIcon('buzzer')}</div>
           <h2>${gs.buzzerState.firstPseudo} a buzzé !</h2>
           <p class="muted" style="margin-top:10px;">Le maître de jeu interroge oralement…</p>
           <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
@@ -713,14 +908,14 @@ function renderPlayerGame() {
     const round = gs?.currentRound;
     content += `
       <div class="player-round-end">
-        <div class="round-end-icon">🏁</div>
+        <div class="round-end-icon">${gameIcon('round')}</div>
         <h2 class="round-end-title">Manche terminée !</h2>
         ${round?.title ? `<p class="muted" style="font-size:1.05rem;margin-top:8px;font-weight:600;padding:8px 18px;border:1px solid rgba(56,239,125,0.25);border-radius:50px;background:rgba(56,239,125,0.06);display:inline-block;">${round.title}</p>` : ''}
         <div class="waiting-dots" style="margin-top:28px;"><span></span><span></span><span></span></div>
         <p class="muted" style="margin-top:18px;font-size:.9rem;">En attente du maître de jeu…</p>
       </div>`;
   } else if (phase === 'results') {
-    content += renderScoreboard(state.leaderboardPlayers, '📊 Classement');
+    content += renderScoreboard(state.leaderboardPlayers, `${gameIcon('scores')} Classement`);
   } else if (phase === 'end') {
     content += renderFinalCeremony(gs, state.leaderboardPlayers);
   } else {
@@ -729,7 +924,7 @@ function renderPlayerGame() {
 
   content += `
     <div style="text-align:center;margin-top:20px;padding-bottom:16px;">
-      <button class="btn-outline-danger btn-sm" onclick="logoutPlayer()">Quitter la partie</button>
+      <button class="btn-outline-danger btn-sm" onclick="logoutPlayer()">${uiIcon('close')} Quitter la partie</button>
     </div>
     </div>`;
 
@@ -819,7 +1014,8 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
       </div>
       <div class="buzzer-wrap">
         <button class="buzzer-btn buzzer-disabled" disabled>
-          BUZZER
+          ${gameIcon('buzzer')}
+          <span>BUZZER</span>
         </button>
         <p class="muted" style="margin-top:10px;font-size:.88rem;">En attente du signal du maître de jeu…</p>
       </div>`;
@@ -830,7 +1026,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
     return `
       ${timer}
       <div class="player-waiting-screen">
-        <div class="waiting-host-text">🗳️</div>
+        <div class="waiting-host-text">${gameIcon('vote')}</div>
         <div class="waiting-host-label">RÉVÉLATION DES<br>PROPOSITIONS</div>
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
         <p class="muted" style="font-size:.9rem;">Regardez l'écran TV…</p>
@@ -846,7 +1042,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
     return `
       ${timer}
       <div class="player-waiting-screen">
-        <div class="waiting-host-text">🎬</div>
+        <div class="waiting-host-text">${gameIcon('karaoke')}</div>
         <div class="waiting-host-label">CHALLENGE<br>VIDÉO</div>
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
         <p class="muted" style="font-size:.9rem;">Le maître de jeu choisit un participant…</p>
@@ -862,7 +1058,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
     return `
       ${timer}
       <div class="player-waiting-screen" style="background:${isSelected ? 'rgba(255,215,0,.07)' : 'transparent'};">
-        <div class="waiting-host-text">${isSelected ? '🎬' : '👀'}</div>
+        <div class="waiting-host-text">${isSelected ? gameIcon('karaoke') : gameIcon('display')}</div>
         <div class="waiting-host-label">${isSelected ? 'TENEZ-VOUS PRÊT !' : 'REGARDEZ L\'ÉCRAN'}</div>
         ${isSelected ? `<p style="margin-top:14px;font-size:1rem;color:#ffd700;">La vidéo va démarrer !</p>` : '<p class="muted" style="margin-top:14px;font-size:.9rem;">Un participant passe le challenge…</p>'}
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
@@ -872,7 +1068,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
     return `
       ${timer}
       <div class="player-waiting-screen">
-        <div class="waiting-host-text">🎥</div>
+        <div class="waiting-host-text">${gameIcon('karaoke')}</div>
         <div class="waiting-host-label">VIDÉO EN COURS</div>
         <p class="muted" style="margin-top:14px;font-size:.9rem;">Regardez l'écran TV</p>
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
@@ -883,11 +1079,11 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
     return `
       ${timer}
       <div class="player-waiting-screen">
-        <div class="waiting-host-text">${answerMode === 'video_scored' ? '🏆' : '⚖️'}</div>
+        <div class="waiting-host-text">${answerMode === 'video_scored' ? gameIcon('scores') : gameIcon('bonus')}</div>
         <div class="waiting-host-label">${answerMode === 'video_scored' ? `${vs?.score ?? '?'}/10` : 'ÉVALUATION EN COURS'}</div>
         ${answerMode === 'video_scored' && vs?.selectedPseudo ? `<p style="margin-top:10px;color:#f7971e;font-size:1rem;">Score de <strong>${vs.selectedPseudo}</strong></p>` : ''}
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
-        <button class="btn-recap-mini" onclick="showPlayerRecap()">📊 Voir mes scores</button>
+        <button class="btn-recap-mini" onclick="showPlayerRecap()">${gameIcon('scores')} Voir mes scores</button>
       </div>`;
   }
 
@@ -901,7 +1097,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
         <div class="waiting-host-label">EN ATTENTE DU<br>MAÎTRE DE JEU</div>
         <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
         ${answered ? '<p class="muted" style="font-size:.9rem;margin-bottom:16px;">Votre réponse a été envoyée ✅</p>' : ''}
-        <button class="btn-recap-mini" onclick="showPlayerRecap()">📊 Voir mes scores</button>
+        <button class="btn-recap-mini" onclick="showPlayerRecap()">${gameIcon('scores')} Voir mes scores</button>
       </div>`;
   }
 
@@ -923,7 +1119,9 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
       answerUI = `
         <div class="buzzer-wrap">
           <button class="buzzer-btn buzzer-cooldown" disabled>
-            ❌<br>BLOQUÉ<br><span id="buzzer-cd-secs" style="font-size:1.4rem;font-weight:900;">${cooldownSec}s</span>
+            ${gameIcon('wrong')}
+            <span>BLOQUÉ</span>
+            <span id="buzzer-cd-secs" style="font-size:1.4rem;font-weight:900;">${cooldownSec}s</span>
           </button>
           <p id="buzzer-cd-text" class="muted" style="margin-top:12px;color:#eb3349;font-size:.9rem;">⏳ Mauvaise réponse — patientez <strong>${cooldownSec}s</strong></p>
         </div>`;
@@ -939,7 +1137,8 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
       answerUI = `
         <div class="buzzer-wrap">
           <button class="buzzer-btn" id="buzzer-btn" onclick="sendBuzzer('${gs.sessionCode || ''}')">
-            BUZZER
+            ${gameIcon('buzzer')}
+            <span>BUZZER</span>
           </button>
           ${allBuzzed ? '<p class="muted" style="margin-top:12px;">Tour suivant !</p>' : ''}
         </div>`;
@@ -948,11 +1147,11 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
     answerUI = `
       <div class="answer-tiles answer-tiles-tf">
         <button class="answer-tile answer-tile-true" onclick="playSound('answer');sendAnswer('${gs.sessionCode || ''}','${playerId}','vrai')">
-          <span class="answer-tile-icon">✅</span>
+          <span class="answer-tile-icon">${gameIcon('correct')}</span>
           <span class="answer-tile-label" style="color:#22c55e;font-weight:900;">VRAI</span>
         </button>
         <button class="answer-tile answer-tile-false" onclick="playSound('answer');sendAnswer('${gs.sessionCode || ''}','${playerId}','faux')">
-          <span class="answer-tile-icon">❌</span>
+          <span class="answer-tile-icon">${gameIcon('wrong')}</span>
           <span class="answer-tile-label" style="color:#ef4444;font-weight:900;">FAUX</span>
         </button>
       </div>`;
@@ -984,7 +1183,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
   } else if (answerMode === 'burger') {
     answerUI = `
       <div class="player-question-bubble" style="text-align:center;">
-        <div style="font-size:3rem;margin-bottom:10px;">🍔</div>
+        <div style="font-size:3rem;margin-bottom:10px;">${gameIcon('burger')}</div>
         <h3>Observez bien les éléments…</h3>
         <p class="muted" style="margin-top:8px;">Le maître de jeu vous interrogera à la fin</p>
       </div>`;
@@ -995,7 +1194,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
       const myAnswer = gs?.answers?.[q?.id]?.[playerId]?.answer || '';
       answerUI = `
         <div class="player-waiting-screen">
-          <div class="waiting-host-text">✍️</div>
+          <div class="waiting-host-text">${gameIcon('vote')}</div>
           <div class="waiting-host-label">RÉPONSE ENVOYÉE !</div>
           <p class="muted" style="margin-top:12px;font-size:1rem;font-style:italic;">"${myAnswer}"</p>
           <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
@@ -1004,11 +1203,11 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
     } else {
       answerUI = `
         <div class="text-answer-block">
-          <p class="muted" style="margin-bottom:10px;font-size:.9rem;">🗳️ Proposez votre réponse (elle sera affichée anonymement)</p>
+          <p class="muted" style="margin-bottom:10px;font-size:.9rem;">${gameIcon('vote')} Proposez votre réponse (elle sera affichée anonymement)</p>
           <textarea id="text-answer" class="text-answer-area" placeholder="Votre proposition…"
             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendTextAnswer('${gs.sessionCode || ''}','${playerId}')}"></textarea>
           <button class="btn-primary btn-full text-answer-send" onclick="sendTextAnswer('${gs.sessionCode || ''}','${playerId}')">
-            ✅ Soumettre ma proposition
+            ${gameIcon('correct')} Soumettre ma proposition
           </button>
         </div>`;
     }
@@ -1024,7 +1223,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
       const votedOption = vs.options[myVote];
       answerUI = `
         <div class="player-waiting-screen">
-          <div class="waiting-host-text">🗳️</div>
+          <div class="waiting-host-text">${gameIcon('vote')}</div>
           <div class="waiting-host-label">VOTE ENVOYÉ !</div>
           <p class="muted" style="margin-top:12px;font-size:1rem;font-style:italic;">"${votedOption?.text || '—'}"</p>
           <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
@@ -1046,7 +1245,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
       }).join('');
       answerUI = `
         <div style="margin-top:8px;">
-          <p class="muted" style="margin-bottom:12px;font-size:.9rem;">🗳️ Votez pour la réponse qui vous semble la plus juste !</p>
+          <p class="muted" style="margin-bottom:12px;font-size:.9rem;">${gameIcon('vote')} Votez pour la réponse qui vous semble la plus juste !</p>
           <div class="answer-tiles" style="grid-template-columns:1fr;">
             ${voteButtons}
           </div>
@@ -1059,7 +1258,7 @@ function renderPlayerQuestionContent(gs, playerId, locked) {
         <textarea id="text-answer" class="text-answer-area" placeholder="Tapez votre réponse…"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendTextAnswer('${gs.sessionCode || ''}','${playerId}')}"></textarea>
         <button class="btn-primary btn-full text-answer-send" onclick="sendTextAnswer('${gs.sessionCode || ''}','${playerId}')">
-          ✅ Envoyer ma réponse
+          ${gameIcon('correct')} Envoyer ma réponse
         </button>
       </div>`;
   }
@@ -1082,7 +1281,7 @@ function renderPlayerWaitingScreen(gs, playerSession, myPlayer) {
       <div class="waiting-host-text">⏳</div>
       <div class="waiting-host-label">EN ATTENTE DU<br>MAÎTRE DE JEU</div>
       <div class="waiting-dots" style="margin:18px 0;"><span></span><span></span><span></span></div>
-      <button class="btn-recap-mini" onclick="showPlayerRecap()">📊 Voir mes scores</button>
+      <button class="btn-recap-mini" onclick="showPlayerRecap()">${gameIcon('scores')} Voir mes scores</button>
     </div>`;
 }
 
@@ -1126,8 +1325,8 @@ function showPlayerRecap() {
   overlay.innerHTML = `
     <div class="recap-modal">
       <div class="recap-header">
-        <h2>📊 Scores en direct</h2>
-        <button class="btn-close-recap" onclick="closePlayerRecap()">✕ Fermer</button>
+        <h2>${gameIcon('scores')} Scores en direct</h2>
+        <button class="btn-close-recap" onclick="closePlayerRecap()">${uiIcon('close')} Fermer</button>
       </div>
       <div class="recap-my-score">
         <div style="font-size:2.5rem;">${myPlayer?.avatar || s?.avatar || '🎮'}</div>
@@ -1137,7 +1336,7 @@ function showPlayerRecap() {
       </div>
       ${teammateRows}
       <div>
-        <div class="recap-section-title">🏆 Classement général</div>
+        <div class="recap-section-title">${gameIcon('scores')} Classement général</div>
         ${rankRows}
       </div>
     </div>`;
@@ -1173,7 +1372,7 @@ function showPlayerDirectMessage(bm) {
         ${bm.imageUrl ? `<img src="${bm.imageUrl}" style="max-width:100%;max-height:180px;border-radius:10px;margin-bottom:10px;object-fit:contain;">` : ''}
         ${bm.text ? `<p style="font-size:1.1rem;font-weight:600;color:#fff;">${bm.text}</p>` : ''}
       </div>
-      <button onclick="document.getElementById('player-direct-message')?.remove()" style="background:rgba(255,255,255,.2);border:none;border-radius:8px;padding:6px 12px;color:#fff;cursor:pointer;font-size:1rem;flex-shrink:0;">✕</button>
+      <button onclick="document.getElementById('player-direct-message')?.remove()" style="background:rgba(255,255,255,.2);border:none;border-radius:8px;padding:6px 12px;color:#fff;cursor:pointer;font-size:1rem;flex-shrink:0;">${uiIcon('close')}</button>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -1192,11 +1391,40 @@ function checkAndCloseRecapOnNewQuestion() {
   }
 }
 
+function maybePlayCompletionSounds() {
+  const gs = state.gameState;
+  const q = gs?.currentQuestion;
+  const mode = gs?.phaseMeta?.answerMode;
+  const qId = q?.id;
+  const connectedCount = state.players.filter(p => p.connected).length;
+  if (!gs || !qId || connectedCount <= 0) return;
+
+  if (['mcq', 'true_false', 'text', 'vote_input'].includes(mode)) {
+    const answeredCount = gs.answers?.[qId] ? Object.keys(gs.answers[qId]).length : 0;
+    const key = `${qId}:${mode}:${answeredCount}/${connectedCount}`;
+    if (answeredCount >= connectedCount && key !== _lastAllAnsweredSoundKey) {
+      _lastAllAnsweredSoundKey = key;
+      playSound('allAnswered');
+    }
+  }
+
+  if (mode === 'vote_voting') {
+    const votes = gs.voteState?.votes || {};
+    const votedCount = Object.keys(votes).length;
+    const key = `${qId}:vote:${votedCount}/${connectedCount}`;
+    if (votedCount >= connectedCount && key !== _lastAllVotedSoundKey) {
+      _lastAllVotedSoundKey = key;
+      playSound('notification');
+    }
+  }
+}
+
 function sendAnswer(sessionCode, playerId, answer) {
   const s = state.playerSession;
   playSound('answer');
   state.socket.emit('player:answer', { sessionCode: s?.sessionCode || sessionCode, playerId, answer }, (res) => {
-    if (!res?.ok) alert$('player-alert', res?.error || 'Erreur', 'error');
+    if (!res?.ok) { alert$('player-alert', res?.error || 'Erreur', 'error'); return; }
+    playSound('rightNotification');
   });
 }
 
@@ -1211,6 +1439,7 @@ function sendBuzzer(sessionCode) {
   playSound('buzzer');
   state.socket.emit('player:buzzer', { sessionCode: s?.sessionCode || sessionCode, playerId: s?.playerId }, (res) => {
     if (!res?.ok) alert$('player-alert', res?.error || 'Buzzer non disponible', 'error');
+    else playSound('rightNotification');
     const btn = $('#buzzer-btn');
     if (btn) btn.disabled = true;
   });
@@ -1228,12 +1457,14 @@ function sendAnswerByIndex(optIndex) {
 
 function sendVote(voteIndex) {
   const s = state.playerSession;
+  playSound('vote');
   state.socket.emit('player:vote', {
     sessionCode: s?.sessionCode,
     playerId: s?.playerId,
     voteIndex,
   }, (res) => {
-    if (!res?.ok) alert$('player-alert', res?.error || 'Erreur de vote', 'error');
+    if (!res?.ok) { alert$('player-alert', res?.error || 'Erreur de vote', 'error'); return; }
+    playSound('rightNotification');
   });
 }
 
@@ -1261,8 +1492,8 @@ pageInits.host = function() {
 function renderHostConnect() {
   html('page-host', `
     <div class="row" style="justify-content:space-between;margin-bottom:20px;">
-      <h1>🎮 Maître de jeu</h1>
-      <button class="btn-secondary" onclick="navigate('home')">Accueil</button>
+      <h1>${gameIcon('host')} Maître de jeu</h1>
+      <button class="btn-secondary" onclick="navigate('home')">${uiIcon('back')} Accueil</button>
     </div>
     <div id="host-alert"></div>
     <div class="card">
@@ -1280,7 +1511,7 @@ function renderHostConnect() {
 <button class="btn-success" 
   style="width:50%; margin:16px auto 0; display:block;" 
   onclick="connectHost()">
-  🎮 Se connecter en tant que Maître de jeu
+  ${gameIcon('host')} Se connecter en tant que Maître de jeu
 </button>
     </div>
   `);
@@ -1299,6 +1530,7 @@ function connectHost() {
     state.host.connected = true;
     localStorage.setItem('quiz_host_session_code', code);
     localStorage.setItem('quiz_host_key', key);
+    playSound('success');
     renderHostGame();
   });
 }
@@ -1403,12 +1635,12 @@ function renderHostGame() {
       <span>Session : <strong class="session-code">${sc}</strong></span>
       ${phaseBadge}
       <span>👥 ${state.players.length}</span>
-      <button class="btn-secondary" style="padding:4px 10px;font-size:.8rem;margin-left:auto;" onclick="copyToClipboard('${joinLink}','host-alert')">📋 Lien joueurs</button>
+      <button class="btn-secondary" style="padding:4px 10px;font-size:.8rem;margin-left:auto;" onclick="copyToClipboard('${joinLink}','host-alert')">${uiIcon('profile')} Lien joueurs</button>
     </div>
     <div id="host-alert" style="padding:0 16px;"></div>
     <div class="host-main-tabs">
-      <button class="host-main-tab ${hostMainTab==='gestion'?'active':''}" onclick="switchHostMainTab('gestion')">🎯 Gestion de partie</button>
-      <button class="host-main-tab ${hostMainTab==='pilotage'?'active':''}" onclick="switchHostMainTab('pilotage')">🎮 Partie en cours</button>
+      <button class="host-main-tab ${hostMainTab==='gestion'?'active':''}" onclick="switchHostMainTab('gestion')">${uiIcon('menu')} Gestion de partie</button>
+      <button class="host-main-tab ${hostMainTab==='pilotage'?'active':''}" onclick="switchHostMainTab('pilotage')">${gameIcon('gamepad')} Partie en cours</button>
     </div>
     <div class="host-tab-body">
   `;
@@ -1455,7 +1687,7 @@ function renderHostGestionTab(gs, phase, sc) {
         </select>
       </td>
       <td style="color:#f59e0b;font-weight:600;">${p.scoreTotal ?? 0} pts</td>
-      <td><button class="btn-danger" style="padding:3px 7px;font-size:.78rem;" onclick="hostAction('remove_player',{playerId:'${p.id||p.playerId}'})">✕</button></td>
+      <td><button class="btn-danger" style="padding:3px 7px;font-size:.78rem;" onclick="hostAction('remove_player',{playerId:'${p.id||p.playerId}'})">${uiIcon('close')}</button></td>
     </tr>`).join('') || '<tr><td colspan="5" class="muted" style="text-align:center;padding:16px;">Aucun joueur connecté</td></tr>';
 
   out += `
@@ -1576,7 +1808,7 @@ function renderHostPilotageTab(gs, phase) {
       </div>
       <div class="row" style="gap:6px;">
         <button class="btn-secondary btn-sm" onclick="showBroadcastModal()">📡 Diffuser</button>
-        <button class="btn-primary btn-sm" onclick="openDisplayPopup()">📺 TV ↗</button>
+        <button class="btn-primary btn-sm" onclick="openDisplayPopup()">${gameIcon('display')} TV ↗</button>
       </div>
     </div>`;
 
@@ -1629,7 +1861,7 @@ function renderHostPilotageTab(gs, phase) {
 
     if (phase === 'answer_reveal') {
       out += `<button class="hbtn hbtn-secondary" onclick="hostAction('reveal_answer')">📋 Réafficher solution</button>`;
-      out += `<button class="hbtn hbtn-primary hbtn-pulse" onclick="hostAction('return_to_question')">↩ Retour question</button>`;
+      out += `<button class="hbtn hbtn-primary hbtn-pulse" onclick="hostAction('return_to_question')">${uiIcon('back')} Retour question</button>`;
     }
 
     out += `</div></div>`;
@@ -1650,12 +1882,12 @@ function renderHostPilotageTab(gs, phase) {
     </div>
     <div class="host-ctrl-row" style="margin-top:6px;">
       ${['question','waiting','answer_reveal','manual_scoring'].includes(phase) ? `
-        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Scores</button>
+        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">${gameIcon('scores')} Scores</button>
         <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('start_round')">🔁 Refaire manche</button>
       ` : ''}
       ${phase === 'round_end' ? `
         <button class="hbtn hbtn-success hbtn-pulse hbtn-wide" onclick="hostAction('next_round')">▶▶ Manche suivante</button>
-        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Voir les scores</button>
+        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">${gameIcon('scores')} Voir les scores</button>
         <button class="hbtn hbtn-danger hbtn-sm" onclick="hostAction('finish_quiz')">🏁 Terminer le quiz</button>
       ` : ''}
       ${phase === 'results' ? `
@@ -1674,14 +1906,14 @@ function renderHostPilotageTab(gs, phase) {
   const voteRevCursor = gs?.voteState?.revealCursor ?? 0;
   const voteRevTotal  = gs?.voteState?.options?.length ?? 0;
   out += `<div class="host-section host-section-display">
-    <div class="host-section-label">📺 AFFICHAGE</div>
+    <div class="host-section-label">${gameIcon('display')} AFFICHAGE</div>
     <div class="host-ctrl-row">
       ${['question','waiting','manual_scoring','round_end','answer_reveal'].includes(phase) ? `
-        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">📊 Scores</button>` : ''}
+        <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('show_results')">${gameIcon('scores')} Scores</button>` : ''}
       ${!isBurger && !isBuzzer && !isVotePhase && ['question','waiting','manual_scoring'].includes(phase) ? `
         <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reveal_answer')">📋 Solution</button>` : ''}
       ${_voteAM === 'vote_input' ? `
-        <button class="hbtn hbtn-primary hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer le vote</button>` : ''}
+        <button class="hbtn hbtn-primary hbtn-pulse" onclick="hostAction('vote_start_voting')">${gameIcon('vote')} Lancer le vote</button>` : ''}
       ${_voteAM === 'vote_voting' ? `
         <button class="hbtn hbtn-success hbtn-pulse" onclick="hostAction('vote_reveal')">📋 Révéler les votes</button>` : ''}
       ${isVoteRevealing ? `
@@ -1692,7 +1924,7 @@ function renderHostPilotageTab(gs, phase) {
           ${voteRevCursor >= voteRevTotal ? `<button class="hbtn hbtn-primary hbtn-sm" onclick="hostAction('next_question')">➡ Question suivante</button>` : ''}
         </div>` : ''}
       ${phase === 'answer_reveal' && !isVoteRevealing ? `
-        <button class="hbtn hbtn-primary hbtn-sm" onclick="hostAction('return_to_question')">↩ Retour question</button>` : ''}
+        <button class="hbtn hbtn-primary hbtn-sm" onclick="hostAction('return_to_question')">${uiIcon('back')} Retour question</button>` : ''}
       <button class="hbtn hbtn-secondary hbtn-sm" onclick="showBroadcastModal()">📡 Message</button>
     </div>
   </div>`;
@@ -1736,14 +1968,14 @@ function renderHostPilotageTab(gs, phase) {
     const blr = gs?.buzzerLastResult;
 
     out += `<div class="host-section host-section-buzzer">
-      <div class="host-section-label">🔔 BUZZER</div>`;
+      <div class="host-section-label">${gameIcon('buzzer')} BUZZER</div>`;
 
     if (!bz?.firstPseudo && isLocked) {
       // Buzzer verrouillé — bouton "Activer" très visible avec pulse
       out += `
         <div style="text-align:center;padding:16px 8px;">
           <p class="muted" style="margin-bottom:14px;font-size:.9rem;">🔒 Buzzers désactivés — les joueurs voient un buzzer gris</p>
-          <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" style="font-size:1.1rem;padding:16px;" onclick="hostAction('activate_buzzer')">🔔 ACTIVER LES BUZZERS</button>
+          <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" style="font-size:1.1rem;padding:16px;" onclick="hostAction('activate_buzzer')">${gameIcon('buzzer')} ACTIVER LES BUZZERS</button>
         </div>`;
     } else if (bz?.firstPseudo) {
       // Un joueur a buzzé
@@ -1772,7 +2004,7 @@ function renderHostPilotageTab(gs, phase) {
       // Buzzers actifs, en attente
       out += `
         <div style="text-align:center;padding:10px;">
-          <p style="color:#ffa500;font-weight:600;">🔔 Buzzers actifs — en attente d'un joueur…</p>
+          <p style="color:#ffa500;font-weight:600;">${gameIcon('buzzer')} Buzzers actifs — en attente d'un joueur…</p>
           <p class="muted" style="font-size:.8rem;margin-top:4px;">${buzzerQueuePseudos.length}/${allConnected} ont déjà participé</p>
           <button class="hbtn hbtn-secondary hbtn-sm" style="margin-top:8px;" onclick="hostAction('reveal_answer')">📋 Afficher réponse</button>
         </div>`;
@@ -1792,7 +2024,7 @@ function renderHostPilotageTab(gs, phase) {
     const connectedCount = state.players.filter(p => p.connected).length;
 
     out += `<div class="host-section host-section-buzzer">
-      <div class="host-section-label">🗳️ VOTE</div>`;
+      <div class="host-section-label">${gameIcon('vote')} VOTE</div>`;
 
     if (answerMode === 'vote_input') {
       // Phase 1 : collecte des réponses texte
@@ -1835,7 +2067,7 @@ function renderHostPilotageTab(gs, phase) {
             ${cursor < total ? `<button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('vote_proposal_reveal_next')">▶ Proposition suivante (${total - cursor} restante${total - cursor > 1 ? 's' : ''})</button>` : `<p class="muted" style="font-size:.8rem;">✅ Toutes les propositions ont été affichées</p>`}
           </div>
           <div class="host-ctrl-row" style="margin-top:8px;">
-            <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" onclick="hostAction('vote_start_voting')">🗳️ Lancer le vote</button>
+            <button class="hbtn hbtn-primary hbtn-wide hbtn-pulse" onclick="hostAction('vote_start_voting')">${gameIcon('vote')} Lancer le vote</button>
           </div>
         </div>`;
     } else if (answerMode === 'vote_voting') {
@@ -1938,7 +2170,7 @@ function renderHostPilotageTab(gs, phase) {
 
     out += `
       <div class="host-section">
-        <div class="host-section-label">🍔 BURGER — PILOTAGE</div>
+        <div class="host-section-label">${gameIcon('burger')} BURGER — PILOTAGE</div>
         ${!isSelected ? `
           <p class="muted" style="font-size:.82rem;margin-bottom:8px;">Sélectionnez le joueur ou l'équipe qui passe l'épreuve :</p>
           ${availableTeams.length ? `
@@ -1951,7 +2183,7 @@ function renderHostPilotageTab(gs, phase) {
             <span style="font-size:1.3rem;">${selectedTeamId ? '⚽' : '🎮'}</span>
             <span style="font-weight:700;color:#f7971e;">${selectedPseudo}</span>
             <span class="muted" style="font-size:.75rem;">${selectedTeamId ? '(équipe)' : '(joueur)'}</span>
-            <button class="hbtn hbtn-secondary hbtn-sm" style="margin-left:auto;" onclick="hostAction('burger_select_player',{playerId:null})">✕</button>
+            <button class="hbtn hbtn-secondary hbtn-sm" style="margin-left:auto;" onclick="hostAction('burger_select_player',{playerId:null})">${uiIcon('close')}</button>
           </div>
           ${availableTeams.length ? `
             <details style="margin-bottom:6px;">
@@ -1966,7 +2198,7 @@ function renderHostPilotageTab(gs, phase) {
           ${!allItemsShown ? `
             <div class="host-ctrl-row" style="margin-top:6px;">
               <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('burger_next_item')">
-                🍔 Élément suivant ${burgerState && burgerState.currentItemIndex >= 0 ? `(${burgerState.currentItemIndex+1}/${totalItems})` : '(démarrer)'}
+                ${gameIcon('burger')} Élément suivant ${burgerState && burgerState.currentItemIndex >= 0 ? `(${burgerState.currentItemIndex+1}/${totalItems})` : '(démarrer)'}
               </button>
             </div>` : scoreForm}
         `}
@@ -2008,7 +2240,7 @@ function renderHostPilotageTab(gs, phase) {
       </div>`;
 
     out += `<div class="host-section host-section-buzzer">
-      <div class="host-section-label">🎬 CHALLENGE VIDÉO</div>`;
+      <div class="host-section-label">${gameIcon('karaoke')} CHALLENGE KARAOKÉ</div>`;
 
     if (vPhase === 'select') {
       out += `<p class="muted" style="font-size:.8rem;margin-bottom:10px;">Choisissez qui réalise l'épreuve :</p>`;
@@ -2024,13 +2256,13 @@ function renderHostPilotageTab(gs, phase) {
       }
     } else if (vPhase === 'ready') {
       out += `<div style="text-align:center;padding:8px;">
-        <div style="font-size:1.1rem;font-weight:700;color:#f7971e;margin-bottom:12px;">🎬 ${vPseudo}</div>
+        <div style="font-size:1.1rem;font-weight:700;color:#f7971e;margin-bottom:12px;">${gameIcon('karaoke')} ${vPseudo}</div>
         <p class="muted" style="font-size:.85rem;margin-bottom:14px;">L'écran affiche "Tenez-vous prêt !"</p>
         <button class="hbtn hbtn-success hbtn-wide hbtn-pulse" onclick="hostAction('video_start_playing')">▶ Lancer la vidéo</button>
       </div>`;
     } else if (vPhase === 'playing') {
       out += `<div style="text-align:center;padding:8px;">
-        <div style="font-size:1.1rem;font-weight:700;color:#f7971e;margin-bottom:8px;">🎬 Vidéo en cours — ${vPseudo}</div>
+        <div style="font-size:1.1rem;font-weight:700;color:#f7971e;margin-bottom:8px;">${gameIcon('karaoke')} Vidéo en cours — ${vPseudo}</div>
         <div class="host-ctrl-row" style="margin-bottom:10px;">
           <button class="hbtn hbtn-success hbtn-sm" onclick="hostAction('video_control',{action:'play'})">▶ Play</button>
           <button class="hbtn hbtn-warning hbtn-sm" onclick="hostAction('video_control',{action:'pause'})">⏸ Pause</button>
@@ -2051,7 +2283,7 @@ function renderHostPilotageTab(gs, phase) {
     const roundTrainUrl = gs?.currentRound?.trainingVideoUrl;
     if ((vPhase === 'select' || vPhase === 'ready') && roundTrainUrl) {
       out += `<div class="card" style="margin-top:12px;border-color:rgba(255,215,0,.3);background:rgba(255,215,0,.05);">
-        <div style="font-size:.8rem;color:rgba(255,215,0,.7);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">🏋️ Vidéo d'entraînement</div>
+        <div style="font-size:.8rem;color:rgba(255,215,0,.7);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">${gameIcon('music')} Vidéo d'entraînement</div>
         <video src="${resolveMedia(roundTrainUrl)}" controls style="width:100%;max-height:200px;border-radius:10px;"></video>
       </div>`;
     }
@@ -2173,7 +2405,7 @@ function renderHostPilotageTab(gs, phase) {
         <div class="host-ctrl-row" style="margin-top:10px;">
           <button class="hbtn hbtn-secondary" onclick="hostAction('reset_game')">🔁 Nouvelle partie</button>
           <button class="hbtn hbtn-warning hbtn-sm" onclick="if(confirm('Éjecter tous les joueurs et changer de quiz ?')){hostAction('eject_players');}">🚪 Éjecter & changer quiz</button>
-          <button class="hbtn hbtn-danger" onclick="if(confirm('Terminer et retourner à l\\'accueil ?'))hostAction('stop_session');navigate('home');">✕ Fermer</button>
+          <button class="hbtn hbtn-danger" onclick="if(confirm('Terminer et retourner à l\\'accueil ?'))hostAction('stop_session');navigate('home');">${uiIcon('close')} Fermer</button>
         </div>
       </div>`;
     } else {
@@ -2197,7 +2429,7 @@ function renderHostPilotageTab(gs, phase) {
         <div class="host-ctrl-row" style="margin-top:10px;">
           <button class="hbtn hbtn-secondary hbtn-sm" onclick="hostAction('reset_game')">🔁 Nouvelle partie</button>
           <button class="hbtn hbtn-warning hbtn-sm" onclick="if(confirm('Éjecter tous les joueurs et changer de quiz ?')){hostAction('eject_players');}">🚪 Éjecter & changer quiz</button>
-          <button class="hbtn hbtn-danger hbtn-sm" onclick="if(confirm('Terminer et retourner à l\\'accueil ?')){hostAction('stop_session');navigate('home');}">✕ Fermer l'application</button>
+          <button class="hbtn hbtn-danger hbtn-sm" onclick="if(confirm('Terminer et retourner à l\\'accueil ?')){hostAction('stop_session');navigate('home');}">${uiIcon('close')} Fermer l'application</button>
         </div>
       </div>`;
       out += renderFinalCeremony(gs, state.leaderboardPlayers, state.leaderboardTeams);
@@ -2371,10 +2603,27 @@ function setTimerPreset(sec) {
   event?.target?.classList.add('active');
 }
 
+function playHostActionDoneSound(action) {
+  if (/wrong|penalty|deduct|remove|delete|kick|eject/i.test(action)) {
+    playSound('wrong');
+    return;
+  }
+  if (/correct|score|award|validate|success/i.test(action)) {
+    playSound('correct');
+    return;
+  }
+  if (/reveal|show|next|start|timer|vote|unlock/i.test(action)) {
+    playSound('notification');
+    return;
+  }
+  playSound('button');
+}
+
 function hostAction(action, extra = {}) {
   const sc = state.host.sessionCode;
   const hk = state.host.hostKey;
   const gs = state.gameState;
+  playSound('button');
 
   // Actions spéciales rapidité buzzer
   if (action === 'buzzer_mark_wrong') {
@@ -2409,7 +2658,8 @@ function hostAction(action, extra = {}) {
   }
 
   state.socket.emit('host:action', { sessionCode: sc, hostKey: hk, action, ...extra }, (res) => {
-    if (!res?.ok) alert$('host-alert', res?.error || 'Action impossible', 'error');
+    if (!res?.ok) { alert$('host-alert', res?.error || 'Action impossible', 'error'); return; }
+    playHostActionDoneSound(action);
   });
 }
 
@@ -2479,15 +2729,15 @@ pageInits.display = function() {
 
   html('page-display', `
     <div class="row" style="justify-content:space-between;margin-bottom:20px;">
-      <h1>📺 Écran TV</h1>
-      <button class="btn-secondary" onclick="navigate('home')">Accueil</button>
+      <h1>${gameIcon('display')} Écran TV</h1>
+      <button class="btn-secondary" onclick="navigate('home')">${uiIcon('back')} Accueil</button>
     </div>
     <div id="display-alert"></div>
     <div class="card" id="display-connect-card">
       <h2>Se connecter à une session</h2>
       <div class="row" style="margin-top:12px;gap:12px;">
         <input id="display-code" placeholder="Code de session" value="${savedCode}" style="flex:1;font-size:1.2rem;letter-spacing:4px;text-transform:uppercase;">
-        <button class="btn-primary" onclick="connectDisplay()">📺 Afficher</button>
+        <button class="btn-primary" onclick="connectDisplay()">${gameIcon('display')} Afficher</button>
       </div>
     </div>
     <div id="display-content"></div>
@@ -2513,6 +2763,7 @@ function connectDisplay() {
     state.display.connected   = true;
     localStorage.setItem('quiz_display_code', code);
     hide('display-connect-card');
+    playSound('success');
     renderDisplay();
   });
 }
@@ -2565,10 +2816,8 @@ function renderDisplay() {
       </div>`;
   } else if (phase === 'round_intro') {
     const round = gs?.currentRound;
-    const _rtIcons  = { qcm:'🔘', rapidite:'⚡', speed:'⚡', true_false:'✅', burger:'🍔', vote:'🗳️' };
-    const _rtLabels = { qcm:'QCM', rapidite:'Rapidité', speed:'Rapidité', true_false:'Vrai / Faux', burger:'Burger', vote:'Vote' };
-    const _rtIcon  = _rtIcons[round?.type]  || '🎯';
-    const _rtLabel = _rtLabels[round?.type] || (round?.type || '');
+    const _rtIcon  = roundTypeIcon(round?.type);
+    const _rtLabel = roundTypeMeta(round?.type).label;
     content += `
       <div class="display-round-intro-screen">
         ${round?.type ? `<div class="display-round-type-badge display-badge-${round.type}">${_rtIcon} ${_rtLabel}</div>` : ''}
@@ -2622,14 +2871,14 @@ function renderDisplay() {
     content += `
       <div class="display-round-end-screen">
         <div class="display-round-end-frame">
-          <div class="display-round-end-icon">🏁</div>
+          <div class="display-round-end-icon">${gameIcon('round')}</div>
           <h1 class="display-round-end-title">Manche terminée !</h1>
           ${round?.title ? `<p class="display-round-end-subtitle">${round.title}</p>` : ''}
         </div>
         <div class="waiting-dots" style="margin-top:36px;"><span></span><span></span><span></span></div>
       </div>`;
   } else if (phase === 'results') {
-    content += renderScoreboard(state.leaderboardPlayers, '📊 Classement de la manche');
+    content += renderScoreboard(state.leaderboardPlayers, `${gameIcon('scores')} Classement de la manche`);
     if (state.leaderboardTeams.length) {
       content += renderScoreboard(state.leaderboardTeams, '⚽ Équipes', true);
     }
@@ -2646,14 +2895,14 @@ function renderDisplay() {
       const bIsTeam = !!(gs?.burgerSelectedTeamId);
       content += bfScore ? `
         <div class="card" style="text-align:center;padding:60px 20px;background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
-          <div style="font-size:4rem;margin-bottom:16px;">🍔</div>
+          <div style="font-size:4rem;margin-bottom:16px;">${gameIcon('burger')}</div>
           <div style="font-size:.9rem;color:rgba(255,255,255,.45);margin-bottom:6px;">${bfScore.teamId ? '⚽ Équipe' : '🎮 Joueur'}</div>
           <h2 style="color:#f7971e;font-size:2.2rem;">${bfScore.pseudo}</h2>
           <div style="font-size:7rem;font-weight:900;color:#f7971e;line-height:1;margin:16px 0;">${bfScore.score}<span style="font-size:2.5rem;color:rgba(255,255,255,.4);">/10</span></div>
           ${bfScore.teamId ? `<p class="muted" style="font-size:.9rem;">Chaque membre de l'équipe a reçu ${bfScore.score} point(s)</p>` : ''}
         </div>` : `
         <div class="card" style="text-align:center;padding:80px 20px;background:rgba(247,151,30,.07);border-color:rgba(247,151,30,.3);">
-          <div style="font-size:4rem;margin-bottom:16px;animation:end-bounce 1s ease-in-out infinite;">🎤</div>
+          <div style="font-size:4rem;margin-bottom:16px;animation:end-bounce 1s ease-in-out infinite;">${gameIcon('karaoke')}</div>
           <div style="font-size:.9rem;color:rgba(255,255,255,.45);margin-bottom:6px;">${bIsTeam ? '⚽ Équipe' : '🎮 Joueur'}</div>
           <h2 style="color:#f7971e;font-size:2.2rem;">${bPseudo}</h2>
           <p style="margin-top:20px;font-size:1.4rem;font-weight:600;">répond !</p>
@@ -2664,7 +2913,7 @@ function renderDisplay() {
         <div class="card" style="text-align:center;padding:40px;">
           <div style="font-size:3rem;">⚖️</div>
           <h2>Notation en cours…</h2>
-          ${gs?.buzzerState?.firstPseudo ? `<p style="margin-top:16px;font-size:1.5rem;">🔔 <strong>${gs.buzzerState.firstPseudo}</strong> a buzzé en premier</p>` : ''}
+          ${gs?.buzzerState?.firstPseudo ? `<p style="margin-top:16px;font-size:1.5rem;">${gameIcon('buzzer')} <strong>${gs.buzzerState.firstPseudo}</strong> a buzzé en premier</p>` : ''}
         </div>`;
     }
   }
@@ -2750,12 +2999,12 @@ function renderDisplayQuestion(gs) {
       <div class="card">
         <div class="grid2" style="text-align:center;">
           <div>
-            <div style="font-size:2rem;color:#38ef7d;">✅ VRAI</div>
+          <div style="font-size:2rem;color:#38ef7d;">${gameIcon('correct')} VRAI</div>
             <div style="font-size:3rem;font-weight:700;">${yes}</div>
             <div class="progress-bar" style="margin-top:8px;"><div class="fill" style="background:linear-gradient(90deg,#00c851,#38ef7d);width:${tot>0?Math.round(yes/tot*100):0}%"></div></div>
           </div>
           <div>
-            <div style="font-size:2rem;color:#eb3349;">❌ FAUX</div>
+          <div style="font-size:2rem;color:#eb3349;">${gameIcon('wrong')} FAUX</div>
             <div style="font-size:3rem;font-weight:700;">${no}</div>
             <div class="progress-bar" style="margin-top:8px;"><div class="fill" style="background:linear-gradient(90deg,#eb3349,#ff6b7a);width:${tot>0?Math.round(no/tot*100):0}%"></div></div>
           </div>
@@ -2794,9 +3043,9 @@ function renderDisplayQuestion(gs) {
       let resultOverlay = '';
       if (blr && blr.playerId === bz.firstPlayerId) {
         if (blr.result === 'correct') {
-          resultOverlay = `<div class="buzzer-result-badge buzzer-correct-badge">✅ BONNE RÉPONSE !</div>`;
+          resultOverlay = `<div class="buzzer-result-badge buzzer-correct-badge">${gameIcon('correct')} BONNE RÉPONSE !</div>`;
         } else if (blr.result === 'wrong') {
-          resultOverlay = `<div class="buzzer-result-badge buzzer-wrong-badge">❌ MAUVAISE RÉPONSE</div>`;
+          resultOverlay = `<div class="buzzer-result-badge buzzer-wrong-badge">${gameIcon('wrong')} MAUVAISE RÉPONSE</div>`;
         }
       }
 
@@ -2804,14 +3053,14 @@ function renderDisplayQuestion(gs) {
         <div class="buzzer-player-display ${blr?.playerId === bz.firstPlayerId && blr?.result === 'correct' ? 'buzzer-correct' : blr?.playerId === bz.firstPlayerId && blr?.result === 'wrong' ? 'buzzer-wrong' : ''}">
           <div class="buzzer-player-avatar">${buzzerAvatar}</div>
           <div class="buzzer-player-pseudo">${bz.firstPseudo}</div>
-          <div style="font-size:.85rem;color:rgba(255,255,255,.5);">🔔 a buzzé en premier</div>
+          <div style="font-size:.85rem;color:rgba(255,255,255,.5);">${gameIcon('buzzer')} a buzzé en premier</div>
           ${resultOverlay}
         </div>`;
     } else if (!bz?.firstPseudo) {
       // Buzzer actif mais personne n'a encore buzzé
       buzzerDisplay = `
         <div class="card" style="text-align:center;padding:24px;border:2px solid rgba(255,165,0,.3);">
-          <div style="font-size:2.5rem;margin-bottom:8px;">🔔</div>
+          <div style="font-size:2.5rem;margin-bottom:8px;">${gameIcon('buzzer')}</div>
           <p style="color:#ffa500;font-weight:600;">Buzzers actifs — prêts à répondre !</p>
         </div>`;
     }
@@ -2830,7 +3079,7 @@ function renderDisplayQuestion(gs) {
       // Score validé — afficher le résultat
       burgerDisplay = `
         <div class="card" style="text-align:center;padding:50px 20px;background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
-          <div style="font-size:4rem;margin-bottom:16px;">🍔</div>
+          <div style="font-size:4rem;margin-bottom:16px;">${gameIcon('burger')}</div>
           <h2 style="color:#f7971e;">${burgerFinalScore.pseudo}</h2>
           <div style="font-size:5rem;font-weight:900;color:#f7971e;margin:16px 0;">${burgerFinalScore.score}<span style="font-size:2rem;color:rgba(255,255,255,.4);">/10</span></div>
           <p class="muted">Score attribué par le maître de jeu</p>
@@ -2839,7 +3088,7 @@ function renderDisplayQuestion(gs) {
       // Pas encore commencé — message "Prêts ?"
       burgerDisplay = `
         <div class="card" style="text-align:center;padding:60px 20px;background:rgba(247,151,30,.07);border-color:rgba(247,151,30,.3);">
-          <div style="font-size:5rem;margin-bottom:20px;">🍔</div>
+          <div style="font-size:5rem;margin-bottom:20px;">${gameIcon('burger')}</div>
           <h2 style="font-size:2rem;">Épreuve Burger</h2>
           ${selectedPseudo ? `<p style="font-size:1.3rem;margin-top:12px;"><strong style="color:#f7971e;">${selectedPseudo}</strong> passe l'épreuve</p>` : '<p class="muted" style="margin-top:12px;">En attente de la sélection du joueur…</p>'}
           <p class="muted" style="margin-top:16px;font-size:1rem;">Le maître de jeu va dévoiler les éléments un par un.</p>
@@ -2852,7 +3101,7 @@ function renderDisplayQuestion(gs) {
       const isAudio = itemUrl && /\.(mp3|wav|ogg)$/i.test(itemUrl);
       burgerDisplay = `
         <div class="card" style="text-align:center;padding:30px;background:rgba(247,151,30,.07);border-color:rgba(247,151,30,.3);">
-          <div style="font-size:.85rem;color:rgba(255,255,255,.4);margin-bottom:14px;letter-spacing:1px;">🍔 ÉLÉMENT ${bs.currentItemIndex+1} / ${items.length}</div>
+          <div style="font-size:.85rem;color:rgba(255,255,255,.4);margin-bottom:14px;letter-spacing:1px;">${gameIcon('burger')} ÉLÉMENT ${bs.currentItemIndex+1} / ${items.length}</div>
           ${isImg ? `<img src="${itemUrl}" style="max-height:220px;border-radius:12px;margin-bottom:16px;">` : ''}
           ${isAudio ? `<audio controls autoplay src="${itemUrl}" style="margin-bottom:14px;"></audio>` : ''}
           ${curItem ? `<p style="font-size:clamp(1.6rem,5vw,2.4rem);font-weight:700;line-height:1.2;">${curItem.text || ''}</p>` : ''}
@@ -2870,7 +3119,7 @@ function renderDisplayQuestion(gs) {
     const connected = state.players.filter(p => p.connected).length;
     voteDisplay = `
       <div class="card" style="text-align:center;padding:30px;">
-        <div style="font-size:2.5rem;margin-bottom:12px;">✍️</div>
+        <div style="font-size:2.5rem;margin-bottom:12px;">${gameIcon('vote')}</div>
         <h2>Répondez maintenant !</h2>
         <p class="muted" style="margin-top:10px;font-size:1rem;">${answered}/${connected} réponse(s) reçue(s)</p>
         <div class="progress-bar" style="margin-top:12px;"><div class="fill" style="width:${connected > 0 ? Math.round(answered/connected*100) : 0}%"></div></div>
@@ -2893,7 +3142,7 @@ function renderDisplayQuestion(gs) {
 
     voteDisplay = `
       <div class="card" style="padding:30px 24px;background:rgba(167,139,250,.07);border-color:rgba(167,139,250,.3);">
-        <div style="font-size:.85rem;color:rgba(167,139,250,.7);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;">🗳️ PROPOSITION ${cursor > 0 ? cursor : '—'} / ${total}</div>
+        <div style="font-size:.85rem;color:rgba(167,139,250,.7);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;">${gameIcon('vote')} PROPOSITION ${cursor > 0 ? cursor : '—'} / ${total}</div>
         <div class="display-question-text" style="margin-bottom:${qMedia?'14px':'0'};font-size:clamp(1.4rem,4vw,2rem);">${q.content || ''}</div>
         ${qMedia}
         ${current ? `
@@ -2953,8 +3202,8 @@ function renderDisplayVideoChallenge(gs) {
   if (phase === 'select') {
     return `
       <div class="card" style="text-align:center;padding:60px 20px;background:rgba(255,215,0,.05);border-color:rgba(255,215,0,.2);">
-        <div style="font-size:5rem;margin-bottom:20px;">🎬</div>
-        <h2 style="color:#ffd700;font-size:2rem;">Challenge Vidéo</h2>
+        <div style="font-size:5rem;margin-bottom:20px;">${gameIcon('karaoke')}</div>
+        <h2 style="color:#ffd700;font-size:2rem;">Challenge Karaoké</h2>
         <p class="muted" style="margin-top:16px;font-size:1.1rem;">Le maître de jeu choisit un participant…</p>
         <div class="waiting-dots" style="margin-top:20px;"><span></span><span></span><span></span></div>
       </div>`;
@@ -2963,7 +3212,7 @@ function renderDisplayVideoChallenge(gs) {
   if (phase === 'ready') {
     return `
       <div class="card" style="text-align:center;padding:60px 20px;background:rgba(255,215,0,.07);border-color:rgba(255,215,0,.3);">
-        <div style="font-size:5rem;margin-bottom:20px;animation:pulse-pause 1.5s ease-in-out infinite;">🎬</div>
+        <div style="font-size:5rem;margin-bottom:20px;animation:pulse-pause 1.5s ease-in-out infinite;">${gameIcon('karaoke')}</div>
         <h2 style="color:#ffd700;font-size:clamp(1.8rem,6vw,3rem);">${pseudo}</h2>
         <div style="font-size:clamp(2rem,8vw,4rem);font-weight:900;color:#fff;margin:20px 0;letter-spacing:.02em;">TENEZ-VOUS PRÊT !</div>
         <div class="waiting-dots" style="margin-top:16px;"><span></span><span></span><span></span></div>
@@ -2976,7 +3225,7 @@ function renderDisplayVideoChallenge(gs) {
     // appelée après chaque rendu — les scripts inline dans innerHTML ne s'exécutent pas.
     return `
       <div class="card" style="padding:20px;background:#000;border-color:rgba(255,215,0,.2);">
-        <div style="font-size:.85rem;color:rgba(255,215,0,.6);text-align:center;margin-bottom:12px;">🎬 ${pseudo} — ${q?.content || ''}</div>
+        <div style="font-size:.85rem;color:rgba(255,215,0,.6);text-align:center;margin-bottom:12px;">${gameIcon('karaoke')} ${pseudo} — ${q?.content || ''}</div>
         ${videoUrl ? `
           <video id="display-challenge-video"
             src="${videoUrl}"
@@ -2994,7 +3243,7 @@ function renderDisplayVideoChallenge(gs) {
   if (phase === 'scored') {
     return `
       <div class="card" style="text-align:center;padding:50px 20px;background:rgba(247,151,30,.1);border-color:rgba(247,151,30,.5);">
-        <div style="font-size:4rem;margin-bottom:16px;">🎬</div>
+        <div style="font-size:4rem;margin-bottom:16px;">${gameIcon('karaoke')}</div>
         <h2 style="color:#f7971e;font-size:clamp(1.6rem,5vw,2.4rem);">${pseudo}</h2>
         <div style="font-size:clamp(5rem,18vw,9rem);font-weight:900;color:#f7971e;line-height:1;margin:16px 0;">${vs.score}<span style="font-size:2.5rem;color:rgba(255,255,255,.4);">/10</span></div>
         <p class="muted">Score attribué par le maître de jeu</p>
@@ -3046,7 +3295,7 @@ function renderDisplayVoteRevealing(gs) {
           <span style="font-weight:600;font-size:1rem;">${opt.text}</span>
           <div style="display:flex;align-items:center;gap:8px;position:relative;">
             ${isDecoy ? '<span style="color:#eb3349;font-size:.75rem;font-weight:700;">🎭 LEURRE</span>' : ''}
-            <strong style="font-size:1.3rem;color:${isDecoy?'#eb3349':'#38ef7d'};">${votes} 🗳️</strong>
+            <strong style="font-size:1.3rem;color:${isDecoy?'#eb3349':'#38ef7d'};">${votes} ${gameIcon('vote')}</strong>
             ${isNew ? scoreTag : ''}
           </div>
         </div>
@@ -3060,7 +3309,7 @@ function renderDisplayVoteRevealing(gs) {
 
   return `
     <div class="card" style="padding:30px;">
-      <h2 style="text-align:center;margin-bottom:12px;">🗳️ Résultats du vote</h2>
+      <h2 style="text-align:center;margin-bottom:12px;">${gameIcon('vote')} Résultats du vote</h2>
       ${progressLabel}
       ${rows}
     </div>`;
@@ -3119,7 +3368,7 @@ function renderDisplayVoteResults(gs) {
             <span style="font-weight:600;font-size:1rem;">${opt.text}</span>
             <div style="display:flex;align-items:center;gap:8px;">
               ${isDecoy ? '<span style="color:#eb3349;font-size:.75rem;font-weight:700;">🎭 LEURRE</span>' : ''}
-              <strong style="font-size:1.3rem;color:${isDecoy?'#eb3349':'#38ef7d'};">${votes} 🗳️</strong>
+              <strong style="font-size:1.3rem;color:${isDecoy?'#eb3349':'#38ef7d'};">${votes} ${gameIcon('vote')}</strong>
             </div>
           </div>
           <div class="progress-bar"><div class="fill" style="width:${pct}%;background:${isDecoy?'linear-gradient(90deg,#eb3349,#ff6b7a)':'linear-gradient(90deg,#38ef7d,#00b09b)'}"></div></div>
@@ -3128,7 +3377,7 @@ function renderDisplayVoteResults(gs) {
 
   return `
     <div class="card" style="padding:30px;">
-      <h2 style="text-align:center;margin-bottom:20px;">🗳️ Résultats du vote</h2>
+      <h2 style="text-align:center;margin-bottom:20px;">${gameIcon('vote')} Résultats du vote</h2>
       ${optionRows}
     </div>`;
 }
@@ -3144,7 +3393,7 @@ function renderDisplayVoteVoting(gs) {
   const options = vs.options || [];
   return `
     <div class="card" style="padding:30px;">
-      <h2 style="text-align:center;margin-bottom:6px;">🗳️ Votez !</h2>
+      <h2 style="text-align:center;margin-bottom:6px;">${gameIcon('vote')} Votez !</h2>
       <p class="muted" style="text-align:center;margin-bottom:20px;">${totalVotes}/${totalPlayers} votes enregistrés</p>
       <div style="display:grid;gap:10px;">
         ${options.map((opt, i) => `
@@ -3189,10 +3438,10 @@ pageInits.admin = function() {
 async function loadQuizList() {
   html('page-admin', `
     <div class="row" style="justify-content:space-between;margin-bottom:20px;">
-      <h1>⚙️ Admin Quiz</h1>
+      <h1>${uiIcon('settings')} Admin Quiz</h1>
       <div class="row">
         <button class="btn-primary" onclick="startNewQuiz()">+ Nouveau quiz</button>
-        <button class="btn-secondary" onclick="navigate('home')">Accueil</button>
+        <button class="btn-secondary" onclick="navigate('home')">${uiIcon('back')} Accueil</button>
       </div>
     </div>
     <div id="admin-alert"></div>
@@ -3225,9 +3474,9 @@ function renderQuizList() {
             <strong>${q.title}</strong>
             <span class="muted" style="margin-left:8px;font-size:.85rem;">${q.rounds?.length||0} manche(s)</span>
           </div>
-          <button class="btn-secondary" style="font-size:.85rem;" onclick="editQuiz('${q.id}')">✏️ Éditer</button>
-          <button class="btn-success"   style="font-size:.85rem;" onclick="launchQuiz('${q.id}')">▶️ Lancer</button>
-          <button class="btn-danger"    style="font-size:.85rem;" onclick="deleteQuiz('${q.id}')">🗑️</button>
+          <button class="btn-secondary" style="font-size:.85rem;" onclick="editQuiz('${q.id}')">${uiIcon('settings')} Éditer</button>
+          <button class="btn-success"   style="font-size:.85rem;" onclick="launchQuiz('${q.id}')">${uiIcon('play')} Lancer</button>
+          <button class="btn-danger"    style="font-size:.85rem;" onclick="deleteQuiz('${q.id}')">${uiIcon('close')}</button>
         </div>`).join('')}
     </div>`);
 }
@@ -3262,7 +3511,7 @@ async function launchQuiz(quizId) {
   modal.id = 'launch-modal';
   modal.innerHTML = `
     <div class="modal">
-      <h2>▶️ Lancer le quiz</h2>
+      <h2>${uiIcon('play')} Lancer le quiz</h2>
       <p class="muted" style="margin-bottom:16px;">📚 <strong>${quiz?.title || 'Quiz'}</strong></p>
       <div style="display:grid;gap:14px;">
         <div class="grid2">
@@ -3284,7 +3533,7 @@ async function launchQuiz(quizId) {
           <div style="font-size:2rem;margin-bottom:8px;">🎮</div>
           <h3 style="font-size:1rem;margin-bottom:6px;">Partie réelle</h3>
           <p class="muted" style="font-size:.8rem;margin-bottom:12px;">Les joueurs rejoignent avec le code</p>
-          <button class="btn-success" style="width:100%;" onclick="doLaunchGame('${quizId}',false)">▶️ Lancer la partie</button>
+          <button class="btn-success" style="width:100%;" onclick="doLaunchGame('${quizId}',false)">${uiIcon('play')} Lancer la partie</button>
         </div>
         <div style="background:rgba(245,87,108,.06);border:1px solid rgba(245,87,108,.25);border-radius:16px;padding:16px;text-align:center;">
           <div style="font-size:2rem;margin-bottom:8px;">🧪</div>
@@ -3298,7 +3547,7 @@ async function launchQuiz(quizId) {
         </div>
       </div>
       <div style="text-align:right;margin-top:16px;">
-        <button class="btn-secondary" onclick="closeModal('launch-modal')">Annuler</button>
+        <button class="btn-secondary" onclick="closeModal('launch-modal')">${uiIcon('close')} Annuler</button>
       </div>
     </div>
   `;
@@ -3439,10 +3688,10 @@ function renderQuizEditor() {
 
   html('page-admin', `
     <div class="row" style="justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
-      <h1>✏️ Éditeur de quiz</h1>
+      <h1>${uiIcon('settings')} Éditeur de quiz</h1>
       <div class="row">
-        <button class="btn-success"   onclick="saveQuiz()">💾 Enregistrer</button>
-        <button class="btn-secondary" onclick="loadQuizList()">← Retour</button>
+        <button class="btn-success"   onclick="saveQuiz()">${gameIcon('scores')} Enregistrer</button>
+        <button class="btn-secondary" onclick="loadQuizList()">${uiIcon('back')} Retour</button>
       </div>
     </div>
     <div id="admin-alert"></div>
@@ -3499,9 +3748,9 @@ function renderRoundBlock(round, ri) {
     { v:'qcm',             l:'🔘 QCM (choix multiple)' },
     { v:'rapidite',        l:'⚡ Rapidité (buzzer)' },
     { v:'true_false',      l:'✅ Vrai / Faux' },
-    { v:'burger',          l:'🍔 Burger (liste révélée)' },
-    { v:'vote',            l:'🗳️ Vote (propositions + votes)' },
-    { v:'video_challenge', l:'🎬 Challenge Vidéo' },
+    { v:'burger',          l:'Burger (liste révélée)' },
+    { v:'vote',            l:'Vote (propositions + votes)' },
+    { v:'video_challenge', l:'Karaoké / Challenge vidéo' },
   ];
 
   const bgPreview = round.backgroundUrl
@@ -3515,8 +3764,8 @@ function renderRoundBlock(round, ri) {
   return `
     <div class="round-panel" id="round-${round.id}">
       <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-        <strong style="font-size:1rem;">📋 Manche ${ri+1}</strong>
-        <button class="btn-danger" style="padding:4px 10px;font-size:.8rem;" onclick="removeRound('${round.id}')">🗑️ Supprimer cette manche</button>
+        <strong style="font-size:1rem;">${gameIcon('round')} Manche ${ri+1}</strong>
+        <button class="btn-danger" style="padding:4px 10px;font-size:.8rem;" onclick="removeRound('${round.id}')">${uiIcon('close')} Supprimer cette manche</button>
       </div>
 
       <!-- Infos de base -->
@@ -3553,21 +3802,21 @@ function renderRoundBlock(round, ri) {
 
       <!-- Personnalisation fond & musique -->
       <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;margin-bottom:14px;">
-        <div style="font-size:.78rem;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🎨 Personnalisation</div>
+        <div style="font-size:.78rem;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">${gameIcon('category')} Personnalisation</div>
         <div class="grid2" style="gap:10px;">
           <div>
             <label style="font-size:.8rem;">Fond d'écran</label>
             <div class="row" style="gap:6px;margin-top:4px;">
               <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="uploadRoundMedia('${round.id}','backgroundUrl','image/*')">🖼️ Choisir image</button>
-              ${round.backgroundUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearRoundMedia('${round.id}','backgroundUrl')">✕</button>` : ''}
+              ${round.backgroundUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearRoundMedia('${round.id}','backgroundUrl')">${uiIcon('close')}</button>` : ''}
             </div>
             ${bgPreview}
           </div>
           <div>
             <label style="font-size:.8rem;">Musique de fond</label>
             <div class="row" style="gap:6px;margin-top:4px;">
-              <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="uploadRoundMedia('${round.id}','musicUrl','audio/*')">🎵 Choisir musique</button>
-              ${round.musicUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearRoundMedia('${round.id}','musicUrl')">✕</button>` : ''}
+              <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;" onclick="uploadRoundMedia('${round.id}','musicUrl','audio/*')">${gameIcon('music')} Choisir musique</button>
+              ${round.musicUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="clearRoundMedia('${round.id}','musicUrl')">${uiIcon('close')}</button>` : ''}
             </div>
             ${musicPreview}
           </div>
@@ -3590,7 +3839,7 @@ function renderRoundBlock(round, ri) {
             onchange="updateRound('${round.id}','trainingVideoUrl',this.value)">
           <button class="btn-secondary" style="font-size:.78rem;padding:5px 10px;white-space:nowrap;"
             onclick="uploadRoundTrainingVideo('${round.id}')">📤 Uploader</button>
-          ${tvUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="updateRound('${round.id}','trainingVideoUrl','');renderQuizEditor()">✕</button>` : ''}
+          ${tvUrl ? `<button class="btn-danger" style="font-size:.75rem;padding:4px 8px;" onclick="updateRound('${round.id}','trainingVideoUrl','');renderQuizEditor()">${uiIcon('close')}</button>` : ''}
         </div>
         ${tvPreview}
       </div>`;
@@ -3625,7 +3874,7 @@ function renderQuestionRow(q, qi, roundId, roundType) {
 
   const qMediaBtn = `<button class="btn-secondary" style="padding:4px 8px;font-size:.78rem;white-space:nowrap;" onclick="openMediaUpload('${q.id}')">🖼️</button>`;
   const qMediaPreview = q.mediaUrl ? mediaPreview(q.mediaUrl,'margin-left:6px;') : '';
-  const removeBtn = `<button class="btn-danger" style="padding:4px 8px;font-size:.8rem;flex-shrink:0;" onclick="removeQuestion('${roundId}','${q.id}')">✕</button>`;
+  const removeBtn = `<button class="btn-danger" style="padding:4px 8px;font-size:.8rem;flex-shrink:0;" onclick="removeQuestion('${roundId}','${q.id}')">${uiIcon('close')}</button>`;
 
   // Ligne commune : numéro + contenu + média + supprimer
   const headerRow = `
@@ -3710,7 +3959,7 @@ function renderQuestionRow(q, qi, roundId, roundType) {
     const items = Array.isArray(q.items) ? q.items : [];
     body = `
       <div style="margin:8px 0 4px 28px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:10px;">
-        <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">🍔 Liste des éléments (le host les révèle un par un)</div>
+        <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">${gameIcon('burger')} Liste des éléments (le host les révèle un par un)</div>
         <div style="display:grid;gap:6px;">
           ${items.map((item, i) => `
             <div style="display:flex;align-items:center;gap:6px;">
@@ -3731,7 +3980,7 @@ function renderQuestionRow(q, qi, roundId, roundType) {
     const fakeAnswers = Array.isArray(q.fakeAnswers) && q.fakeAnswers.length > 0 ? q.fakeAnswers : [''];
     body = `
       <div style="margin:8px 0 4px 28px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:10px;">
-        <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">🗳️ Leurres (facultatifs — réponses piège)</div>
+        <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">${gameIcon('vote')} Leurres (facultatifs — réponses piège)</div>
         <p style="font-size:.78rem;color:rgba(255,255,255,.5);margin-bottom:8px;">
           Ces réponses seront mélangées avec celles des joueurs. Voter pour un leurre = -1 point.<br>
           <em>Laissez vide pour ne pas afficher ce leurre.</em>
@@ -3743,7 +3992,7 @@ function renderQuestionRow(q, qi, roundId, roundType) {
               <input value="${(fa||'').replace(/"/g,'&quot;')}" placeholder="Leurre ${i+1} (laisser vide pour ignorer)"
                 oninput="updateFakeAnswer('${roundId}','${q.id}',${i},this.value)"
                 style="flex:1;font-size:.82rem;padding:5px 8px;">
-              ${fakeAnswers.length > 1 ? `<button class="btn-secondary" style="padding:3px 7px;font-size:.75rem;color:#eb3349;" onclick="removeFakeAnswer('${roundId}','${q.id}',${i})">✕</button>` : ''}
+              ${fakeAnswers.length > 1 ? `<button class="btn-secondary" style="padding:3px 7px;font-size:.75rem;color:#eb3349;" onclick="removeFakeAnswer('${roundId}','${q.id}',${i})">${uiIcon('close')}</button>` : ''}
             </div>`).join('')}
         </div>
         <button class="btn-secondary" style="margin-top:8px;padding:4px 10px;font-size:.78rem;" onclick="addFakeAnswer('${roundId}','${q.id}')">+ Ajouter un leurre</button>
@@ -3755,7 +4004,7 @@ function renderQuestionRow(q, qi, roundId, roundType) {
   if (effectiveType === 'video_challenge') {
     body = `
       <div style="margin:8px 0 4px 28px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:10px;">
-        <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">🎬 Challenge Vidéo</div>
+        <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">${gameIcon('karaoke')} Challenge Karaoké</div>
         <p style="font-size:.78rem;color:rgba(255,255,255,.5);margin-bottom:12px;">
           Le host choisit un joueur ou une équipe. La vidéo est jouée sur l'écran TV. Le host attribue de 0 à 10 points.
         </p>
@@ -3764,7 +4013,7 @@ function renderQuestionRow(q, qi, roundId, roundType) {
           <button class="btn-secondary" style="padding:5px 12px;font-size:.82rem;" onclick="openMediaUpload('${q.id}')">📤 Uploader une vidéo</button>
           ${q.mediaUrl
             ? `<span style="font-size:.75rem;color:rgba(255,255,255,.4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;" title="${q.mediaUrl}">${q.mediaUrl.split('/').pop()}</span>
-               <button class="btn-secondary" style="padding:2px 6px;font-size:.72rem;color:#eb3349;" onclick="updateQuestion('${roundId}','${q.id}','mediaUrl','');renderQuizEditor()" title="Supprimer la vidéo">✕</button>`
+               <button class="btn-secondary" style="padding:2px 6px;font-size:.72rem;color:#eb3349;" onclick="updateQuestion('${roundId}','${q.id}','mediaUrl','');renderQuizEditor()" title="Supprimer la vidéo">${uiIcon('close')}</button>`
             : `<span style="font-size:.75rem;color:rgba(255,255,255,.3);font-style:italic;">Aucune vidéo uploadée</span>`
           }
         </div>
@@ -4258,8 +4507,8 @@ async function showChangeQuizModal() {
   modal.innerHTML = `
     <div class="modal-box" style="max-width:480px;">
       <div class="row" style="justify-content:space-between;margin-bottom:16px;">
-        <h2>🔄 Changer de quiz</h2>
-        <button class="btn-secondary btn-sm" onclick="closeModal('change-quiz-modal')">✕</button>
+        <h2>${uiIcon('settings')} Changer de quiz</h2>
+        <button class="btn-secondary btn-sm" onclick="closeModal('change-quiz-modal')">${uiIcon('close')}</button>
       </div>
       <div id="change-quiz-list"><p class="muted">Chargement…</p></div>
     </div>`;
@@ -4319,8 +4568,8 @@ function showBroadcastModal() {
   modal.innerHTML = `
     <div class="modal-box">
       <div class="row" style="justify-content:space-between;margin-bottom:16px;">
-        <h2>📡 Diffuser un message</h2>
-        <button class="btn-secondary btn-sm" onclick="document.getElementById('broadcast-modal')?.remove()">✕</button>
+        <h2>${uiIcon('volume')} Diffuser un message</h2>
+        <button class="btn-secondary btn-sm" onclick="document.getElementById('broadcast-modal')?.remove()">${uiIcon('close')}</button>
       </div>
       <div style="margin-bottom:12px;">
         <label>Destinataire</label>
@@ -4360,7 +4609,8 @@ function sendBroadcast() {
   const target = document.getElementById('bc-target')?.value || 'all';
   const text = (document.getElementById('bc-text')?.value || '').trim();
   const imageUrl = (document.getElementById('bc-image')?.value || '').trim();
-  if (!text && !imageUrl) { alert('Message vide'); return; }
+  if (!text && !imageUrl) { alert$('host-alert', 'Message vide', 'error'); return; }
+  playSound('button');
 
   state.socket.emit('host:action', {
     sessionCode: sc, hostKey: hk,
@@ -4378,6 +4628,7 @@ function sendBroadcast() {
 function clearBroadcast() {
   const sc = state.host.sessionCode;
   const hk = state.host.hostKey;
+  playSound('button');
   state.socket.emit('host:action', {
     sessionCode: sc, hostKey: hk,
     action: 'broadcast_clear',
@@ -4610,7 +4861,28 @@ function playGameSound(type) {
   } catch(e) {}
 }
 
+function installGlobalInteractionSounds() {
+  document.addEventListener('click', (ev) => {
+    const target = ev.target?.closest?.('button, [role="button"], a, input[type="checkbox"], input[type="radio"], select, .answer-tile, .avatar-opt, .round-acc-hdr, .editor-sidebar-item');
+    if (!target || target.disabled || target.getAttribute('aria-disabled') === 'true') return;
+    if (target.closest('#buzzer-btn, .buzzer-btn')) return;
+    playSound('button');
+  }, true);
+
+  document.addEventListener('keydown', (ev) => {
+    if (!['Enter', ' ', 'Spacebar'].includes(ev.key)) return;
+    const active = document.activeElement;
+    if (!active) return;
+    const tag = active.tagName;
+    if (tag === 'BUTTON' || tag === 'SELECT' || active.getAttribute('role') === 'button' || active.id === 'text-answer') {
+      playSound('button');
+    }
+  }, true);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  installGlobalInteractionSounds();
+
   // Charger le thème sauvegardé
   try {
     const savedTheme = localStorage.getItem('quiz_theme') || 'default';
@@ -4625,9 +4897,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Ajouter le bouton thème dans la nav
   const nav = document.querySelector('nav');
   if (nav) {
+    hydrateNavIcons();
     const themeBtn = document.createElement('button');
     themeBtn.id = 'theme-toggle-btn';
-    themeBtn.innerHTML = '🎨';
+    themeBtn.innerHTML = uiIcon('settings');
     themeBtn.title = 'Changer de thème';
     themeBtn.style.cssText = 'margin-left:auto;flex-shrink:0;padding:6px 10px;font-size:1rem;';
     themeBtn.onclick = openThemePicker;
