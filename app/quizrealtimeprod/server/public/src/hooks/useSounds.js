@@ -1,15 +1,24 @@
 import { useRef, useCallback } from 'react';
 
 const SND_MAP = {
-  answer:       { src: '/sounds/answer.mp3',      vol: 0.65 },
-  buzzer:       { src: '/sounds/spacebar.mp3',     vol: 0.85 },
-  correct:      { src: '/sounds/correct.mp3',      vol: 0.70 },
-  wrong:        { src: '/sounds/wrong.mp3',        vol: 0.70 },
-  deduct:       { src: '/sounds/deduct.mp3',       vol: 0.65 },
-  cashRegister: { src: '/sounds/cashregister.mp3', vol: 0.65 },
-  fanfare:      { src: '/sounds/fanfare.mp3',      vol: 0.75 },
-  bell:         { src: '/sounds/bell.mp3',         vol: 0.70 },
-  countdown:    { src: '/sounds/countdown.mp3',    vol: 0.55 },
+  button:            { src: '/sounds/04button.mp3',                vol: 0.42 },
+  nav:               { src: '/sounds/04button.mp3',                vol: 0.34 },
+  answer:            { src: '/sounds/04button.mp3',                vol: 0.46 },
+  vote:              { src: '/sounds/04button.mp3',                vol: 0.46 },
+  select:            { src: '/sounds/04button.mp3',                vol: 0.42 },
+  buzzer:            { src: '/sounds/buzzer.mp3',                  vol: 0.82 },
+  correct:           { src: '/sounds/05confirm%20success.mp3',     vol: 0.76 },
+  success:           { src: '/sounds/05confirm%20success.mp3',     vol: 0.68 },
+  rightNotification: { src: '/sounds/02right%20notification.mp3',  vol: 0.56 },
+  notification:      { src: '/sounds/03notification.mp3',          vol: 0.58 },
+  allAnswered:       { src: '/sounds/03notification.mp3',          vol: 0.62 },
+  wrong:             { src: '/sounds/01wrong%20answer.mp3',        vol: 0.72 },
+  error:             { src: '/sounds/06error2.mp3',                vol: 0.68 },
+  deduct:            { src: '/sounds/01wrong%20answer.mp3',        vol: 0.65 },
+  cashRegister:      { src: '/sounds/cashregister.mp3',            vol: 0.62 },
+  fanfare:           { src: '/sounds/fanfare.mp3',                 vol: 0.72 },
+  bell:              { src: '/sounds/03notification.mp3',          vol: 0.58 },
+  countdown:         { src: '/sounds/countdown.mp3',               vol: 0.55 },
 };
 
 function vibrate(pattern) {
@@ -19,6 +28,7 @@ function vibrate(pattern) {
 export function useSounds() {
   const countdownRef = useRef(null);
   const audioCacheRef = useRef(new Map());
+  const lastPlayedRef = useRef(new Map());
 
   const getBaseAudio = useCallback((type, src) => {
     const cache = audioCacheRef.current;
@@ -29,14 +39,18 @@ export function useSounds() {
   }, []);
 
   const play = useCallback((type) => {
-    if (type === 'answer')                           vibrate(25);
+    if (type === 'answer' || type === 'button' || type === 'vote') vibrate(18);
     else if (type === 'buzzer')                      vibrate(40);
-    else if (type === 'correct')                     vibrate([30, 40, 60]);
-    else if (type === 'wrong' || type === 'deduct')  vibrate([50, 30, 50]);
+    else if (type === 'correct' || type === 'success') vibrate([30, 40, 60]);
+    else if (type === 'wrong' || type === 'deduct' || type === 'error') vibrate([50, 30, 50]);
     else if (type === 'cashRegister')                vibrate([20, 30, 40]);
 
     const s = SND_MAP[type];
     if (!s?.src) return;
+    const now = performance.now();
+    const lastKey = s.src;
+    if (now - (lastPlayedRef.current.get(lastKey) || 0) < 95) return;
+    lastPlayedRef.current.set(lastKey, now);
     try {
       const a = getBaseAudio(type, s.src).cloneNode();
       a.volume = s.vol;

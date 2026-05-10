@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { html, resolveMedia, ROUND_TYPES, OPTION_LABELS } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
-import { Btn, Alert, Dots, SessionBanner } from '../../components/ui.js';
+import { Btn, Alert, Dots, SessionBanner, GameIcon, UiIcon } from '../../components/ui.js';
 
 // Color palette matching the TV display screen
 const OPT_COLORS   = ['#b24bff','#38ef7d','#4facfe','#f7971e','#ff4e6a','#a78bfa'];
@@ -110,7 +110,7 @@ export default function PlayerGame() {
   const phase    = gs?.status || 'lobby';
   const roundType= gs?.currentRound?.type || 'qcm';
   const roundMeta = getRoundMeta(roundType);
-  const rtIcon   = roundMeta.icon;
+  const rtIconName = roundMeta.iconName || 'category';
 
   const sendAnswer = useCallback((answer) => {
     if (!socket || !s) return;
@@ -119,9 +119,11 @@ export default function PlayerGame() {
     setLocked(true);
     socket.emit('player:answer', { sessionCode: s.sessionCode, playerId: s.playerId, answer }, (res) => {
       if (!res?.ok) {
-        soundPlay?.('wrong');
+        soundPlay?.('error');
         setAlert({ type: 'error', message: res?.error || 'Erreur.' });
         setLocked(false);
+      } else {
+        soundPlay?.('rightNotification');
       }
     });
   }, [socket, s, soundPlay]); // eslint-disable-line
@@ -131,20 +133,21 @@ export default function PlayerGame() {
     soundPlay?.('buzzer');
     vibrate([30, 50, 80]); // triple pulse pour le buzz
     socket.emit('player:buzzer', { sessionCode: s.sessionCode, playerId: s.playerId }, (res) => {
-      if (!res?.ok) setAlert({ type: 'error', message: res?.error || 'Buzzer refusé.' });
+      if (!res?.ok) { soundPlay?.('error'); setAlert({ type: 'error', message: res?.error || 'Buzzer refusé.' }); }
+      else soundPlay?.('rightNotification');
     });
   }, [socket, s, soundPlay]); // eslint-disable-line
 
   // vote_input: player submits free-text answer via player:answer
   const sendVoteText = useCallback(() => {
     const txt = voteText.trim();
-    if (!txt || !socket || !s) return;
+    if (!txt || !socket || !s) { soundPlay?.('error'); return; }
     soundPlay?.('answer');
     vibrate([18, 24, 42]);
     setLocked(true);
     socket.emit('player:answer', { sessionCode: s.sessionCode, playerId: s.playerId, answer: txt }, (res) => {
-      if (res?.ok) { setVoteText(''); }
-      else { soundPlay?.('wrong'); setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
+      if (res?.ok) { setVoteText(''); soundPlay?.('rightNotification'); }
+      else { soundPlay?.('error'); setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
     });
   }, [socket, s, voteText, soundPlay]); // eslint-disable-line
 
@@ -155,7 +158,8 @@ export default function PlayerGame() {
     vibrate([18, 24, 42]);
     setLocked(true);
     socket.emit('player:vote', { sessionCode: s.sessionCode, playerId: s.playerId, index }, (res) => {
-      if (!res?.ok) { soundPlay?.('wrong'); setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
+      if (!res?.ok) { soundPlay?.('error'); setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
+      else soundPlay?.('rightNotification');
     });
   }, [socket, s, locked, soundPlay]); // eslint-disable-line
 
@@ -220,9 +224,9 @@ export default function PlayerGame() {
       const round = gs?.currentRound;
       return html`
         <div className="flex flex-col items-center gap-5 py-8 text-center animate-fade-in">
-          <div className="text-6xl">${rtIcon}</div>
+          <div className="h-20 w-20"><${GameIcon} name=${rtIconName} className="h-full w-full" /></div>
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/15 border border-accent/30 text-sm font-semibold text-accent">
-            ${rtIcon} ${t(`round.${round?.type}`, getRoundMeta(round?.type).label)}
+            <${GameIcon} name=${rtIconName} className="h-6 w-6" /> ${t(`round.${round?.type}`, getRoundMeta(round?.type).label)}
           </div>
           <h2 className="text-2xl font-bold">${round?.title || 'Nouvelle manche'}</h2>
           ${round?.shortRules && html`<p className="text-white/45 text-sm">${round.shortRules}</p>`}
@@ -275,7 +279,7 @@ export default function PlayerGame() {
 
       if (!selId && !selTeam) return html`
         <div className="rounded-2xl bg-rose-500/10 border border-rose-500/25 p-6 text-center">
-          <div className="text-4xl mb-3">🎬</div>
+          <div className="mx-auto mb-3 h-14 w-14"><${GameIcon} name="karaoke" className="h-full w-full" /></div>
           <h2 className="text-xl font-bold text-rose-400">Challenge Vidéo</h2>
           <p className="text-white/50 text-sm mt-2">Le maître de jeu choisit un joueur…</p>
           <${Dots} />
@@ -284,7 +288,7 @@ export default function PlayerGame() {
 
       if (isMe) return html`
         <div className="flex flex-col items-center gap-4 py-8 text-center animate-bounce-in">
-          <div className="text-6xl animate-float">⭐</div>
+          <div className="h-20 w-20 animate-float"><${GameIcon} name="bonus" className="h-full w-full" /></div>
           <h2 className="text-2xl font-display font-black text-neon-green">C'est votre défi !</h2>
           <p className="text-white/50 text-sm">Regardez l'écran TV et réalisez le défi !</p>
         </div>
@@ -293,7 +297,7 @@ export default function PlayerGame() {
       const who = players.find(p => p.id === selId || p.playerId === selId);
       return html`
         <div className="rounded-2xl bg-bg-card border border-white/8 p-6 text-center">
-          <div className="text-4xl mb-3">🎬</div>
+          <div className="mx-auto mb-3 h-14 w-14"><${GameIcon} name="karaoke" className="h-full w-full" /></div>
           <p className="text-white/60 mb-1"><strong className="text-white">${who?.pseudo || selectedName || 'Un candidat'}</strong> est interroge.</p>
           <p className="text-white/40 text-sm">Regardez l'écran TV !</p>
           <${Dots} />
@@ -309,7 +313,7 @@ export default function PlayerGame() {
 
       if (!sel && !selTeam) return html`
         <div className="rounded-2xl bg-amber-500/10 border border-amber-500/25 p-6 text-center">
-          <div className="text-4xl mb-3">🍔</div>
+          <div className="mx-auto mb-3 h-14 w-14"><${GameIcon} name="burger" className="h-full w-full" /></div>
           <h2 className="text-xl font-bold text-amber-400">Burger de la Mort</h2>
           <p className="text-white/50 text-sm mt-2">Le maître de jeu choisit le joueur…</p>
           <${Dots} />
@@ -320,7 +324,7 @@ export default function PlayerGame() {
         const selPlayer = players.find(p => p.id === sel || p.playerId === sel);
         return html`
           <div className="rounded-2xl bg-bg-card border border-white/8 p-6 text-center">
-            <div className="text-4xl mb-3">🍔</div>
+            <div className="mx-auto mb-3 h-14 w-14"><${GameIcon} name="burger" className="h-full w-full" /></div>
             <p className="text-white/50"><strong className="text-amber-400">${selPlayer?.pseudo || gs?.burgerSelectedPseudo || 'Un candidat'}</strong> est interroge.</p>
             <p className="text-white/30 text-sm mt-2">Regardez l'écran TV !</p>
             <${Dots} />
@@ -330,7 +334,7 @@ export default function PlayerGame() {
 
       if (isMe) return html`
         <div className="flex flex-col items-center gap-4 py-8 text-center animate-bounce-in">
-          <div className="text-6xl">🍔</div>
+          <div className="h-20 w-20"><${GameIcon} name="burger" className="h-full w-full" /></div>
           <h2 className="text-2xl font-display font-black text-amber-400">L'admin vous interroge !</h2>
           <p className="text-white/50 text-sm">Regardez l'ecran TV et repondez oralement quand il vous le demande.</p>
         </div>
@@ -340,7 +344,7 @@ export default function PlayerGame() {
       return html`
         <div className="flex flex-col gap-4">
           <div className="text-center">
-            <div className="text-4xl mb-2">🍔</div>
+            <div className="mx-auto mb-2 h-14 w-14"><${GameIcon} name="burger" className="h-full w-full" /></div>
             <h2 className="text-xl font-bold text-amber-400">C'est votre tour !</h2>
             <p className="text-white/40 text-sm mt-1">Mémorisez les ingrédients dans l'ordre !</p>
           </div>
@@ -366,7 +370,7 @@ export default function PlayerGame() {
 
       if (iFirst) return html`
         <div className="flex flex-col items-center gap-4 py-6 text-center animate-bounce-in">
-          <div className="text-6xl animate-bounce">❗</div>
+          <div className="h-20 w-20 animate-bounce"><${GameIcon} name="buzzer" className="h-full w-full" /></div>
           <h2 className="text-2xl font-display font-black text-neon-green">Vous avez buzzé en premier !</h2>
           <p className="text-white/50 text-sm">Le maître de jeu va valider…</p>
         </div>
@@ -376,7 +380,7 @@ export default function PlayerGame() {
         const who = players.find(p => p.id === firstId || p.playerId === firstId);
         return html`
           <div className="rounded-2xl bg-rose-500/10 border border-rose-500/25 p-6 text-center">
-            <div className="text-4xl mb-3">❌</div>
+            <div className="mx-auto mb-3 h-14 w-14"><${GameIcon} name="wrong" className="h-full w-full" /></div>
             <p className="text-white/60"><strong className="text-rose-400">${who?.pseudo || 'Quelqu\'un'}</strong> a buzzé en premier.</p>
             <p className="text-white/30 text-sm mt-1">Attendez la prochaine opportunité…</p>
           </div>
@@ -386,7 +390,7 @@ export default function PlayerGame() {
       // Cooldown après mauvaise réponse — afficher le décompte
       if (isCooldown) return html`
         <div className="flex flex-col items-center gap-6 py-8 animate-fade-in">
-          <div className="text-5xl">❌</div>
+          <div className="h-16 w-16"><${GameIcon} name="wrong" className="h-full w-full" /></div>
           <h2 className="text-xl font-display font-black text-rose-400">Mauvaise réponse !</h2>
           <div className="flex flex-col items-center gap-2">
             <div
@@ -435,7 +439,7 @@ export default function PlayerGame() {
               boxShadow: `0 0 32px ${bzBorder}55, 0 0 8px ${bzBorder}33`,
             }}
           >
-            🔔 BUZZ !
+            <${GameIcon} name="buzzer" className="h-8 w-8" /> BUZZ !
           </button>
           ${totalSec > 0 && remSec > 0 && html`
             <div className="text-xs font-mono font-bold" style=${{ color: bzBorder }}>
@@ -450,7 +454,7 @@ export default function PlayerGame() {
     if (isTrueFalse) {
       if (locked || alreadyAnswered) return html`
         <div className="text-center py-6">
-          <div className="text-5xl mb-4">✅</div>
+          <div className="mx-auto mb-4 h-16 w-16"><${GameIcon} name="correct" className="h-full w-full" /></div>
           <h2 className="text-xl font-bold text-neon-green">Réponse envoyée !</h2>
           <p className="text-white/40 text-sm mt-2">En attente des autres joueurs…</p>
           <${Dots} />
@@ -468,14 +472,14 @@ export default function PlayerGame() {
               onClick=${() => sendAnswer('vrai')}
               className="mobile-choice flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-neon-green/40 bg-neon-green/8 font-display font-black text-xl text-neon-green active:scale-95 transition-all hover:bg-neon-green/15"
             >
-              <span className="text-4xl">✅</span>
+              <${GameIcon} name="correct" className="h-12 w-12" />
               VRAI
             </button>
             <button
               onClick=${() => sendAnswer('faux')}
               className="mobile-choice flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-rose-500/40 bg-rose-500/8 font-display font-black text-xl text-rose-400 active:scale-95 transition-all hover:bg-rose-500/15"
             >
-              <span className="text-4xl">❌</span>
+              <${GameIcon} name="wrong" className="h-12 w-12" />
               FAUX
             </button>
           </div>
@@ -486,7 +490,7 @@ export default function PlayerGame() {
     // ── Vote : question affichée, joueurs en standby ────────────
     if (isVoteQuestion) return html`
       <div className="rounded-2xl bg-blue-500/10 border border-blue-500/25 p-6 text-center">
-        <div className="text-5xl mb-4">🗳️</div>
+        <div className="mx-auto mb-4 h-16 w-16"><${GameIcon} name="vote" className="h-full w-full" /></div>
         <h2 className="text-xl font-bold text-blue-400">Use Your Words</h2>
         <p className="text-white/50 text-sm mt-2">Regardez l'écran TV…</p>
         <${Dots} />
@@ -498,7 +502,7 @@ export default function PlayerGame() {
       const serverLocked = gs?.phaseMeta?.playerScreenLocked;
       if (serverLocked) return html`
         <div className="text-center py-6">
-          <div className="text-5xl mb-4">🔒</div>
+          <div className="mx-auto mb-4 h-16 w-16"><${UiIcon} name="settings" className="h-full w-full text-white/55" /></div>
           <h2 className="text-xl font-bold text-amber-400">Saisie terminée</h2>
           <p className="text-white/40 text-sm mt-2">L'animateur va lancer le vote…</p>
           <${Dots} />
@@ -506,7 +510,7 @@ export default function PlayerGame() {
       `;
       if (locked) return html`
         <div className="text-center py-6">
-          <div className="text-5xl mb-4">✅</div>
+          <div className="mx-auto mb-4 h-16 w-16"><${GameIcon} name="correct" className="h-full w-full" /></div>
           <h2 className="text-xl font-bold text-neon-green">Réponse envoyée !</h2>
           <p className="text-white/40 text-sm mt-2">En attente du vote…</p>
           <${Dots} />
@@ -526,7 +530,7 @@ export default function PlayerGame() {
             />
           </div>
           <${Btn} variant="primary" wide onClick=${sendVoteText} disabled=${!voteText.trim()}>
-            📤 Envoyer ma réponse
+            <${UiIcon} name="play" className="h-5 w-5" /> Envoyer ma réponse
           <//>
         </div>
       `;
@@ -538,7 +542,7 @@ export default function PlayerGame() {
       const serverLockedVoting = gs?.phaseMeta?.playerScreenLocked;
       if (serverLockedVoting) return html`
         <div className="text-center py-6">
-          <div className="text-5xl mb-4">🔒</div>
+          <div className="mx-auto mb-4 h-16 w-16"><${UiIcon} name="settings" className="h-full w-full text-white/55" /></div>
           <h2 className="text-xl font-bold text-amber-400">Vote terminé</h2>
           <p className="text-white/40 text-sm mt-2">L'animateur va révéler les résultats…</p>
           <${Dots} />
@@ -546,7 +550,7 @@ export default function PlayerGame() {
       `;
       if (locked) return html`
         <div className="text-center py-6">
-          <div className="text-5xl mb-4">✅</div>
+          <div className="mx-auto mb-4 h-16 w-16"><${GameIcon} name="correct" className="h-full w-full" /></div>
           <h2 className="text-xl font-bold text-neon-green">Vote envoyé !</h2>
           <${Dots} />
         </div>
@@ -588,7 +592,7 @@ export default function PlayerGame() {
     // ── Vote révélation / résultats – juste attendre ─────────────
     if (isVoteReveal) return html`
       <div className="rounded-2xl bg-blue-500/10 border border-blue-500/25 p-6 text-center">
-        <div className="text-4xl mb-3">🗳️</div>
+        <div className="mx-auto mb-3 h-14 w-14"><${GameIcon} name="vote" className="h-full w-full" /></div>
         <h2 className="text-xl font-bold text-blue-400">Révélation des votes</h2>
         <p className="text-white/40 text-sm mt-2">Regardez l'écran TV !</p>
         <${Dots} />
@@ -599,7 +603,7 @@ export default function PlayerGame() {
     if (currentQ?.options?.length) {
       if (locked || alreadyAnswered) return html`
         <div className="text-center py-6">
-          <div className="text-5xl mb-4">✅</div>
+          <div className="mx-auto mb-4 h-16 w-16"><${GameIcon} name="correct" className="h-full w-full" /></div>
           <h2 className="text-xl font-bold text-neon-green">Réponse envoyée !</h2>
           <p className="text-white/40 text-sm mt-2">En attente des autres joueurs…</p>
           <${Dots} />
@@ -690,7 +694,7 @@ export default function PlayerGame() {
       const isVrai   = correct === 'vrai' || correct === 'true';
       return html`
         <div className="flex flex-col items-center gap-5 py-6 text-center animate-fade-in">
-          <div className="text-5xl">${isVrai ? '✅' : '❌'}</div>
+          <div className="h-16 w-16"><${GameIcon} name=${isVrai ? 'correct' : 'wrong'} className="h-full w-full" /></div>
           <div
             className=${`rounded-2xl border-2 px-10 py-6 font-display font-black ${isVrai ? 'border-neon-green/50 bg-neon-green/10 text-neon-green' : 'border-rose-500/50 bg-rose-500/10 text-rose-400'}`}
             style=${{ fontSize: 'clamp(2.5rem,8vw,3.5rem)' }}
@@ -706,7 +710,7 @@ export default function PlayerGame() {
     // Toutes les autres manches : ne pas afficher la réponse — économie de bande passante
     return html`
       <div className="flex flex-col items-center gap-4 py-8 text-center animate-fade-in">
-        <div className="text-5xl">📋</div>
+        <div className="h-16 w-16"><${GameIcon} name="round" className="h-full w-full" /></div>
         <h2 className="text-xl font-bold">Réponse révélée</h2>
         <p className="text-white/45 text-sm">Regardez l'écran TV pour voir la correction !</p>
         <${Dots} />
@@ -716,7 +720,7 @@ export default function PlayerGame() {
 
   const renderManualScoring = () => html`
     <div className="rounded-2xl bg-amber-500/10 border border-amber-500/25 p-6 text-center">
-      <div className="text-4xl mb-3">⚖️</div>
+      <div className="mx-auto mb-3 h-14 w-14"><${GameIcon} name="scores" className="h-full w-full" /></div>
       <h2 className="text-xl font-bold text-amber-400">Arbitrage en cours</h2>
       <p className="text-white/45 text-sm mt-2">Le maître de jeu évalue les réponses…</p>
       <${Dots} />
@@ -727,7 +731,7 @@ export default function PlayerGame() {
     const roundScore = myPlayer?.scoreRound ?? myPlayer?.scoreTotal ?? 0;
     return html`
       <div className="flex flex-col items-center gap-4 py-6 text-center animate-bounce-in">
-        <div className="text-5xl">🏁</div>
+        <div className="h-16 w-16"><${GameIcon} name="scores" className="h-full w-full" /></div>
         <h2 className="text-2xl font-display font-black">Fin de la manche</h2>
         <div className="rounded-2xl bg-accent/10 border border-accent/30 px-8 py-4">
           <div className="text-4xl font-display font-black gradient-text">${roundScore}</div>
@@ -747,7 +751,7 @@ export default function PlayerGame() {
     })();
     return html`
       <div className="flex flex-col items-center gap-5 py-6 text-center animate-bounce-in">
-        <div className="text-6xl animate-float">🏆</div>
+        <div className="h-20 w-20 animate-float"><${GameIcon} name="scores" className="h-full w-full" /></div>
         <h2 className="text-3xl font-display font-black gradient-text">Fin du quiz !</h2>
         <div className="rounded-2xl bg-accent/10 border border-accent/30 px-8 py-5">
           <div className="text-5xl font-display font-black gradient-text-green">${total}</div>
@@ -755,7 +759,7 @@ export default function PlayerGame() {
           ${myRank !== '?' && html`<div className="text-lg font-bold text-white/60 mt-2">${myRank === 1 ? '🏆' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : `#${myRank}`} sur ${lb.length}</div>`}
         </div>
         <p className="text-white/40 text-sm">Regardez le classement sur l'écran TV !</p>
-        <${Btn} variant="secondary" onClick=${disconnect}>← Quitter<//>
+        <${Btn} variant="secondary" onClick=${disconnect}><${UiIcon} name="back" className="h-5 w-5" /> Quitter<//>
       </div>
     `;
   };

@@ -78,6 +78,8 @@ export function GameProvider({ children }) {
   const lastBuzzerFirst   = useRef(null);
   const lastBuzzerResult  = useRef(null);
   const lastVoteReveal    = useRef(null);
+  const lastAllAnswered   = useRef(null);
+  const lastAllVoted      = useRef(null);
 
   // ── Navigate ────────────────────────────────────────────────
   const navigate = useCallback((p) => {
@@ -246,6 +248,25 @@ export function GameProvider({ children }) {
           lastVoteReveal.current = null;
         }
 
+        const qId = gs?.currentQuestion?.id;
+        const connCountForCompletion = pls.filter(p => p.connected).length;
+        if (qId && connCountForCompletion > 0 && ['mcq', 'true_false', 'text', 'vote_input'].includes(am)) {
+          const answeredCount = Object.keys(gs?.answers?.[qId] || {}).length;
+          const key = `${qId}:${am}:${answeredCount}/${connCountForCompletion}`;
+          if (answeredCount >= connCountForCompletion && key !== lastAllAnswered.current) {
+            lastAllAnswered.current = key;
+            play('allAnswered');
+          }
+        }
+        if (qId && connCountForCompletion > 0 && am === 'vote_voting') {
+          const votedCount = Object.keys(gs?.voteState?.votes || {}).length;
+          const key = `${qId}:vote:${votedCount}/${connCountForCompletion}`;
+          if (votedCount >= connCountForCompletion && key !== lastAllVoted.current) {
+            lastAllVoted.current = key;
+            play('notification');
+          }
+        }
+
         // ── Countdown timer ──────────────────────────────────────
         const timer   = gs?.phaseMeta?.timer;
         const timerOn = !!(timer?.remainingSec > 0);
@@ -280,6 +301,7 @@ export function GameProvider({ children }) {
   // ── Host action helper ──────────────────────────────────────
   const hostAction = useCallback((action, extra = {}, cb) => {
     if (!socket) return;
+    play('button');
     socket.emit('host:action', {
       sessionCode: hostSession.sessionCode,
       hostKey:     hostSession.hostKey,
@@ -287,13 +309,18 @@ export function GameProvider({ children }) {
       ...extra,
     }, (res) => {
       if (res && !res.ok) {
+        play('error');
         window.dispatchEvent(new CustomEvent('quiz:host-error', {
           detail: { action, message: res.error || 'Action impossible.' },
         }));
+      } else {
+        if (/wrong|deduct|kick|eject|delete|remove/i.test(action)) play('wrong');
+        else if (/correct|score|award|success/i.test(action)) play('success');
+        else if (/reveal|show|next|start|timer|vote|broadcast|unlock/i.test(action)) play('notification');
       }
       if (cb) cb(res);
     });
-  }, [socket, hostSession.sessionCode, hostSession.hostKey]);
+  }, [socket, hostSession.sessionCode, hostSession.hostKey, play]);
 
   // ── API helper ───────────────────────────────────────────────
   const apiFetch = useCallback(async (path, opts = {}) => {

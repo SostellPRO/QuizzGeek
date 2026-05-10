@@ -105,11 +105,10 @@ export const emptyQuestion = (type = 'qcm') => ({
 
 // Round type labels/icons
 export const ROUND_TYPES = {
-  qcm:             { label: 'QCM',             icon: '🔘', color: '#b24bff' },
-  rapidite:        { label: 'Rapidité',        icon: '⚡', color: '#f7971e' },
-  true_false:      { label: 'Vrai / Faux',     icon: '✅', color: '#38ef7d' },
-  burger:          { label: 'Burger de la mort', icon: '🍔', color: '#f7971e' },
-  vote:            { label: 'Vote',            icon: '🗳️', color: '#4facfe' },
-  video_challenge: { label: 'Challenge Vidéo', icon: '🎬', color: '#ff4e6a' },
+  qcm:             { label: 'QCM',             icon: '🔘', iconName: 'category', color: '#b24bff' },
+  rapidite:        { label: 'Rapidité',        icon: '⚡', iconName: 'rapidite', color: '#f7971e' },
+  true_false:      { label: 'Vrai / Faux',     icon: '✅', iconName: 'correct', color: '#38ef7d' },
+  burger:          { label: 'Burger de la mort', icon: '🍔', iconName: 'burger', color: '#f7971e' },
+  vote:            { label: 'Vote',            icon: '🗳️', iconName: 'vote', color: '#4facfe' },
+  video_challenge: { label: 'Challenge Vidéo', icon: '🎬', iconName: 'karaoke', color: '#ff4e6a' },
 };
-

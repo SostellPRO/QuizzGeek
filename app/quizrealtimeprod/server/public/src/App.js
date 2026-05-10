@@ -7,13 +7,20 @@ import PlayerView from './views/player/PlayerView.js';
 import HostView from './views/host/HostView.js';
 import DisplayView from './views/display/DisplayView.js';
 import AdminView from './views/admin/AdminView.js';
+import { GameIcon, UiIcon } from './components/ui.js';
 
 const NAV_LINKS = [
-  { id: 'player', icon: '📱', labelKey: 'nav.play' },
-  { id: 'host', icon: '🎮', labelKey: 'nav.host' },
-  { id: 'admin', icon: '⚙️', labelKey: 'nav.studio' },
+  { id: 'player', iconType: 'ui', iconName: 'profile', labelKey: 'nav.play' },
+  { id: 'host', iconType: 'game', iconName: 'host', labelKey: 'nav.host' },
+  { id: 'admin', iconType: 'ui', iconName: 'settings', labelKey: 'nav.studio' },
 ];
 const THEME_ORDER = ['business', 'party', 'tvshow'];
+
+const navIcon = (item, className = 'h-4 w-4') => (
+  item.iconType === 'game'
+    ? html`<${GameIcon} name=${item.iconName} className=${className} />`
+    : html`<${UiIcon} name=${item.iconName} className=${className} />`
+);
 
 function NavBar() {
   const { page, navigate, lang, setLang, theme, setTheme, t } = useGame();
@@ -36,7 +43,7 @@ function NavBar() {
           onClick=${() => go('home')}
           className="ui-btn ui-btn-ghost inline-flex min-h-[40px] items-center gap-2 rounded-lg app-chip px-3 font-display text-lg font-black hover:border-sky-300/45 hover:text-white"
         >
-          <span className="text-sky-300">⚡</span>
+          <${GameIcon} name="gamepad" className="h-6 w-6" />
           <span className="gradient-text">QuizzGeek</span>
         </button>
 
@@ -52,7 +59,7 @@ function NavBar() {
                     : 'text-white/48 hover:bg-white/8 hover:text-white'
                 }`}
               >
-                <span>${l.icon}</span>
+                ${navIcon(l)}
                 <span>${t(l.labelKey)}</span>
               </button>
             `)}
@@ -61,7 +68,7 @@ function NavBar() {
               className="ui-btn ui-btn-ghost flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-extrabold text-white/48 hover:bg-white/8 hover:text-white"
               title=${t('nav.openScreen')}
             >
-              <span>📺</span>
+              <${GameIcon} name="display" className="h-4 w-4" />
               <span>${t('nav.screen')}</span>
               <span className="text-[10px] text-white/30">↗</span>
             </button>

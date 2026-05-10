@@ -1,30 +1,37 @@
 import { html } from '../utils.js';
 import { useGame } from '../contexts/GameContext.js';
+import { GameIcon, UiIcon } from '../components/ui.js';
 
 const ROLES = [
-  { id: 'player', icon: '🎮', labelKey: 'role.player.label', subKey: 'role.player.sub', color: 'from-sky-500 to-violet-600', glow: 'rgba(124,92,255,.30)', accent: '#7c5cff' },
-  { id: 'host', icon: '🎬', labelKey: 'role.host.label', subKey: 'role.host.sub', color: 'from-teal-400 to-emerald-500', glow: 'rgba(45,212,130,.25)', accent: '#2dd4bf' },
-  { id: 'display', icon: '📺', labelKey: 'role.display.label', subKey: 'role.display.sub', color: 'from-cyan-400 to-blue-500', glow: 'rgba(56,189,248,.25)', accent: '#38bdf8' },
-  { id: 'admin', icon: '⚙️', labelKey: 'role.admin.label', subKey: 'role.admin.sub', color: 'from-amber-400 to-rose-500', glow: 'rgba(245,158,11,.25)', accent: '#f59e0b' },
+  { id: 'player', iconType: 'game', iconName: 'profile', labelKey: 'role.player.label', subKey: 'role.player.sub', color: 'from-sky-500 to-violet-600', glow: 'rgba(124,92,255,.30)', accent: '#7c5cff' },
+  { id: 'host', iconType: 'game', iconName: 'host', labelKey: 'role.host.label', subKey: 'role.host.sub', color: 'from-teal-400 to-emerald-500', glow: 'rgba(45,212,130,.25)', accent: '#2dd4bf' },
+  { id: 'display', iconType: 'game', iconName: 'display', labelKey: 'role.display.label', subKey: 'role.display.sub', color: 'from-cyan-400 to-blue-500', glow: 'rgba(56,189,248,.25)', accent: '#38bdf8' },
+  { id: 'admin', iconType: 'ui', iconName: 'settings', labelKey: 'role.admin.label', subKey: 'role.admin.sub', color: 'from-amber-400 to-rose-500', glow: 'rgba(245,158,11,.25)', accent: '#f59e0b' },
 ];
 
 const MODES = [
-  { icon: '🧠', labelKey: 'qtype.qcm', color: '#7c5cff' },
-  { icon: '✅', labelKey: 'qtype.true_false', color: '#2dd4bf' },
-  { icon: '⚡', labelKey: 'qtype.rapidite', color: '#f59e0b' },
-  { icon: '🗳️', labelKey: 'qtype.vote', color: '#38bdf8' },
-  { icon: '🍔', labelKey: 'qtype.burger', color: '#fb923c' },
-  { icon: '🎬', labelKey: 'qtype.video_challenge', color: '#fb7185' },
+  { iconName: 'category', labelKey: 'qtype.qcm', color: '#7c5cff' },
+  { iconName: 'correct', labelKey: 'qtype.true_false', color: '#2dd4bf' },
+  { iconName: 'rapidite', labelKey: 'qtype.rapidite', color: '#f59e0b' },
+  { iconName: 'vote', labelKey: 'qtype.vote', color: '#38bdf8' },
+  { iconName: 'burger', labelKey: 'qtype.burger', color: '#fb923c' },
+  { iconName: 'karaoke', labelKey: 'qtype.video_challenge', color: '#fb7185' },
 ];
 
 const FEATURES = [
-  { icon: '🧠', titleKey: 'feature.qcm.title', descKey: 'feature.qcm.desc', color: '#7c5cff' },
-  { icon: '⚡', titleKey: 'feature.buzzer.title', descKey: 'feature.buzzer.desc', color: '#f59e0b' },
-  { icon: '🗳️', titleKey: 'feature.vote.title', descKey: 'feature.vote.desc', color: '#38bdf8' },
-  { icon: '🍔', titleKey: 'feature.burger.title', descKey: 'feature.burger.desc', color: '#fb923c' },
-  { icon: '🎬', titleKey: 'feature.video.title', descKey: 'feature.video.desc', color: '#fb7185' },
-  { icon: '🏆', titleKey: 'feature.ceremony.title', descKey: 'feature.ceremony.desc', color: '#2dd4bf' },
+  { iconName: 'category', titleKey: 'feature.qcm.title', descKey: 'feature.qcm.desc', color: '#7c5cff' },
+  { iconName: 'buzzer', titleKey: 'feature.buzzer.title', descKey: 'feature.buzzer.desc', color: '#f59e0b' },
+  { iconName: 'vote', titleKey: 'feature.vote.title', descKey: 'feature.vote.desc', color: '#38bdf8' },
+  { iconName: 'burger', titleKey: 'feature.burger.title', descKey: 'feature.burger.desc', color: '#fb923c' },
+  { iconName: 'karaoke', titleKey: 'feature.video.title', descKey: 'feature.video.desc', color: '#fb7185' },
+  { iconName: 'scores', titleKey: 'feature.ceremony.title', descKey: 'feature.ceremony.desc', color: '#2dd4bf' },
 ];
+
+const roleIcon = (r) => (
+  r.iconType === 'ui'
+    ? html`<${UiIcon} name=${r.iconName} className="h-full w-full" />`
+    : html`<${GameIcon} name=${r.iconName} className="h-full w-full" />`
+);
 
 export default function Home() {
   const { navigate, t } = useGame();
@@ -61,7 +68,7 @@ export default function Home() {
         <div className="flex flex-wrap justify-center gap-2">
           ${MODES.map(m => html`
             <span key=${m.labelKey} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold" style=${{ background: m.color + '18', border: '1px solid ' + m.color + '40', color: m.color }}>
-              ${m.icon} ${t(m.labelKey)}
+              <${GameIcon} name=${m.iconName} className="h-5 w-5" /> ${t(m.labelKey)}
             </span>
           `)}
         </div>
@@ -79,7 +86,7 @@ export default function Home() {
               <div className="relative z-10 flex flex-col gap-3 h-full">
                 <div className="flex items-start justify-between">
                   <span className="flex items-center justify-center rounded-xl app-panel transition-transform duration-300 group-hover:scale-110" style=${{ width:'clamp(44px,7vw,56px)', height:'clamp(44px,7vw,56px)', fontSize:'clamp(1.4rem,3vw,1.8rem)' }}>
-                    ${r.icon}
+                    ${roleIcon(r)}
                   </span>
                   <span className="rounded-full bg-white/6 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-white/35 group-hover:text-white/55 transition-colors mt-1">↗</span>
                 </div>
@@ -104,7 +111,7 @@ export default function Home() {
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           ${FEATURES.map(f => html`
             <div key=${f.titleKey} className="rounded-xl app-panel flex items-start gap-3" style=${{ padding:'clamp(12px,2vw,16px)' }}>
-              <span className="flex-shrink-0 flex items-center justify-center rounded-lg mt-0.5" style=${{ width:'36px', height:'36px', fontSize:'1.25rem', background: f.color + '18', border:'1px solid '+f.color+'30' }}>${f.icon}</span>
+              <span className="flex-shrink-0 flex items-center justify-center rounded-lg mt-0.5" style=${{ width:'36px', height:'36px', background: f.color + '18', border:'1px solid '+f.color+'30' }}><${GameIcon} name=${f.iconName} className="h-7 w-7" /></span>
               <div>
                 <div className="font-black text-white" style=${{ fontSize:'.88rem' }}>${t(f.titleKey)}</div>
                 <div className="mt-0.5 leading-4 text-white/38" style=${{ fontSize:'.75rem' }}>${t(f.descKey)}</div>
@@ -115,7 +122,7 @@ export default function Home() {
 
         <div className="text-center pb-2">
           <button onClick=${() => go('admin')} className="ui-btn ui-btn-secondary inline-flex items-center gap-2 rounded-xl px-5 py-2.5 font-bold text-white/70 transition-all hover:text-white app-surface" style=${{ fontSize:'.85rem', border:'1px solid rgba(255,255,255,.06)' }}>
-            ⚙️ ${t('home.createQuiz')}
+            <${UiIcon} name="settings" className="h-4 w-4" /> ${t('home.createQuiz')}
           </button>
         </div>
       </div>

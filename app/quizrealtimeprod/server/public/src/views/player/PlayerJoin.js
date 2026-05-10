@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { html } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
-import { Btn, Alert } from '../../components/ui.js';
+import { Btn, Alert, UiIcon } from '../../components/ui.js';
 
 const AVATARS = [
   '😀','😎','🤓','🥳','🤩','😄','🚀','⚡','🔥','🎸',
@@ -48,17 +48,19 @@ export default function PlayerJoin({ suggestedCode = '' }) {
     try { navigator.vibrate?.([16, 24, 36]); } catch {}
     const sessionCode = code.trim().toUpperCase();
     const p = pseudo.trim();
-    if (!sessionCode) { setAlert({ type: 'error', message: `${t('common.sessionCode')} requis.` }); return; }
-    if (!p) { setAlert({ type: 'error', message: `${t('player.pseudo')} requis.` }); return; }
+    if (!sessionCode) { soundPlay?.('error'); setAlert({ type: 'error', message: `${t('common.sessionCode')} requis.` }); return; }
+    if (!p) { soundPlay?.('error'); setAlert({ type: 'error', message: `${t('player.pseudo')} requis.` }); return; }
     if (!socket) return;
     setLoading(true);
     setAlert(null);
     socket.emit('join:player', { sessionCode, pseudo: p, teamId: teamId || null, avatar }, (res) => {
       setLoading(false);
       if (!res?.ok) {
+        soundPlay?.('error');
         setAlert({ type: 'error', message: res?.error || 'Connexion impossible.' });
         return;
       }
+      soundPlay?.('success');
       const player = res.player || {};
       const session = {
         playerId: player.id,
@@ -81,7 +83,7 @@ export default function PlayerJoin({ suggestedCode = '' }) {
     <div className="flex min-h-[100dvh] items-center justify-center px-4 py-6">
       <div className="w-full max-w-md animate-fade-in">
         <button onClick=${() => navigate('home')} className="mb-5 inline-flex rounded-lg app-chip px-3 py-2 text-sm font-bold text-white/58 transition-colors hover:text-white">
-          ← ${t('common.home')}
+          <${UiIcon} name="back" className="mr-1 h-4 w-4" /> ${t('common.home')}
         </button>
 
         <div className="rounded-lg app-surface p-5 sm:p-6">

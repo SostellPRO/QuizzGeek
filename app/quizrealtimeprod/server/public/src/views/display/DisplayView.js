@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { html, resolveMedia, mediaKind, ROUND_TYPES, OPTION_LABELS } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
-import { Btn, Alert, Dots } from '../../components/ui.js';
+import { Btn, Alert, Dots, GameIcon, UiIcon } from '../../components/ui.js';
 
 // ── Display Connect Screen ────────────────────────────────────
 function DisplayConnect() {
@@ -38,8 +38,8 @@ function DisplayConnect() {
           onClick=${toggleMute}
           title=${musicMuted ? 'Activer la musique' : 'Couper la musique'}
           style=${{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontSize: '1.2rem', lineHeight: '1', color: 'white' }}
-        >${musicMuted ? '🔇' : '🔊'}</button>
-        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-lg app-panel text-5xl">📺</div>
+        ><${UiIcon} name=${musicMuted ? 'mute' : 'volume'} className="h-5 w-5" /></button>
+        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-lg app-panel"><${GameIcon} name="display" className="h-16 w-16" /></div>
         <h1 className="font-display text-5xl font-black gradient-text">Ecran TV</h1>
         <p className="mt-3 text-sm leading-6 text-white/48">Connectez cet ecran a une session pour diffuser le quiz en grand format.</p>
         ${alert && html`<div className="mt-5"><${Alert} type=${alert.type} message=${alert.message} /></div>`}
@@ -193,7 +193,7 @@ function VoteDisplay({ gs, players, curQ }) {
           </p>
         `}
         <div className="flex flex-col items-center gap-3 mt-4">
-          <div style=${{ fontSize: 'clamp(3rem,8vw,5rem)' }}>🗳️</div>
+          <div className="mx-auto h-24 w-24"><${GameIcon} name="vote" className="h-full w-full" /></div>
           <p className="text-white/50 font-bold" style=${{ fontSize: 'clamp(1.2rem,2.5vw,2rem)' }}>
             En attente…
           </p>
@@ -225,7 +225,7 @@ function VoteDisplay({ gs, players, curQ }) {
 
     return html`
       <div className="flex flex-col items-center gap-8 py-12 animate-fade-in">
-        <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🗳️</div>
+        <div className="mx-auto h-28 w-28"><${GameIcon} name="vote" className="h-full w-full" /></div>
         <h2 className="gradient-text-fire font-display font-black text-center"
             style=${{ fontSize: 'clamp(2.5rem,7vw,5rem)' }}>
           Répondez maintenant !
@@ -345,7 +345,7 @@ function VoteDisplay({ gs, players, curQ }) {
     return html`
       <div className="flex flex-col gap-5 animate-fade-in">
         <h2 className="gradient-text font-display font-black text-center" style=${{ fontSize: 'clamp(1.8rem,4vw,3rem)' }}>
-          🗳️ Votez pour une réponse !
+          <${GameIcon} name="vote" className="inline-flex h-10 w-10" /> Votez pour une réponse !
         </h2>
         <div className="flex items-center justify-center gap-3 mb-2">
           <span style=${{ fontSize: 'clamp(1rem,2vw,1.5rem)', color: 'rgba(255,255,255,.5)' }}>${totalVotes} / ${conn} votes</span>
@@ -435,7 +435,7 @@ function BuzzerDisplay({ gs, players }) {
     const isCorrect = blr.result === 'correct';
     return html`
       <div className="flex flex-col items-center gap-6 animate-bounce-in">
-        <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>${isCorrect ? '✅' : '❌'}</div>
+        <div className="mx-auto h-28 w-28"><${GameIcon} name=${isCorrect ? 'correct' : 'wrong'} className="h-full w-full" /></div>
         <div className="text-center">
           <div style=${{ fontSize: 'clamp(1.2rem,3vw,2.2rem)', fontWeight:'700', color: isCorrect ? '#2dd4bf' : '#ff4e6a' }}>
             ${isCorrect ? 'CORRECT !' : 'FAUX !'}
@@ -449,7 +449,7 @@ function BuzzerDisplay({ gs, players }) {
   if (!firstId) {
     return html`
       <div className="flex flex-col items-center gap-5 animate-fade-in">
-        <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🔔</div>
+        <div className="mx-auto h-28 w-28"><${GameIcon} name="buzzer" className="h-full w-full" /></div>
         <h2 className="font-display font-black gradient-text text-center"
             style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>
           Buzzers actifs
@@ -676,7 +676,7 @@ function AllAnsweredBurst({ show }) {
         textShadow: '0 0 30px rgba(45,212,191,0.8)',
         whiteSpace: 'nowrap',
       }}>
-        ✅ Tous ont répondu !
+        <${GameIcon} name="correct" className="inline-flex h-8 w-8" /> Tous ont répondu !
       </div>
     </div>
   `;
@@ -750,7 +750,7 @@ export default function DisplayView() {
              style=${welcomeImg ? { backgroundImage:`url('${welcomeImg}')`, backgroundSize:'cover', backgroundPosition:'center' } : {}}>
           ${welcomeImg && html`<div className="bg-overlay" />`}
           <div className="relative z-10 flex flex-col items-center justify-center flex-1 gap-6 px-8 py-12">
-            <div style=${{ fontSize: 'clamp(4rem,10vw,7rem)' }}>🎮</div>
+            <div className="mx-auto h-28 w-28"><${GameIcon} name="gamepad" className="h-full w-full" /></div>
             <h1 className="font-display font-black gradient-text text-center"
                 style=${{ fontSize: 'clamp(2.5rem,7vw,6rem)' }}>
               ${gs?.quizTitle || 'Quiz Live'}
@@ -1030,7 +1030,7 @@ export default function DisplayView() {
       if (bfs?.scored) {
         return html`
           <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-8 px-8 animate-bounce-in">
-            <div style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>🍔</div>
+            <div className="mx-auto h-28 w-28"><${GameIcon} name="burger" className="h-full w-full" /></div>
             <p className="font-display font-black text-amber-400 text-center"
                style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>
               ${bfs.pseudo || selectedPseudo}
@@ -1083,7 +1083,7 @@ export default function DisplayView() {
 
       return html`
         <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-8 px-8 animate-fade-in">
-          <div style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>🍔</div>
+          <div className="mx-auto h-28 w-28"><${GameIcon} name="burger" className="h-full w-full" /></div>
           <h1 className="font-display font-black gradient-text-fire text-center"
               style=${{ fontSize: 'clamp(2.5rem,7vw,5rem)' }}>
             Burger de la Mort
@@ -1212,11 +1212,11 @@ export default function DisplayView() {
           `}
           <div className="flex justify-center gap-8 mt-4">
             <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-neon-green/40 bg-neon-green/10 px-12 py-8">
-              <span style=${{ fontSize: 'clamp(3rem,7vw,5rem)' }}>✅</span>
+              <span className="inline-flex h-24 w-24"><${GameIcon} name="correct" className="h-full w-full" /></span>
               <span className="font-display font-black text-neon-green mt-3" style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>VRAI</span>
             </div>
             <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-rose-500/40 bg-rose-500/10 px-12 py-8">
-              <span style=${{ fontSize: 'clamp(3rem,7vw,5rem)' }}>❌</span>
+              <span className="inline-flex h-24 w-24"><${GameIcon} name="wrong" className="h-full w-full" /></span>
               <span className="font-display font-black text-rose-400 mt-3" style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>FAUX</span>
             </div>
           </div>
@@ -1287,7 +1287,7 @@ export default function DisplayView() {
           <div className="flex justify-center mt-4">
             <div className=${`flex flex-col items-center justify-center rounded-2xl border-2 p-8 ${isVrai ? 'border-neon-green/60 bg-neon-green/15' : 'border-rose-500/60 bg-rose-500/15'}`}
                  style=${{ minWidth: 'clamp(200px,40vw,500px)' }}>
-              <span style=${{ fontSize: 'clamp(5rem,15vw,10rem)' }}>${isVrai ? '✅' : '❌'}</span>
+              <span className="inline-flex h-32 w-32"><${GameIcon} name=${isVrai ? 'correct' : 'wrong'} className="h-full w-full" /></span>
               <span className=${`font-display font-black mt-4 ${isVrai ? 'text-neon-green' : 'text-rose-400'}`}
                     style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>
                 ${isVrai ? 'VRAI' : 'FAUX'}
@@ -1353,7 +1353,7 @@ export default function DisplayView() {
       ${bgUrl && html`<div className="bg-overlay" />`}
       ${(displaySession?.connected || gs?.sessionCode) && html`
         <div className="join-code-badge">
-          <span className="text-xl">📱</span>
+          <${UiIcon} name="profile" className="h-6 w-6" />
           <span className="flex flex-col gap-1">
             <span className="label">${t('common.sessionCode')}</span>
             <span className="code">${gs?.sessionCode || displaySession?.sessionCode || ''}</span>
@@ -1377,7 +1377,7 @@ export default function DisplayView() {
       `}
       <${AllAnsweredBurst} show=${showBurst} />
       <button className="music-mute-btn" onClick=${toggleMute} title=${musicMuted ? 'Activer la musique' : 'Couper la musique'}>
-        ${musicMuted ? '🔇' : '🔊'}
+        <${UiIcon} name=${musicMuted ? 'mute' : 'volume'} className="h-6 w-6" />
       </button>
     </div>
   `;
