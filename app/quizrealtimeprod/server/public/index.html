@@ -563,6 +563,25 @@
         transition-duration: .01ms !important;
       }
     }
+
+    .game-icon-mono {
+      color: currentColor;
+      filter: drop-shadow(0 8px 16px rgba(0,0,0,.18));
+    }
+    .game-icon-mono * {
+      fill: none !important;
+      stroke: currentColor !important;
+      stroke-width: 4.2 !important;
+      stroke-linecap: round !important;
+      stroke-linejoin: round !important;
+      opacity: 1 !important;
+    }
+    .game-icon-mono circle,
+    .game-icon-mono rect,
+    .game-icon-mono ellipse,
+    .game-icon-mono path {
+      vector-effect: non-scaling-stroke;
+    }
   </style>
   <script type="importmap">
   {

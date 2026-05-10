@@ -78,8 +78,8 @@ export const UiIcon = ({ name = 'settings', className = '', title = '' }) => htm
 `;
 
 export const GameIcon = ({ name = 'category', className = '', title = '' }) => html`
-  <span className=${'inline-flex items-center justify-center leading-none align-[-0.16em] drop-shadow-[0_8px_16px_rgba(0,0,0,.22)] ' + className} title=${title} aria-hidden=${title ? undefined : 'true'}>
-    <svg viewBox="0 0 64 64" className="block h-full w-full overflow-visible" dangerouslySetInnerHTML=${{ __html: GAME_ICON_PATHS[name] || GAME_ICON_PATHS.category }} />
+  <span className=${'game-icon-mono-wrap inline-flex items-center justify-center leading-none align-[-0.16em] text-sky-200 ' + className} title=${title} aria-hidden=${title ? undefined : 'true'}>
+    <svg viewBox="0 0 64 64" className="game-icon-mono block h-full w-full overflow-visible" dangerouslySetInnerHTML=${{ __html: GAME_ICON_PATHS[name] || GAME_ICON_PATHS.category }} />
   </span>
 `;
 

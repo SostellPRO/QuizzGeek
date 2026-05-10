@@ -6,7 +6,7 @@ const SND_MAP = {
   answer:            { src: '/sounds/04button.mp3',                vol: 0.46 },
   vote:              { src: '/sounds/04button.mp3',                vol: 0.46 },
   select:            { src: '/sounds/04button.mp3',                vol: 0.42 },
-  buzzer:            { src: '/sounds/buzzer.mp3',                  vol: 0.82 },
+  buzzer:            { src: '/sounds/06error2.mp3',                vol: 0.78 },
   correct:           { src: '/sounds/05confirm%20success.mp3',     vol: 0.76 },
   success:           { src: '/sounds/05confirm%20success.mp3',     vol: 0.68 },
   rightNotification: { src: '/sounds/02right%20notification.mp3',  vol: 0.56 },
@@ -14,10 +14,10 @@ const SND_MAP = {
   allAnswered:       { src: '/sounds/03notification.mp3',          vol: 0.62 },
   wrong:             { src: '/sounds/01wrong%20answer.mp3',        vol: 0.72 },
   error:             { src: '/sounds/06error2.mp3',                vol: 0.68 },
-  deduct:            { src: '/sounds/01wrong%20answer.mp3',        vol: 0.65 },
+  deduct:            { src: '/sounds/deduct.mp3',                  vol: 0.68 },
   cashRegister:      { src: '/sounds/cashregister.mp3',            vol: 0.62 },
   fanfare:           { src: '/sounds/fanfare.mp3',                 vol: 0.72 },
-  bell:              { src: '/sounds/03notification.mp3',          vol: 0.58 },
+  bell:              { src: '/sounds/bell.mp3',                    vol: 0.66 },
   countdown:         { src: '/sounds/countdown.mp3',               vol: 0.55 },
 };
 

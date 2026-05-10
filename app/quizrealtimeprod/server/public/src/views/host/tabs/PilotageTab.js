@@ -511,8 +511,8 @@ export default function PilotageTab() {
           </div>
         `}
         <div className="grid grid-cols-2 gap-2 mb-2">
-          <${Btn} variant="ghost" size="sm" onClick=${() => ha('prev_round')}>◀◀ ${t('host.prevRound')}</${Btn}>
-          <${Btn} variant="ghost" size="sm" onClick=${() => ha('next_round')}>${t('host.nextRound')} ▶▶</${Btn}>
+          <${Btn} variant="ghost" size="sm" feedback=${false} onClick=${() => ha('prev_round')}>◀◀ ${t('host.prevRound')}</${Btn}>
+          <${Btn} variant="ghost" size="sm" feedback=${false} onClick=${() => ha('next_round')}>${t('host.nextRound')} ▶▶</${Btn}>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <${Btn} variant="ghost" size="sm" onClick=${() => ha('show_results')}>📊 ${t('host.results')}</${Btn}>

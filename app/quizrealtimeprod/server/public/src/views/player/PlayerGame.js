@@ -123,7 +123,7 @@ export default function PlayerGame() {
         setAlert({ type: 'error', message: res?.error || 'Erreur.' });
         setLocked(false);
       } else {
-        soundPlay?.('rightNotification');
+        soundPlay?.('button');
       }
     });
   }, [socket, s, soundPlay]); // eslint-disable-line
@@ -134,7 +134,7 @@ export default function PlayerGame() {
     vibrate([30, 50, 80]); // triple pulse pour le buzz
     socket.emit('player:buzzer', { sessionCode: s.sessionCode, playerId: s.playerId }, (res) => {
       if (!res?.ok) { soundPlay?.('error'); setAlert({ type: 'error', message: res?.error || 'Buzzer refusé.' }); }
-      else soundPlay?.('rightNotification');
+      else soundPlay?.('button');
     });
   }, [socket, s, soundPlay]); // eslint-disable-line
 
@@ -146,7 +146,7 @@ export default function PlayerGame() {
     vibrate([18, 24, 42]);
     setLocked(true);
     socket.emit('player:answer', { sessionCode: s.sessionCode, playerId: s.playerId, answer: txt }, (res) => {
-      if (res?.ok) { setVoteText(''); soundPlay?.('rightNotification'); }
+      if (res?.ok) { setVoteText(''); soundPlay?.('button'); }
       else { soundPlay?.('error'); setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
     });
   }, [socket, s, voteText, soundPlay]); // eslint-disable-line
@@ -159,7 +159,7 @@ export default function PlayerGame() {
     setLocked(true);
     socket.emit('player:vote', { sessionCode: s.sessionCode, playerId: s.playerId, index }, (res) => {
       if (!res?.ok) { soundPlay?.('error'); setAlert({ type: 'error', message: res?.error || 'Erreur.' }); setLocked(false); }
-      else soundPlay?.('rightNotification');
+      else soundPlay?.('button');
     });
   }, [socket, s, locked, soundPlay]); // eslint-disable-line
 

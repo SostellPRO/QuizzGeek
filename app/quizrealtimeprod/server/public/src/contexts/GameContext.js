@@ -228,7 +228,7 @@ export function GameProvider({ children }) {
         const blr = gs?.buzzerLastResult;
         if (blr?.at && blr.at !== lastBuzzerResult.current) {
           lastBuzzerResult.current = blr.at;
-          play(blr.result === 'correct' ? 'correct' : 'wrong');
+          play(blr.result === 'correct' ? 'correct' : 'deduct');
         }
 
         // ── Vote reveal sound ─────────────────────────────────────
@@ -242,7 +242,7 @@ export function GameProvider({ children }) {
           if (prevCursor != null) {
             // L'option qui vient d'être révélée est à l'index (vrc - 1)
             const justRevealedOption = gs?.voteState?.options?.[vrc - 1];
-            play(justRevealedOption?.isDecoy ? 'wrong' : 'cashRegister');
+            play(justRevealedOption?.isDecoy ? 'deduct' : 'cashRegister');
           }
         } else if (am !== 'vote_revealing' && am !== 'vote_revealed') {
           lastVoteReveal.current = null;
@@ -301,7 +301,8 @@ export function GameProvider({ children }) {
   // ── Host action helper ──────────────────────────────────────
   const hostAction = useCallback((action, extra = {}, cb) => {
     if (!socket) return;
-    play('button');
+    const isRoundNav = action === 'next_round' || action === 'prev_round';
+    play(isRoundNav ? 'bell' : 'notification');
     socket.emit('host:action', {
       sessionCode: hostSession.sessionCode,
       hostKey:     hostSession.hostKey,
@@ -314,9 +315,11 @@ export function GameProvider({ children }) {
           detail: { action, message: res.error || 'Action impossible.' },
         }));
       } else {
-        if (/wrong|deduct|kick|eject|delete|remove/i.test(action)) play('wrong');
+        if (isRoundNav) {
+          // Bell only for previous/next round.
+        } else if (/wrong|deduct|kick|eject|delete|remove/i.test(action)) play('deduct');
         else if (/correct|score|award|success/i.test(action)) play('success');
-        else if (/reveal|show|next|start|timer|vote|broadcast|unlock/i.test(action)) play('notification');
+        else if (/reveal|show|start|timer|vote|broadcast|unlock/i.test(action)) play('notification');
       }
       if (cb) cb(res);
     });
