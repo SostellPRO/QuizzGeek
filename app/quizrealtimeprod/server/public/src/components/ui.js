@@ -53,22 +53,136 @@ const SYSTEM_ICON_PATHS = {
 };
 
 const GAME_ICON_PATHS = {
-  buzzer: '<circle cx="32" cy="32" r="27" fill="#240817"/><circle cx="32" cy="33" r="22" fill="#631427"/><ellipse cx="32" cy="27" rx="17" ry="12" fill="#ff4964"/><path d="M17 44c7 8 23 8 30 0" fill="none" stroke="#ffb3be" stroke-width="3" stroke-linecap="round"/><path d="M15 14 8 8M49 14l7-6M8 32H2M62 32h-6" stroke="#ffd166" stroke-width="4" stroke-linecap="round"/>',
-  round: '<path d="M18 54V11" stroke="#d7e2ff" stroke-width="5" stroke-linecap="round"/><path d="M20 12c10-7 18 7 28 0v24c-10 7-18-7-28 0V12Z" fill="#4facfe"/><path d="M26 14v20M34 17v20M42 14v20" stroke="#12213d" stroke-width="3" opacity=".55"/><path d="M12 55h20" stroke="#f8fafc" stroke-width="5" stroke-linecap="round"/>',
-  category: '<rect x="10" y="14" width="32" height="36" rx="5" fill="#32245f"/><rect x="18" y="8" width="36" height="38" rx="5" fill="#4facfe"/><path d="M25 18h20M25 27h15M25 36h20" stroke="#ecfeff" stroke-width="4" stroke-linecap="round"/>',
-  scores: '<rect x="9" y="34" width="12" height="18" rx="3" fill="#60a5fa"/><rect x="26" y="20" width="12" height="32" rx="3" fill="#ffd166"/><rect x="43" y="28" width="12" height="24" rx="3" fill="#38ef7d"/><path d="M7 54h50" stroke="#f8fafc" stroke-width="4" stroke-linecap="round"/><path d="m32 7 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1 3-6Z" fill="#f5576c"/>',
-  bonus: '<path d="M32 5 39 21l17 2-13 11 4 17-15-9-15 9 4-17L8 23l17-2 7-16Z" fill="#ffd166"/><circle cx="32" cy="31" r="10" fill="#241027"/><path d="M28 31h8M32 27v8" stroke="#ffd166" stroke-width="4" stroke-linecap="round"/>',
-  rapidite: '<path d="M36 4 14 35h15l-4 25 25-35H34l2-21Z" fill="#ffcc00"/><path d="M13 15H5M18 25H3M51 44h8" stroke="#f8fafc" stroke-width="4" stroke-linecap="round"/>',
-  vote: '<rect x="11" y="28" width="42" height="24" rx="5" fill="#4f2678"/><path d="M20 28h24l-4-8H24l-4 8Z" fill="#a78bfa"/><rect x="21" y="10" width="24" height="18" rx="3" fill="#f8fafc"/><path d="M27 19h12" stroke="#4f2678" stroke-width="4" stroke-linecap="round"/><path d="M24 42h16" stroke="#e9d5ff" stroke-width="4" stroke-linecap="round"/>',
-  burger: '<path d="M15 27c3-11 31-11 34 0H15Z" fill="#f8b84e"/><path d="M13 31h38" stroke="#38ef7d" stroke-width="5" stroke-linecap="round"/><path d="M15 38h34" stroke="#ff4964" stroke-width="6" stroke-linecap="round"/><path d="M16 45h32" stroke="#ffd166" stroke-width="6" stroke-linecap="round"/><path d="M18 52h28" stroke="#f8b84e" stroke-width="7" stroke-linecap="round"/><circle cx="26" cy="21" r="1.8" fill="#fff7d6"/><circle cx="35" cy="19" r="1.8" fill="#fff7d6"/>',
-  karaoke: '<rect x="10" y="13" width="27" height="36" rx="5" fill="#1d2b53"/><path d="M17 23h13M17 32h9" stroke="#9ee7ff" stroke-width="4" stroke-linecap="round"/><circle cx="46" cy="20" r="8" fill="#f5576c"/><path d="M42 26 31 49M27 54l8-7" stroke="#f8fafc" stroke-width="5" stroke-linecap="round"/>',
-  music: '<path d="M24 15v29a7 7 0 1 1-4-6V13l26-5v28a7 7 0 1 1-4-6V18l-18 4Z" fill="#38ef7d"/><path d="M11 18c4-5 8-5 12 0M43 49c4 2 8 2 12 0" stroke="#f8fafc" stroke-width="4" stroke-linecap="round"/>',
-  correct: '<circle cx="32" cy="32" r="26" fill="#103d2a"/><path d="m19 33 8 8 18-20" stroke="#38ef7d" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>',
-  wrong: '<circle cx="32" cy="32" r="26" fill="#4a1018"/><path d="M22 22 42 42M42 22 22 42" stroke="#ff6b7a" stroke-width="8" stroke-linecap="round"/>',
-  profile: '<circle cx="32" cy="22" r="12" fill="#4facfe"/><path d="M12 55c4-13 12-20 20-20s16 7 20 20" fill="#1d4ed8"/><path d="M22 44c5 5 15 5 20 0" stroke="#bfdbfe" stroke-width="4" stroke-linecap="round"/>',
-  host: '<path d="M18 45h28l5-23H13l5 23Z" fill="#f093fb"/><path d="M24 45v8M40 45v8M18 53h28" stroke="#f8fafc" stroke-width="4" stroke-linecap="round"/><circle cx="24" cy="30" r="3" fill="#231733"/><circle cx="40" cy="30" r="3" fill="#231733"/><path d="M30 36h4" stroke="#231733" stroke-width="3" stroke-linecap="round"/>',
-  display: '<rect x="8" y="12" width="48" height="32" rx="5" fill="#16213e"/><path d="M17 23h30M17 32h18" stroke="#4facfe" stroke-width="4" stroke-linecap="round"/><path d="M26 50h12M32 44v6" stroke="#f8fafc" stroke-width="4" stroke-linecap="round"/>',
-  gamepad: '<path d="M18 22h28c7 0 12 7 10 14l-3 10c-1 4-7 5-10 2l-5-5H26l-5 5c-3 3-9 2-10-2L8 36c-2-7 3-14 10-14Z" fill="#f5576c"/><path d="M20 34h12M26 28v12" stroke="#fff" stroke-width="4" stroke-linecap="round"/><circle cx="43" cy="32" r="3" fill="#fff"/><circle cx="49" cy="38" r="3" fill="#fff"/>',
+
+  // ── Rôle : Jouer (smartphone + éclair)
+  profile:
+    '<rect x="20" y="6" width="24" height="42" rx="6" fill="#0c2a4a"/>' +
+    '<rect x="23" y="11" width="18" height="28" rx="3" fill="#4facfe"/>' +
+    '<circle cx="32" cy="44" r="2.5" fill="#2a5f8a"/>' +
+    '<path d="M29 18 29 34 43 26Z" fill="#fff"/>' +
+    '<circle cx="46" cy="13" r="8" fill="#7c5cff"/>' +
+    '<path d="M42 17l3 3 5-6" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>',
+
+  // ── Rôle : Animateur (micro)
+  host:
+    '<rect x="24" y="6" width="16" height="26" rx="8" fill="#6b21a8"/>' +
+    '<rect x="27" y="9" width="10" height="20" rx="5" fill="#e879f9"/>' +
+    '<path d="M16 26c0 10 7 16 16 16s16-6 16-16" fill="none" stroke="#e879f9" stroke-width="4.5" stroke-linecap="round"/>' +
+    '<line x1="32" y1="42" x2="32" y2="54" stroke="#e879f9" stroke-width="4.5" stroke-linecap="round"/>' +
+    '<path d="M22 54h20" stroke="#a21caf" stroke-width="4.5" stroke-linecap="round"/>',
+
+  // ── Rôle : Écran TV (moniteur)
+  display:
+    '<rect x="5" y="9" width="54" height="36" rx="6" fill="#0a1f3d"/>' +
+    '<rect x="9" y="13" width="46" height="28" rx="4" fill="#1e3a5f"/>' +
+    '<rect x="14" y="18" width="36" height="3.5" rx="1.7" fill="#4facfe"/>' +
+    '<rect x="14" y="26" width="24" height="3.5" rx="1.7" fill="#4facfe" opacity=".55"/>' +
+    '<rect x="14" y="34" width="16" height="3.5" rx="1.7" fill="#4facfe" opacity=".3"/>' +
+    '<circle cx="46" cy="20" r="4" fill="#38ef7d"/>' +
+    '<path d="M24 49h16M32 45v4" stroke="#2a4a6e" stroke-width="4" stroke-linecap="round"/>',
+
+  // ── QCM : 4 cases avec une sélectionnée
+  category:
+    '<rect x="6" y="8" width="22" height="20" rx="5" fill="#2e1065"/>' +
+    '<rect x="36" y="8" width="22" height="20" rx="5" fill="#7c5cff"/>' +
+    '<rect x="6" y="36" width="22" height="20" rx="5" fill="#2e1065"/>' +
+    '<rect x="36" y="36" width="22" height="20" rx="5" fill="#2e1065"/>' +
+    '<path d="M40 19l3.5 3.5 7-8" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<rect x="10" y="16" width="14" height="3" rx="1.5" fill="#4c1d95"/>' +
+    '<rect x="10" y="44" width="14" height="3" rx="1.5" fill="#4c1d95"/>' +
+    '<rect x="40" y="44" width="14" height="3" rx="1.5" fill="#4c1d95"/>',
+
+  // ── Vrai / Faux : panneau bicolore
+  correct:
+    '<rect x="5" y="8" width="24" height="48" rx="6" fill="#052e16"/>' +
+    '<rect x="35" y="8" width="24" height="48" rx="6" fill="#450a0a"/>' +
+    '<path d="M11 33l7 7 10-12" stroke="#38ef7d" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M39 27l12 14M51 27 39 41" stroke="#ff6b7a" stroke-width="5.5" stroke-linecap="round"/>',
+
+  // ── Rapidité / Buzzer : éclair
+  rapidite:
+    '<path d="M38 5 16 36h14l-5 23 28-34H38l2-20Z" fill="#fbbf24"/>' +
+    '<path d="M38 5 16 36h14l-5 23 28-34H38l2-20Z" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linejoin="round"/>' +
+    '<path d="M10 18H4M8 29H1M56 43h7" stroke="rgba(255,255,255,.5)" stroke-width="3.5" stroke-linecap="round"/>',
+
+  // ── Vote / Use Your Words : bulles de dialogue
+  vote:
+    '<rect x="6" y="6" width="36" height="26" rx="6" fill="#1e3a5f"/>' +
+    '<path d="M6 27l-6 9 14-5" fill="#1e3a5f"/>' +
+    '<rect x="12" y="13" width="10" height="3" rx="1.5" fill="#38bdf8"/>' +
+    '<rect x="12" y="21" width="20" height="3" rx="1.5" fill="#38bdf8" opacity=".6"/>' +
+    '<rect x="22" y="32" width="36" height="24" rx="6" fill="#1a0533"/>' +
+    '<path d="M58 49l6 9-14-4" fill="#1a0533"/>' +
+    '<rect x="28" y="39" width="20" height="3" rx="1.5" fill="#a78bfa"/>' +
+    '<rect x="28" y="47" width="12" height="3" rx="1.5" fill="#a78bfa" opacity=".6"/>',
+
+  // ── Burger de la Mort : couches empilées
+  burger:
+    '<rect x="8" y="48" width="48" height="10" rx="5" fill="#7c2d12"/>' +
+    '<rect x="10" y="36" width="44" height="10" rx="5" fill="#c2410c"/>' +
+    '<rect x="8" y="24" width="48" height="10" rx="5" fill="#ea580c"/>' +
+    '<rect x="10" y="12" width="44" height="10" rx="5" fill="#fb923c"/>' +
+    '<ellipse cx="32" cy="8" rx="20" ry="6" fill="#f8b84e"/>' +
+    '<ellipse cx="24" cy="7" rx="2" ry="1.5" fill="#fff7d6" opacity=".7"/>' +
+    '<ellipse cx="34" cy="6" rx="2" ry="1.5" fill="#fff7d6" opacity=".7"/>',
+
+  // ── Challenge Vidéo : clap de cinéma
+  karaoke:
+    '<rect x="8" y="22" width="40" height="32" rx="6" fill="#1c0a1a"/>' +
+    '<rect x="11" y="26" width="34" height="24" rx="4" fill="#f5576c"/>' +
+    '<circle cx="28" cy="38" r="7" fill="#1c0a1a"/>' +
+    '<circle cx="28" cy="38" r="3.5" fill="#f5576c"/>' +
+    '<path d="M48 30l12-6v24l-12-6V30Z" fill="#9d174d"/>' +
+    '<rect x="8" y="13" width="40" height="9" rx="4" fill="#2d0a2a"/>' +
+    '<path d="M16 13l4 9M26 13l4 9M36 13l4 9" stroke="#f5576c" stroke-width="3" stroke-linecap="round"/>',
+
+  // ── Buzzer (Feature) : bouton d'alarme
+  buzzer:
+    '<circle cx="32" cy="36" r="22" fill="#1a0808"/>' +
+    '<circle cx="32" cy="36" r="17" fill="#7f1d1d"/>' +
+    '<circle cx="32" cy="34" rx="13" r="13" fill="#ef4444"/>' +
+    '<ellipse cx="32" cy="29" rx="8" ry="4.5" fill="#fca5a5"/>' +
+    '<path d="M32 8v6M32 8v6" stroke="#fcd34d" stroke-width="4" stroke-linecap="round"/>' +
+    '<path d="M14 17l4 4M46 17l-4 4" stroke="#fcd34d" stroke-width="3.5" stroke-linecap="round"/>' +
+    '<path d="M6 34h5M53 34h5" stroke="#fcd34d" stroke-width="3.5" stroke-linecap="round"/>',
+
+  // ── Cérémonie finale : coupe
+  scores:
+    '<path d="M18 7h28v22c0 9-6 15-14 16-8-1-14-7-14-16V7Z" fill="#78350f"/>' +
+    '<path d="M20 9h24v20c0 8-5 13-12 14-7-1-12-6-12-14V9Z" fill="#fbbf24"/>' +
+    '<path d="M8 11h10v12c0 3-5 4-6 2L8 11Z" fill="#92400e"/>' +
+    '<path d="M46 11h10l-4 14c-1 2-6 1-6-2V11Z" fill="#92400e"/>' +
+    '<path d="M28 43v8M36 43v8" stroke="#78350f" stroke-width="4" stroke-linecap="round"/>' +
+    '<rect x="20" y="51" width="24" height="5" rx="2.5" fill="#92400e"/>' +
+    '<path d="M32 18l2.5 5 5.5.8-4 3.9 1 5.3-5-2.7-5 2.7 1-5.3-4-3.9 5.5-.8Z" fill="#fff8e1"/>',
+
+  // ── Bonus
+  bonus:
+    '<path d="M32 5 39 21l17 2-13 11 4 17-15-9-15 9 4-17L8 23l17-2 7-16Z" fill="#ffd166"/>' +
+    '<circle cx="32" cy="31" r="10" fill="#241027"/>' +
+    '<path d="M28 31h8M32 27v8" stroke="#ffd166" stroke-width="4" stroke-linecap="round"/>',
+
+  // ── Wrong
+  wrong:
+    '<circle cx="32" cy="32" r="26" fill="#4a1018"/>' +
+    '<path d="M22 22 42 42M42 22 22 42" stroke="#ff6b7a" stroke-width="8" stroke-linecap="round"/>',
+
+  // ── Music
+  music:
+    '<path d="M24 15v29a7 7 0 1 1-4-6V13l26-5v28a7 7 0 1 1-4-6V18l-18 4Z" fill="#38ef7d"/>',
+
+  // ── Round flag
+  round:
+    '<path d="M18 54V11" stroke="#d7e2ff" stroke-width="5" stroke-linecap="round"/>' +
+    '<path d="M20 12c10-7 18 7 28 0v24c-10 7-18-7-28 0V12Z" fill="#4facfe"/>' +
+    '<path d="M12 55h20" stroke="#f8fafc" stroke-width="5" stroke-linecap="round"/>',
+
+  // ── Gamepad
+  gamepad:
+    '<path d="M18 22h28c7 0 12 7 10 14l-3 10c-1 4-7 5-10 2l-5-5H26l-5 5c-3 3-9 2-10-2L8 36c-2-7 3-14 10-14Z" fill="#f5576c"/>' +
+    '<path d="M20 34h12M26 28v12" stroke="#fff" stroke-width="4" stroke-linecap="round"/>' +
+    '<circle cx="43" cy="32" r="3" fill="#fff"/>' +
+    '<circle cx="49" cy="38" r="3" fill="#fff"/>',
 };
 
 export const UiIcon = ({ name = 'settings', className = '', title = '' }) => html`
