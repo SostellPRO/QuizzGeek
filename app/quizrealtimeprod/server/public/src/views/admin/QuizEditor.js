@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { html, uid, emptyRound, emptyQuestion, ROUND_TYPES, resolveMedia, mediaKind, cloneData, OPTION_LABELS } from '../../utils.js';
 import { useGame } from '../../contexts/GameContext.js';
-import { Btn, Alert } from '../../components/ui.js';
+import { Btn, Alert, GameIcon } from '../../components/ui.js';
 
 const Q_TYPES = [
   { value: 'qcm',       labelKey: 'qtype.qcm' },
@@ -376,7 +376,7 @@ function RoundPanel({ round, ri, onUpdate, onDelete, onDuplicate, t }) {
         className="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-white/3 transition-colors"
         onClick=${() => setOpen(!open)}
       >
-        <span className="text-2xl">${rt.icon}</span>
+        <span className="inline-flex items-center justify-center rounded-lg" style=${{ width:'36px', height:'36px', background: (rt.color||'#7c5cff')+'1a', border:`1px solid ${rt.color||'#7c5cff'}35` }}><${GameIcon} name=${rt.iconName||'category'} className="h-6 w-6" /></span>
         <div className="flex-1 min-w-0">
           <div className=${`font-bold text-sm transition-colors ${open ? 'text-white' : 'text-white/90'}`}>${round.title || `Manche ${ri+1}`}</div>
           <div className="text-xs text-white/40 mt-0.5">${t(`round.${round.type}`, rt.label)} · ${(round.questions||[]).length} question(s)</div>

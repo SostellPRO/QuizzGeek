@@ -786,30 +786,40 @@ export default function DisplayView() {
       const rt      = ROUND_TYPES[round?.type];
       const hasBg   = !!round?.backgroundUrl;
       const rBgStyle= hasBg ? { backgroundImage:`url('${resolveMedia(round.backgroundUrl)}')`, backgroundSize:'cover', backgroundPosition:'center' } : {};
+      const glowColor = rt?.color || '#7c5cff';
+      const iconName  = rt?.iconName || 'category';
       return html`
-        <div className="relative flex flex-col items-center justify-center min-h-[100dvh] p-8 text-center" style=${rBgStyle}>
+        <div className="relative flex flex-col items-center justify-center min-h-[100dvh] p-8 text-center overflow-hidden" style=${rBgStyle}>
           ${hasBg && html`<div className="bg-overlay" />`}
-          <div className="relative z-10 flex flex-col items-center gap-6 animate-fade-in">
+          <div className="absolute inset-0 pointer-events-none" style=${{ background: `radial-gradient(ellipse 70% 60% at 50% 40%, ${glowColor}26 0%, transparent 70%)`, animation: 'ri-glow-pulse 4s ease-in-out infinite' }} />
+          <div className="ri-ring ri-ring-1 absolute" style=${{ borderColor: glowColor + '30' }} />
+          <div className="ri-ring ri-ring-2 absolute" style=${{ borderColor: glowColor + '18' }} />
+          <div className="relative z-10 flex flex-col items-center gap-6">
             ${rt && html`
-              <div className="inline-flex items-center gap-3 rounded-full border font-black tracking-wide"
+              <div className="ri-badge inline-flex items-center gap-3 font-black tracking-wide"
                    style=${{
-                     background: `${rt.color}22`,
-                     borderColor: `${rt.color}60`,
-                     color: rt.color,
-                     fontSize: 'clamp(1.3rem, 2.8vw, 2.4rem)',
-                     padding: 'clamp(10px, 1.4vw, 22px) clamp(24px, 3.5vw, 52px)',
+                     background: 'linear-gradient(130deg, ' + glowColor + ' 0%, #1e1b4b 100%)',
+                     color: '#fff',
+                     borderRadius: '14px',
+                     fontSize: 'clamp(1.1rem, 2.5vw, 2rem)',
+                     padding: 'clamp(8px, 1.2vw, 18px) clamp(20px, 3vw, 44px)',
                      letterSpacing: '0.06em',
+                     boxShadow: '0 4px 32px ' + glowColor + '55, inset 0 1px 0 rgba(255,255,255,.18)',
                    }}>
-                <span style=${{ fontSize: 'clamp(1.5rem, 3vw, 2.6rem)' }}>${rt?.icon || '🎯'}</span>
-                ${t(`round.${round?.type}`, rt?.label || round?.type || '')}
+                <span className="ri-badge-icon inline-flex" style=${{ width:'clamp(1.4rem,2.8vw,2.4rem)', height:'clamp(1.4rem,2.8vw,2.4rem)' }}>
+                  <${GameIcon} name=${iconName} className="h-full w-full" />
+                </span>
+                ${t('round.' + round?.type, rt?.label || round?.type || '')}
               </div>
             `}
-            <div style=${{ fontSize: 'clamp(4rem,12vw,9rem)', marginTop: '0.5rem' }}>${rt?.icon || '🎯'}</div>
-            <h1 className="font-display font-black" style=${{ fontSize: 'clamp(2.5rem,6vw,5.5rem)' }}>
+            <div className="ri-main-icon" style=${{ width:'clamp(140px,22vw,240px)', height:'clamp(140px,22vw,240px)' }}>
+              <${GameIcon} name=${iconName} className="h-full w-full" />
+            </div>
+            <h1 className="ri-title font-display font-black" style=${{ fontSize: 'clamp(2.5rem,6vw,5.5rem)', textShadow: '0 0 40px ' + glowColor + '55' }}>
               ${round?.title || 'Nouvelle manche'}
             </h1>
             ${round?.shortRules && html`
-              <p className="text-white/50" style=${{ fontSize: 'clamp(1rem,2vw,1.6rem)', maxWidth:'60vw' }}>
+              <p className="ri-rules text-white/55" style=${{ fontSize: 'clamp(1rem,2vw,1.6rem)', maxWidth:'60vw', lineHeight: '1.5' }}>
                 ${round.shortRules}
               </p>
             `}

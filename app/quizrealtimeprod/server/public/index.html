@@ -565,22 +565,87 @@
     }
 
     .game-icon-mono {
-      color: currentColor;
-      filter: drop-shadow(0 8px 16px rgba(0,0,0,.18));
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,.22));
     }
-    .game-icon-mono * {
-      fill: none !important;
-      stroke: currentColor !important;
-      stroke-width: 4.2 !important;
-      stroke-linecap: round !important;
-      stroke-linejoin: round !important;
-      opacity: 1 !important;
+
+    /* ── Round Intro Animations ──────────────────────────────── */
+
+    /* Ambient glow pulse */
+    @keyframes ri-glow-pulse {
+      0%, 100% { opacity: 0.55; transform: scale(1); }
+      50%       { opacity: 0.85; transform: scale(1.06); }
     }
-    .game-icon-mono circle,
-    .game-icon-mono rect,
-    .game-icon-mono ellipse,
-    .game-icon-mono path {
-      vector-effect: non-scaling-stroke;
+
+    /* Main icon: spring bounce-in then gentle float */
+    @keyframes ri-icon-reveal {
+      0%   { transform: scale(0.2) rotate(-18deg); opacity: 0; filter: blur(12px); }
+      55%  { transform: scale(1.14) rotate(5deg);  opacity: 1; filter: blur(0); }
+      75%  { transform: scale(0.94) rotate(-2deg); }
+      100% { transform: scale(1)    rotate(0deg);  }
+    }
+    @keyframes ri-icon-float {
+      0%, 100% { transform: translateY(0)    scale(1); }
+      50%       { transform: translateY(-14px) scale(1.04); }
+    }
+    .ri-main-icon {
+      animation:
+        ri-icon-reveal 0.72s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+        ri-icon-float  3.4s ease-in-out 0.72s infinite;
+      filter: drop-shadow(0 8px 32px color-mix(in srgb, var(--glow, #7c5cff) 50%, transparent));
+    }
+
+    /* Badge slides down */
+    @keyframes ri-badge-in {
+      from { transform: translateY(-24px); opacity: 0; }
+      to   { transform: translateY(0);     opacity: 1; }
+    }
+    .ri-badge {
+      animation: ri-badge-in 0.45s cubic-bezier(0.34, 1.4, 0.64, 1) 0.1s both;
+    }
+    /* Icon in badge spins once */
+    @keyframes ri-badge-icon-spin {
+      from { transform: rotate(-30deg) scale(0.6); opacity: 0; }
+      to   { transform: rotate(0deg)   scale(1);   opacity: 1; }
+    }
+    .ri-badge-icon {
+      animation: ri-badge-icon-spin 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both;
+    }
+
+    /* Title slides up */
+    @keyframes ri-title-up {
+      from { transform: translateY(20px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+    .ri-title {
+      animation: ri-title-up 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) 0.55s both;
+    }
+
+    /* Rules fades in */
+    .ri-rules {
+      animation: ri-title-up 0.5s ease-out 0.75s both;
+    }
+
+    /* Decorative rings */
+    .ri-ring {
+      border-radius: 50%;
+      border: 1.5px solid;
+      pointer-events: none;
+    }
+    @keyframes ri-ring-expand {
+      0%   { transform: translate(-50%, -50%) scale(0.3); opacity: 0.7; }
+      100% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; }
+    }
+    .ri-ring-1 {
+      width: clamp(260px, 40vw, 480px);
+      height: clamp(260px, 40vw, 480px);
+      top: 40%; left: 50%;
+      animation: ri-ring-expand 2.8s ease-out 0.1s infinite;
+    }
+    .ri-ring-2 {
+      width: clamp(340px, 55vw, 640px);
+      height: clamp(340px, 55vw, 640px);
+      top: 40%; left: 50%;
+      animation: ri-ring-expand 2.8s ease-out 0.9s infinite;
     }
   </style>
   <script type="importmap">
@@ -597,6 +662,7 @@
 </head>
 <body>
   <div id="root"></div>
-  <script type="module" src="/src/main.js?v=prod-icons-sounds-20260510"></script>
+  <script type="module" src="/src/main.js?v=prod-icons-sounds-20260514"></script>
 </body>
 </html>
+ 

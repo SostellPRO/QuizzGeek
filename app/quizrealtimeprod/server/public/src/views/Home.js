@@ -10,21 +10,21 @@ const ROLES = [
 ];
 
 const MODES = [
-  { iconName: 'category', labelKey: 'qtype.qcm', color: '#7c5cff' },
-  { iconName: 'correct', labelKey: 'qtype.true_false', color: '#2dd4bf' },
-  { iconName: 'rapidite', labelKey: 'qtype.rapidite', color: '#f59e0b' },
-  { iconName: 'vote', labelKey: 'qtype.vote', color: '#38bdf8' },
-  { iconName: 'burger', labelKey: 'qtype.burger', color: '#fb923c' },
-  { iconName: 'karaoke', labelKey: 'qtype.video_challenge', color: '#fb7185' },
+  { iconName: 'category', labelKey: 'qtype.qcm',           color: '#7c3aed' },
+  { iconName: 'correct',  labelKey: 'qtype.true_false',     color: '#4f46e5' },
+  { iconName: 'rapidite', labelKey: 'qtype.rapidite',       color: '#6d28d9' },
+  { iconName: 'vote',     labelKey: 'qtype.vote',           color: '#3730a3' },
+  { iconName: 'burger',   labelKey: 'qtype.burger',         color: '#5b21b6' },
+  { iconName: 'karaoke',  labelKey: 'qtype.video_challenge',color: '#4338ca' },
 ];
 
 const FEATURES = [
-  { iconName: 'category', titleKey: 'feature.qcm.title', descKey: 'feature.qcm.desc', color: '#7c5cff' },
-  { iconName: 'buzzer', titleKey: 'feature.buzzer.title', descKey: 'feature.buzzer.desc', color: '#f59e0b' },
-  { iconName: 'vote', titleKey: 'feature.vote.title', descKey: 'feature.vote.desc', color: '#38bdf8' },
-  { iconName: 'burger', titleKey: 'feature.burger.title', descKey: 'feature.burger.desc', color: '#fb923c' },
-  { iconName: 'karaoke', titleKey: 'feature.video.title', descKey: 'feature.video.desc', color: '#fb7185' },
-  { iconName: 'scores', titleKey: 'feature.ceremony.title', descKey: 'feature.ceremony.desc', color: '#2dd4bf' },
+  { iconName: 'category', titleKey: 'feature.qcm.title',      descKey: 'feature.qcm.desc',      color: '#7c3aed' },
+  { iconName: 'buzzer',   titleKey: 'feature.buzzer.title',   descKey: 'feature.buzzer.desc',   color: '#6d28d9' },
+  { iconName: 'vote',     titleKey: 'feature.vote.title',     descKey: 'feature.vote.desc',     color: '#3730a3' },
+  { iconName: 'burger',   titleKey: 'feature.burger.title',   descKey: 'feature.burger.desc',   color: '#5b21b6' },
+  { iconName: 'karaoke',  titleKey: 'feature.video.title',    descKey: 'feature.video.desc',    color: '#4338ca' },
+  { iconName: 'scores',   titleKey: 'feature.ceremony.title', descKey: 'feature.ceremony.desc', color: '#4f46e5' },
 ];
 
 const roleIcon = (r) => (
@@ -67,8 +67,8 @@ export default function Home() {
 
         <div className="flex flex-wrap justify-center gap-2">
           ${MODES.map(m => html`
-            <span key=${m.labelKey} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold" style=${{ background: m.color + '18', border: '1px solid ' + m.color + '40', color: m.color }}>
-              <${GameIcon} name=${m.iconName} className="h-5 w-5" /> ${t(m.labelKey)}
+            <span key=${m.labelKey} className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold text-white" style=${{ background: 'linear-gradient(130deg, ' + m.color + ' 0%, #1e1b4b 100%)', borderRadius: '8px', boxShadow: '0 2px 10px ' + m.color + '44' }}>
+              <${GameIcon} name=${m.iconName} className="h-4 w-4" /> ${t(m.labelKey)}
             </span>
           `)}
         </div>

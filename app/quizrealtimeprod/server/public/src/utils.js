@@ -103,12 +103,12 @@ export const emptyQuestion = (type = 'qcm') => ({
   timer: 30,
 });
 
-// Round type labels/icons
+// Round type labels/icons — palette violet/indigo unifiée
 export const ROUND_TYPES = {
-  qcm:             { label: 'QCM',             icon: '🔘', iconName: 'category', color: '#b24bff' },
-  rapidite:        { label: 'Rapidité',        icon: '⚡', iconName: 'rapidite', color: '#f7971e' },
-  true_false:      { label: 'Vrai / Faux',     icon: '✅', iconName: 'correct', color: '#38ef7d' },
-  burger:          { label: 'Burger de la mort', icon: '🍔', iconName: 'burger', color: '#f7971e' },
-  vote:            { label: 'Vote',            icon: '🗳️', iconName: 'vote', color: '#4facfe' },
-  video_challenge: { label: 'Challenge Vidéo', icon: '🎬', iconName: 'karaoke', color: '#ff4e6a' },
+  qcm:             { label: 'QCM',             icon: '🔘', iconName: 'category', color: '#7c3aed' },
+  rapidite:        { label: 'Rapidité',        icon: '⚡', iconName: 'rapidite', color: '#6d28d9' },
+  true_false:      { label: 'Vrai / Faux',     icon: '✅', iconName: 'correct',  color: '#4f46e5' },
+  burger:          { label: 'Burger de la mort', icon: '🍔', iconName: 'burger', color: '#5b21b6' },
+  vote:            { label: 'Vote',            icon: '🗳️', iconName: 'vote',     color: '#3730a3' },
+  video_challenge: { label: 'Challenge Vidéo', icon: '🎬', iconName: 'karaoke', color: '#4338ca' },
 };
