@@ -2,29 +2,41 @@ import { html } from '../utils.js';
 import { useGame } from '../contexts/GameContext.js';
 import { GameIcon, UiIcon } from '../components/ui.js';
 
+// Palette rôles — base bleu ciel / bleu nuit
 const ROLES = [
-  { id: 'player',  iconType: 'game', iconName: 'profile', labelKey: 'role.player.label',  subKey: 'role.player.sub',  color: 'from-sky-500 to-violet-600',   glow: 'rgba(124,92,255,.35)',  accent: '#7c5cff' },
-  { id: 'host',    iconType: 'game', iconName: 'host',    labelKey: 'role.host.label',    subKey: 'role.host.sub',    color: 'from-violet-500 to-purple-600', glow: 'rgba(139,92,246,.30)', accent: '#8b5cf6' },
-  { id: 'display', iconType: 'game', iconName: 'display', labelKey: 'role.display.label', subKey: 'role.display.sub', color: 'from-indigo-400 to-blue-600',   glow: 'rgba(99,102,241,.30)', accent: '#6366f1' },
-  { id: 'admin',   iconType: 'ui',   iconName: 'settings',labelKey: 'role.admin.label',   subKey: 'role.admin.sub',   color: 'from-slate-400 to-slate-600',   glow: 'rgba(148,163,184,.20)',accent: '#94a3b8' },
+  { id: 'player',  iconType: 'game', iconName: 'profile', labelKey: 'role.player.label',  subKey: 'role.player.sub',  color: 'from-sky-400 to-cyan-500',   glow: 'rgba(14,165,233,.35)',  accent: '#0ea5e9' },
+  { id: 'host',    iconType: 'game', iconName: 'host',    labelKey: 'role.host.label',    subKey: 'role.host.sub',    color: 'from-blue-400 to-indigo-500', glow: 'rgba(59,130,246,.30)', accent: '#3b82f6' },
+  { id: 'display', iconType: 'game', iconName: 'display', labelKey: 'role.display.label', subKey: 'role.display.sub', color: 'from-cyan-400 to-sky-600',   glow: 'rgba(56,189,248,.28)',  accent: '#38bdf8' },
+  { id: 'admin',   iconType: 'ui',   iconName: 'settings',labelKey: 'role.admin.label',   subKey: 'role.admin.sub',   color: 'from-slate-400 to-slate-600',glow: 'rgba(148,163,184,.20)', accent: '#94a3b8' },
 ];
 
+// Couleurs distinctes par type de question
+const Q_COLORS = {
+  qcm:            { color: '#0ea5e9', glow: 'rgba(14,165,233,.25)' },   // sky blue
+  true_false:     { color: '#10b981', glow: 'rgba(16,185,129,.25)' },   // emerald
+  rapidite:       { color: '#f97316', glow: 'rgba(249,115,22,.25)'  },  // orange
+  vote:           { color: '#3b82f6', glow: 'rgba(59,130,246,.25)'  },  // blue
+  burger:         { color: '#a855f7', glow: 'rgba(168,85,247,.25)'  },  // violet
+  video_challenge:{ color: '#ec4899', glow: 'rgba(236,72,153,.25)'  },  // rose/pink
+  ceremony:       { color: '#f59e0b', glow: 'rgba(245,158,11,.25)'  },  // amber/gold
+};
+
 const MODES = [
-  { iconName: 'category', labelKey: 'qtype.qcm',            color: '#7c3aed' },
-  { iconName: 'correct',  labelKey: 'qtype.true_false',      color: '#0ea5e9' },
-  { iconName: 'rapidite', labelKey: 'qtype.rapidite',        color: '#f97316' },
-  { iconName: 'vote',     labelKey: 'qtype.vote',            color: '#3b82f6' },
-  { iconName: 'burger',   labelKey: 'qtype.burger',          color: '#a855f7' },
-  { iconName: 'karaoke',  labelKey: 'qtype.video_challenge', color: '#ec4899' },
+  { iconName: 'category', labelKey: 'qtype.qcm',            ...Q_COLORS.qcm            },
+  { iconName: 'correct',  labelKey: 'qtype.true_false',      ...Q_COLORS.true_false     },
+  { iconName: 'rapidite', labelKey: 'qtype.rapidite',        ...Q_COLORS.rapidite       },
+  { iconName: 'vote',     labelKey: 'qtype.vote',            ...Q_COLORS.vote           },
+  { iconName: 'burger',   labelKey: 'qtype.burger',          ...Q_COLORS.burger         },
+  { iconName: 'karaoke',  labelKey: 'qtype.video_challenge', ...Q_COLORS.video_challenge},
 ];
 
 const FEATURES = [
-  { iconName: 'category', titleKey: 'feature.qcm.title',      descKey: 'feature.qcm.desc',      color: '#7c3aed', glow: 'rgba(124,58,237,.25)'  },
-  { iconName: 'buzzer',   titleKey: 'feature.buzzer.title',   descKey: 'feature.buzzer.desc',   color: '#f97316', glow: 'rgba(249,115,22,.25)'  },
-  { iconName: 'vote',     titleKey: 'feature.vote.title',     descKey: 'feature.vote.desc',     color: '#0ea5e9', glow: 'rgba(14,165,233,.25)'  },
-  { iconName: 'burger',   titleKey: 'feature.burger.title',   descKey: 'feature.burger.desc',   color: '#a855f7', glow: 'rgba(168,85,247,.25)'  },
-  { iconName: 'karaoke',  titleKey: 'feature.video.title',    descKey: 'feature.video.desc',    color: '#ec4899', glow: 'rgba(236,72,153,.25)'  },
-  { iconName: 'scores',   titleKey: 'feature.ceremony.title', descKey: 'feature.ceremony.desc', color: '#f59e0b', glow: 'rgba(245,158,11,.25)'  },
+  { iconName: 'category', titleKey: 'feature.qcm.title',      descKey: 'feature.qcm.desc',      ...Q_COLORS.qcm            },
+  { iconName: 'buzzer',   titleKey: 'feature.buzzer.title',   descKey: 'feature.buzzer.desc',   ...Q_COLORS.rapidite       },
+  { iconName: 'vote',     titleKey: 'feature.vote.title',     descKey: 'feature.vote.desc',     ...Q_COLORS.vote           },
+  { iconName: 'burger',   titleKey: 'feature.burger.title',   descKey: 'feature.burger.desc',   ...Q_COLORS.burger         },
+  { iconName: 'karaoke',  titleKey: 'feature.video.title',    descKey: 'feature.video.desc',    ...Q_COLORS.video_challenge},
+  { iconName: 'scores',   titleKey: 'feature.ceremony.title', descKey: 'feature.ceremony.desc', ...Q_COLORS.ceremony       },
 ];
 
 const roleIcon = (r) => (
@@ -49,8 +61,8 @@ export default function Home() {
          style=${{ gap: 'clamp(12px,2.2vh,22px)' }}>
 
       <div aria-hidden="true" style=${{ position:'fixed', inset:0, zIndex:0, pointerEvents:'none', overflow:'hidden' }}>
-        <div style=${{ position:'absolute', top:'-18vw', left:'-12vw', width:'60vw', height:'60vw', borderRadius:'50%', background:'radial-gradient(circle, rgba(124,92,255,.15) 0%, transparent 70%)', filter:'blur(50px)' }} />
-        <div style=${{ position:'absolute', bottom:'-12vw', right:'-10vw', width:'50vw', height:'50vw', borderRadius:'50%', background:'radial-gradient(circle, rgba(67,56,202,.18) 0%, transparent 70%)', filter:'blur(50px)' }} />
+        <div style=${{ position:'absolute', top:'-15vw', right:'-10vw', width:'55vw', height:'55vw', borderRadius:'50%', background:'radial-gradient(circle, rgba(14,165,233,.12) 0%, transparent 70%)', filter:'blur(60px)' }} />
+        <div style=${{ position:'absolute', bottom:'-10vw', left:'-8vw', width:'45vw', height:'45vw', borderRadius:'50%', background:'radial-gradient(circle, rgba(56,189,248,.08) 0%, transparent 70%)', filter:'blur(50px)' }} />
       </div>
 
       <div className="relative z-10 w-full max-w-5xl animate-fade-in flex flex-col"
@@ -59,8 +71,8 @@ export default function Home() {
         <!-- ── HERO ── -->
         <div className="text-center flex flex-col items-center" style=${{ gap: 'clamp(5px,1vh,10px)' }}>
 
-          <div className="inline-flex items-center gap-2 rounded-full app-chip px-4 py-1.5 text-xs font-bold uppercase tracking-[0.2em] text-sky-200">
-            <span className="h-2 w-2 rounded-full bg-teal-300 animate-pulse" style=${{ boxShadow:'0 0 8px #2dd4bf' }}></span>
+          <div className="inline-flex items-center gap-2 rounded-full app-chip px-4 py-1.5 text-xs font-bold uppercase tracking-[0.2em] text-sky-300">
+            <span className="h-2 w-2 rounded-full bg-sky-400 animate-pulse" style=${{ boxShadow:'0 0 8px #38bdf8' }}></span>
             ${t('home.badge')}
           </div>
 
@@ -68,8 +80,8 @@ export default function Home() {
             QuizzGeek
           </h1>
 
-          <p className="text-white/50 font-medium whitespace-nowrap overflow-hidden text-ellipsis w-full"
-             style=${{ fontSize:'clamp(.78rem,1.3vw,.95rem)' }}>
+          <p className="font-medium whitespace-nowrap overflow-hidden text-ellipsis w-full"
+             style=${{ fontSize:'clamp(.78rem,1.3vw,.95rem)', color:'rgba(125,211,252,.65)' }}>
             ${t('home.tagline')}
           </p>
 
@@ -78,12 +90,12 @@ export default function Home() {
               <span key=${m.labelKey}
                 className="inline-flex items-center gap-1.5 font-bold text-white"
                 style=${{
-                  background: 'linear-gradient(130deg, ' + m.color + 'dd 0%, ' + m.color + '55 100%)',
+                  background: 'linear-gradient(130deg, ' + m.color + '30 0%, ' + m.color + '10 100%)',
                   borderRadius: '8px',
                   padding: '5px 11px',
                   fontSize: '.78rem',
-                  boxShadow: '0 2px 10px ' + m.color + '55',
-                  border: '1px solid ' + m.color + '60',
+                  border: '1px solid ' + m.color + '55',
+                  boxShadow: '0 2px 12px ' + m.glow,
                 }}>
                 <${GameIcon} name=${m.iconName} className="h-4 w-4" />
                 ${t(m.labelKey)}
@@ -99,7 +111,7 @@ export default function Home() {
               key=${r.id}
               onClick=${() => go(r.id)}
               className=${'group relative overflow-hidden rounded-2xl app-surface text-left transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl active:scale-[.97]'}
-              style=${{ boxShadow:'0 0 0 1px rgba(255,255,255,.08)', padding:'clamp(12px,2vw,20px)' }}
+              style=${{ padding:'clamp(12px,2vw,20px)' }}
             >
               <div className=${'absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r rounded-t-2xl ' + r.color}></div>
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl"
@@ -110,13 +122,14 @@ export default function Home() {
                         style=${{ width:'clamp(42px,6vw,56px)', height:'clamp(42px,6vw,56px)' }}>
                     ${roleIcon(r)}
                   </span>
-                  <span className="text-white/25 group-hover:text-white/60 transition-colors text-sm mt-1">↗</span>
+                  <span className="group-hover:opacity-80 transition-opacity text-sm mt-1"
+                        style=${{ color: r.accent, opacity: 0.35 }}>↗</span>
                 </div>
                 <div>
                   <div className="font-black text-white" style=${{ fontSize:'clamp(.88rem,1.6vw,1.05rem)' }}>
                     ${t(r.labelKey)}
                   </div>
-                  <div className="mt-0.5 text-white/45 leading-5" style=${{ fontSize:'clamp(.7rem,1.2vw,.8rem)' }}>
+                  <div className="mt-0.5 leading-5" style=${{ fontSize:'clamp(.7rem,1.2vw,.8rem)', color:'rgba(125,211,252,.50)' }}>
                     ${t(r.subKey)}
                   </div>
                 </div>
@@ -131,28 +144,28 @@ export default function Home() {
 
         <!-- ── SÉPARATEUR ── -->
         <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-white/6"></div>
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/25">${t('home.whatCanDo')}</span>
-          <div className="flex-1 h-px bg-white/6"></div>
+          <div className="flex-1 h-px" style=${{ background:'rgba(56,189,248,.12)' }}></div>
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em]" style=${{ color:'rgba(56,189,248,.30)' }}>${t('home.whatCanDo')}</span>
+          <div className="flex-1 h-px" style=${{ background:'rgba(56,189,248,.12)' }}></div>
         </div>
 
         <!-- ── FEATURES ── -->
         <section className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           ${FEATURES.map(f => html`
             <div key=${f.titleKey}
-                 className="rounded-xl app-panel flex items-center gap-3"
+                 className="rounded-xl flex items-center gap-3"
                  style=${{
                    padding: 'clamp(10px,1.8vh,16px) clamp(12px,2vw,18px)',
+                   background: 'linear-gradient(135deg, ' + f.color + '14 0%, rgba(5,14,28,.6) 100%)',
+                   border: '1px solid ' + f.color + '30',
                    borderLeft: '3px solid ' + f.color,
-                   background: 'linear-gradient(135deg, ' + f.color + '12 0%, transparent 60%)',
-                   boxShadow: 'inset 0 0 0 1px ' + f.color + '25',
+                   boxShadow: '0 4px 24px ' + f.glow,
                  }}>
               <span className="flex-shrink-0 flex items-center justify-center rounded-xl"
                     style=${{
                       width: 'clamp(36px,5vw,46px)', height: 'clamp(36px,5vw,46px)',
-                      background: f.color + '22',
-                      border: '1px solid ' + f.color + '50',
-                      boxShadow: '0 0 12px ' + f.glow,
+                      background: f.color + '1a',
+                      border: '1px solid ' + f.color + '45',
                     }}>
                 <${GameIcon} name=${f.iconName} className="h-6 w-6" />
               </span>
@@ -160,7 +173,7 @@ export default function Home() {
                 <div className="font-black text-white leading-tight" style=${{ fontSize:'clamp(.78rem,1.3vw,.9rem)' }}>
                   ${t(f.titleKey)}
                 </div>
-                <div className="mt-0.5 text-white/40 leading-4" style=${{ fontSize:'clamp(.67rem,1.1vw,.75rem)' }}>
+                <div className="mt-0.5 leading-4" style=${{ fontSize:'clamp(.67rem,1.1vw,.75rem)', color:'rgba(125,211,252,.45)' }}>
                   ${t(f.descKey)}
                 </div>
               </div>
@@ -176,9 +189,9 @@ export default function Home() {
             style=${{
               fontSize: 'clamp(.95rem,1.6vw,1.1rem)',
               padding: 'clamp(12px,1.8vh,16px) clamp(28px,4vw,48px)',
-              background: 'linear-gradient(135deg, #7c3aed 0%, #4338ca 50%, #1d4ed8 100%)',
-              boxShadow: '0 6px 32px rgba(124,58,237,.55), inset 0 1px 0 rgba(255,255,255,.18)',
-              border: '1px solid rgba(255,255,255,.15)',
+              background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #0369a1 100%)',
+              boxShadow: '0 6px 32px rgba(14,165,233,.45), inset 0 1px 0 rgba(255,255,255,.20)',
+              border: '1px solid rgba(56,189,248,.30)',
             }}
           >
             <${UiIcon} name="settings" className="h-5 w-5" />
