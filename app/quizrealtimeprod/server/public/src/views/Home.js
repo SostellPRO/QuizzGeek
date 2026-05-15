@@ -104,18 +104,18 @@ export default function Home() {
         </div>
 
         <!-- ── RÔLES ── -->
-        <section className="grid grid-cols-2 lg:grid-cols-4" style=${{ gap:'clamp(10px,1.8vw,20px)' }}>
+        <section className="grid grid-cols-2 lg:grid-cols-4" style=${{ gap:'clamp(10px,1.8vw,20px)', alignItems:'start' }}>
           ${ROLES.map(r => html`
             <button
               key=${r.id}
               onClick=${() => go(r.id)}
               className=${'group relative overflow-hidden rounded-2xl app-surface text-left transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl active:scale-[.97]'}
-              style=${{ padding:'clamp(16px,2.5vw,28px)' }}
+              style=${{ padding:'clamp(16px,2.5vw,26px)' }}
             >
               <div className=${'absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r rounded-t-2xl ' + r.color}></div>
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl"
                    style=${{ background:'radial-gradient(ellipse at 50% 0%, ' + r.glow + ', transparent 65%)' }}></div>
-              <div className="relative z-10 flex flex-col h-full" style=${{ gap:'clamp(10px,1.8vh,18px)' }}>
+              <div className="relative z-10 flex flex-col" style=${{ gap:'clamp(10px,1.6vh,16px)' }}>
                 <div className="flex items-start justify-between">
                   <span className="flex items-center justify-center rounded-xl app-panel transition-transform duration-300 group-hover:scale-110"
                         style=${{ width:'clamp(48px,7vw,68px)', height:'clamp(48px,7vw,68px)' }}>
@@ -132,7 +132,7 @@ export default function Home() {
                     ${t(r.subKey)}
                   </div>
                 </div>
-                <div className="mt-auto pt-1">
+                <div className="pt-1">
                   <div className="h-[2px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                        style=${{ background:'linear-gradient(to right, ' + r.accent + ', transparent)' }}></div>
                 </div>
