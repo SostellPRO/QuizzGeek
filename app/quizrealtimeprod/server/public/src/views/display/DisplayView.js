@@ -435,7 +435,9 @@ function BuzzerDisplay({ gs, players }) {
     const isCorrect = blr.result === 'correct';
     return html`
       <div className="flex flex-col items-center gap-6 animate-bounce-in">
-        <div className="mx-auto h-28 w-28"><${GameIcon} name=${isCorrect ? 'correct' : 'wrong'} className="h-full w-full" /></div>
+        <div className="mx-auto h-28 w-28 flex items-center justify-center rounded-full border-4" style=${{ borderColor: isCorrect ? '#2dd4bf' : '#ff4e6a', background: isCorrect ? 'rgba(45,212,191,.12)' : 'rgba(255,78,106,.12)', fontSize:'5rem' }}>
+          ${isCorrect ? '✓' : '✕'}
+        </div>
         <div className="text-center">
           <div style=${{ fontSize: 'clamp(1.2rem,3vw,2.2rem)', fontWeight:'700', color: isCorrect ? '#2dd4bf' : '#ff4e6a' }}>
             ${isCorrect ? 'CORRECT !' : 'FAUX !'}
@@ -676,7 +678,7 @@ function AllAnsweredBurst({ show }) {
         textShadow: '0 0 30px rgba(45,212,191,0.8)',
         whiteSpace: 'nowrap',
       }}>
-        <${GameIcon} name="correct" className="inline-flex h-8 w-8" /> Tous ont répondu !
+        ✓ Tous ont répondu !
       </div>
     </div>
   `;
@@ -1132,8 +1134,10 @@ export default function DisplayView() {
       if (vcPhase === 'training_playing' || vcPhase === 'playing' || vcPhase === 'eval' || vcPhase === 'scored') {
         return html`
           <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-6 px-8 animate-fade-in">
-            <div className="text-xs font-bold uppercase tracking-widest opacity-40">
-              ${vcPhase === 'training_playing' ? '🏋️ Entraînement' : '🎬 Challenge Vidéo'}
+            <div className="text-xs font-bold uppercase tracking-widest opacity-40 flex items-center justify-center gap-2">
+              ${vcPhase === 'training_playing'
+                ? '🏋️ Entraînement'
+                : html`<span className="inline-flex h-5 w-5"><${GameIcon} name="karaoke" className="h-full w-full" /></span> Challenge Vidéo`}
             </div>
             <${ControlledVideo} url=${mediaUrl} control=${control} maxHeight="56vh" />
             ${who && html`
@@ -1152,7 +1156,7 @@ export default function DisplayView() {
       }
       return html`
         <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-8 px-8 animate-fade-in">
-          <div style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>🎬</div>
+          <div className="h-24 w-24 sm:h-32 sm:w-32"><${GameIcon} name="karaoke" className="h-full w-full" /></div>
           <h1 className="font-display font-black gradient-text-fire text-center"
               style=${{ fontSize: 'clamp(2.5rem,7vw,5rem)' }}>
             Challenge Vidéo
@@ -1222,7 +1226,7 @@ export default function DisplayView() {
           `}
           <div className="flex justify-center gap-8 mt-4">
             <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-neon-green/40 bg-neon-green/10 px-12 py-8">
-              <span className="inline-flex h-24 w-24"><${GameIcon} name="correct" className="h-full w-full" /></span>
+              <span className="text-neon-green" style=${{ fontSize:'5rem', lineHeight:1 }}>✓</span>
               <span className="font-display font-black text-neon-green mt-3" style=${{ fontSize: 'clamp(2rem,5vw,4rem)' }}>VRAI</span>
             </div>
             <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-rose-500/40 bg-rose-500/10 px-12 py-8">
@@ -1297,7 +1301,7 @@ export default function DisplayView() {
           <div className="flex justify-center mt-4">
             <div className=${`flex flex-col items-center justify-center rounded-2xl border-2 p-8 ${isVrai ? 'border-neon-green/60 bg-neon-green/15' : 'border-rose-500/60 bg-rose-500/15'}`}
                  style=${{ minWidth: 'clamp(200px,40vw,500px)' }}>
-              <span className="inline-flex h-32 w-32"><${GameIcon} name=${isVrai ? 'correct' : 'wrong'} className="h-full w-full" /></span>
+              <span className=${isVrai ? 'text-neon-green' : 'text-rose-400'} style=${{ fontSize:'7rem', lineHeight:1 }}>${isVrai ? '✓' : '✕'}</span>
               <span className=${`font-display font-black mt-4 ${isVrai ? 'text-neon-green' : 'text-rose-400'}`}
                     style=${{ fontSize: 'clamp(3rem,8vw,6rem)' }}>
                 ${isVrai ? 'VRAI' : 'FAUX'}

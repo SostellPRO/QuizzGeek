@@ -694,7 +694,7 @@ export default function PlayerGame() {
       const isVrai   = correct === 'vrai' || correct === 'true';
       return html`
         <div className="flex flex-col items-center gap-5 py-6 text-center animate-fade-in">
-          <div className="h-16 w-16"><${GameIcon} name=${isVrai ? 'correct' : 'wrong'} className="h-full w-full" /></div>
+          <div className="h-16 w-16 flex items-center justify-center text-5xl">${isVrai ? '✓' : '✕'}</div>
           <div
             className=${`rounded-2xl border-2 px-10 py-6 font-display font-black ${isVrai ? 'border-neon-green/50 bg-neon-green/10 text-neon-green' : 'border-rose-500/50 bg-rose-500/10 text-rose-400'}`}
             style=${{ fontSize: 'clamp(2.5rem,8vw,3.5rem)' }}
