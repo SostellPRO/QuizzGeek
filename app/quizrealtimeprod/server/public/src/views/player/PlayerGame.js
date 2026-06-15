@@ -439,7 +439,7 @@ export default function PlayerGame() {
               boxShadow: `0 0 32px ${bzBorder}55, 0 0 8px ${bzBorder}33`,
             }}
           >
-            <${GameIcon} name="buzzer" className="h-8 w-8" /> BUZZ !
+            BUZZ !
           </button>
           ${totalSec > 0 && remSec > 0 && html`
             <div className="text-xs font-mono font-bold" style=${{ color: bzBorder }}>
@@ -454,7 +454,7 @@ export default function PlayerGame() {
     if (isTrueFalse) {
       if (locked || alreadyAnswered) return html`
         <div className="text-center py-6">
-          <div className="mx-auto mb-4 h-16 w-16"><${GameIcon} name="correct" className="h-full w-full" /></div>
+          <div className="mx-auto mb-4 text-5xl text-neon-green">✓</div>
           <h2 className="text-xl font-bold text-neon-green">Réponse envoyée !</h2>
           <p className="text-white/40 text-sm mt-2">En attente des autres joueurs…</p>
           <${Dots} />
@@ -470,16 +470,16 @@ export default function PlayerGame() {
           <div className="grid grid-cols-1 gap-4">
             <button
               onClick=${() => sendAnswer('vrai')}
-              className="mobile-choice flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-neon-green/40 bg-neon-green/8 font-display font-black text-xl text-neon-green active:scale-95 transition-all hover:bg-neon-green/15"
+              className="mobile-choice flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-neon-green/40 bg-neon-green/8 font-display font-black text-2xl text-neon-green active:scale-95 transition-all hover:bg-neon-green/15"
             >
-              <${GameIcon} name="correct" className="h-12 w-12" />
+              <span className="text-4xl">✓</span>
               VRAI
             </button>
             <button
               onClick=${() => sendAnswer('faux')}
-              className="mobile-choice flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-rose-500/40 bg-rose-500/8 font-display font-black text-xl text-rose-400 active:scale-95 transition-all hover:bg-rose-500/15"
+              className="mobile-choice flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-rose-500/40 bg-rose-500/8 font-display font-black text-2xl text-rose-400 active:scale-95 transition-all hover:bg-rose-500/15"
             >
-              <${GameIcon} name="wrong" className="h-12 w-12" />
+              <span className="text-4xl">✕</span>
               FAUX
             </button>
           </div>
@@ -510,7 +510,7 @@ export default function PlayerGame() {
       `;
       if (locked) return html`
         <div className="text-center py-6">
-          <div className="mx-auto mb-4 h-16 w-16"><${GameIcon} name="correct" className="h-full w-full" /></div>
+          <div className="mx-auto mb-4 text-5xl text-neon-green">✓</div>
           <h2 className="text-xl font-bold text-neon-green">Réponse envoyée !</h2>
           <p className="text-white/40 text-sm mt-2">En attente du vote…</p>
           <${Dots} />
@@ -550,7 +550,7 @@ export default function PlayerGame() {
       `;
       if (locked) return html`
         <div className="text-center py-6">
-          <div className="mx-auto mb-4 h-16 w-16"><${GameIcon} name="correct" className="h-full w-full" /></div>
+          <div className="mx-auto mb-4 text-5xl text-neon-green">✓</div>
           <h2 className="text-xl font-bold text-neon-green">Vote envoyé !</h2>
           <${Dots} />
         </div>
@@ -603,7 +603,7 @@ export default function PlayerGame() {
     if (currentQ?.options?.length) {
       if (locked || alreadyAnswered) return html`
         <div className="text-center py-6">
-          <div className="mx-auto mb-4 h-16 w-16"><${GameIcon} name="correct" className="h-full w-full" /></div>
+          <div className="mx-auto mb-4 text-5xl text-neon-green">✓</div>
           <h2 className="text-xl font-bold text-neon-green">Réponse envoyée !</h2>
           <p className="text-white/40 text-sm mt-2">En attente des autres joueurs…</p>
           <${Dots} />
