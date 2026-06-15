@@ -116,8 +116,7 @@ const GAME_ICON_PATHS = {
     '<circle cx="32" cy="32" r="23" fill="#c2410c"/>' +
     '<circle cx="32" cy="32" r="23" fill="none" stroke="#f97316" stroke-width="2.5"/>' +
     '<circle cx="32" cy="32" r="17" fill="#f97316" opacity=".18"/>' +
-    '<path d="M36 10L17 34h12L22 54 45 28H33L36 10Z" fill="#fff"/>' +
-    '<path d="M36 10L17 34h12L22 54 45 28H33L36 10Z" fill="#fed7aa" opacity=".28"/>',
+    '<path d="M38 9L16 35h15L21 55 48 30H33Z" fill="#fff"/>',
 
   // ── Vote : bulles de dialogue — base cercle BLUE
   vote:
@@ -150,35 +149,26 @@ const GAME_ICON_PATHS = {
     '<rect x="30" y="30" width="13" height="3" rx="1.5" fill="#e9d5ff" opacity=".7"/>' +
     '<rect x="30" y="41" width="10" height="3" rx="1.5" fill="#e9d5ff" opacity=".45"/>',
 
-  // ── Challenge Vidéo : clap — base cercle ROSE
+  // ── Challenge Vidéo : caméra — base cercle ROSE
   karaoke:
     '<circle cx="32" cy="32" r="28" fill="#500724"/>' +
     '<circle cx="32" cy="32" r="23" fill="#be185d"/>' +
     '<circle cx="32" cy="32" r="23" fill="none" stroke="#ec4899" stroke-width="2.5"/>' +
     '<circle cx="32" cy="32" r="17" fill="#ec4899" opacity=".18"/>' +
-    '<rect x="14" y="30" width="36" height="22" rx="4" fill="#3d0617"/>' +
-    '<rect x="17" y="36" width="22" height="2" rx="1" fill="#fbcfe8"/>' +
-    '<rect x="17" y="42" width="15" height="2" rx="1" fill="#fbcfe8" opacity=".6"/>' +
-    '<rect x="17" y="48" width="10" height="2" rx="1" fill="#fbcfe8" opacity=".35"/>' +
-    '<rect x="14" y="18" width="36" height="13" rx="3" fill="#fbcfe8"/>' +
-    '<path d="M14 18L22 18L14 31Z" fill="#be185d"/>' +
-    '<path d="M28 18L36 18L25 31L17 31Z" fill="#be185d"/>' +
-    '<path d="M44 18L50 18L43 31L35 31Z" fill="#be185d"/>' +
-    '<rect x="14" y="29" width="36" height="4" fill="#ec4899"/>' +
-    '<circle cx="20" cy="31" r="2.5" fill="#be185d"/>' +
-    '<circle cx="20" cy="31" r="1.3" fill="#f9a8d4"/>',
+    '<rect x="8" y="20" width="32" height="24" rx="5" fill="#fff"/>' +
+    '<circle cx="24" cy="32" r="9" fill="#9f1239"/>' +
+    '<circle cx="24" cy="32" r="5" fill="#fbcfe8" opacity=".4"/>' +
+    '<path d="M40 24l14-7v30l-14-7V24Z" fill="#fff" opacity=".8"/>',
 
-  // ── Buzzer : dôme game show — base cercle ORANGE
+  // ── Buzzer : cloche — base cercle ORANGE
   buzzer:
     '<circle cx="32" cy="32" r="28" fill="#431407"/>' +
     '<circle cx="32" cy="32" r="23" fill="#c2410c"/>' +
     '<circle cx="32" cy="32" r="23" fill="none" stroke="#f97316" stroke-width="2.5"/>' +
     '<circle cx="32" cy="32" r="17" fill="#f97316" opacity=".18"/>' +
-    '<circle cx="32" cy="30" r="14" fill="#ea580c"/>' +
-    '<circle cx="32" cy="28" r="11" fill="#f97316"/>' +
-    '<ellipse cx="27" cy="23" rx="5.5" ry="3.5" fill="#fed7aa" opacity=".38"/>' +
-    '<path d="M32 8v4" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round"/>' +
-    '<path d="M15 14l2.5 2.5M49 14l-2.5 2.5" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>',
+    '<path d="M32 8C22 8 14 16 14 26v11l-5 7h46l-5-7V26C50 16 42 8 32 8Z" fill="#fff"/>' +
+    '<rect x="23" y="44" width="18" height="3.5" rx="1.7" fill="#fff"/>' +
+    '<circle cx="32" cy="51" r="5" fill="#fff"/>',
 
   // ── Scores : coupe — base cercle GOLD
   scores:
