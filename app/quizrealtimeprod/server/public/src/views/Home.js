@@ -84,23 +84,6 @@ export default function Home() {
             ${t('home.tagline')}
           </p>
 
-          <div className="flex flex-wrap justify-center" style=${{ gap:'clamp(6px,1vw,10px)' }}>
-            ${MODES.map(m => html`
-              <span key=${m.labelKey}
-                    className="inline-flex items-center gap-2 font-bold text-white"
-                    style=${{
-                      background: 'linear-gradient(130deg, ' + m.color + '28 0%, ' + m.color + '0d 100%)',
-                      borderRadius: '9px',
-                      padding: 'clamp(5px,1vh,8px) clamp(10px,1.5vw,16px)',
-                      fontSize: 'clamp(.75rem,1.2vw,.88rem)',
-                      border: '1px solid ' + m.color + '50',
-                      boxShadow: '0 2px 14px ' + m.glow,
-                    }}>
-                <${GameIcon} name=${m.iconName} className="h-4 w-4" />
-                ${t(m.labelKey)}
-              </span>
-            `)}
-          </div>
         </div>
 
         <!-- ── RÔLES ── -->
