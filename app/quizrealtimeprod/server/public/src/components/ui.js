@@ -149,26 +149,26 @@ const GAME_ICON_PATHS = {
     '<rect x="30" y="30" width="13" height="3" rx="1.5" fill="#e9d5ff" opacity=".7"/>' +
     '<rect x="30" y="41" width="10" height="3" rx="1.5" fill="#e9d5ff" opacity=".45"/>',
 
-  // ── Challenge Vidéo : caméra — base cercle ROSE
+  // ── Challenge Vidéo : caméra vidéo — base cercle ROSE
   karaoke:
     '<circle cx="32" cy="32" r="28" fill="#500724"/>' +
     '<circle cx="32" cy="32" r="23" fill="#be185d"/>' +
     '<circle cx="32" cy="32" r="23" fill="none" stroke="#ec4899" stroke-width="2.5"/>' +
     '<circle cx="32" cy="32" r="17" fill="#ec4899" opacity=".18"/>' +
-    '<rect x="8" y="20" width="32" height="24" rx="5" fill="#fff"/>' +
-    '<circle cx="24" cy="32" r="9" fill="#9f1239"/>' +
-    '<circle cx="24" cy="32" r="5" fill="#fbcfe8" opacity=".4"/>' +
-    '<path d="M40 24l14-7v30l-14-7V24Z" fill="#fff" opacity=".8"/>',
+    '<rect x="7" y="19" width="34" height="26" rx="5" fill="#fff"/>' +
+    '<circle cx="32" cy="32" r="5" fill="#be185d" opacity=".5"/>' +
+    '<path d="M41 23L55 16v32L41 40V23Z" fill="#fff"/>',
 
-  // ── Buzzer : cloche — base cercle ORANGE
+  // ── Buzzer : cloche simplifiée — base cercle ORANGE
   buzzer:
     '<circle cx="32" cy="32" r="28" fill="#431407"/>' +
     '<circle cx="32" cy="32" r="23" fill="#c2410c"/>' +
     '<circle cx="32" cy="32" r="23" fill="none" stroke="#f97316" stroke-width="2.5"/>' +
     '<circle cx="32" cy="32" r="17" fill="#f97316" opacity=".18"/>' +
-    '<path d="M32 8C22 8 14 16 14 26v11l-5 7h46l-5-7V26C50 16 42 8 32 8Z" fill="#fff"/>' +
-    '<rect x="23" y="44" width="18" height="3.5" rx="1.7" fill="#fff"/>' +
-    '<circle cx="32" cy="51" r="5" fill="#fff"/>',
+    '<rect x="30" y="5" width="4" height="6" rx="2" fill="#fff"/>' +
+    '<path d="M32 11C23 11 16 18 16 27v9h32v-9C48 18 41 11 32 11Z" fill="#fff"/>' +
+    '<rect x="12" y="36" width="40" height="5" rx="2.5" fill="#fff"/>' +
+    '<circle cx="32" cy="48" r="5" fill="#fff"/>',
 
   // ── Scores : coupe — base cercle GOLD
   scores:
