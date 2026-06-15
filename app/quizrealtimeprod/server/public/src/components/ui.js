@@ -64,114 +64,134 @@ const GAME_ICON_PATHS = {
     '<path d="M10 32 a22 22 0 0 1 4-13" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".4"/>' +
     '<path d="M54 32 a22 22 0 0 1-4 13" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".4"/>',
 
-  // ── Rôle : Animateur (micro — indigo)
+  // ── Rôle : Animateur (micro — base cercle indigo)
   host:
-    '<rect x="25" y="7" width="14" height="24" rx="7" fill="#1e3a8a"/>' +
-    '<rect x="28" y="10" width="8" height="18" rx="4" fill="#3b82f6"/>' +
-    '<rect x="28" y="14" width="8" height="1.5" rx=".7" fill="#bfdbfe" opacity=".6"/>' +
-    '<rect x="28" y="18" width="8" height="1.5" rx=".7" fill="#bfdbfe" opacity=".6"/>' +
-    '<rect x="28" y="22" width="8" height="1.5" rx=".7" fill="#bfdbfe" opacity=".6"/>' +
-    '<path d="M17 28c0 9.5 6.7 15.5 15 16.5v5h-5v3h10v-3h-5v-5C39.3 43.5 47 37.5 47 28" fill="none" stroke="#93c5fd" stroke-width="2" stroke-linecap="round"/>' +
-    '<path d="M22 53h20" stroke="#1e3a8a" stroke-width="2.5" stroke-linecap="round"/>',
+    '<circle cx="32" cy="32" r="28" fill="#0f1729"/>' +
+    '<circle cx="32" cy="32" r="23" fill="#1e3a8a"/>' +
+    '<circle cx="32" cy="32" r="23" fill="none" stroke="#3b82f6" stroke-width="2.5"/>' +
+    '<circle cx="32" cy="32" r="17" fill="#3b82f6" opacity=".18"/>' +
+    '<rect x="26" y="14" width="12" height="22" rx="6" fill="#fff"/>' +
+    '<path d="M19 29c0 9 6 14 13 14s13-5 13-14" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round"/>' +
+    '<rect x="30.5" y="43" width="3" height="6" rx="1.5" fill="#fff"/>' +
+    '<rect x="25" y="49" width="14" height="2.5" rx="1.2" fill="#93c5fd" opacity=".7"/>',
 
-  // ── Rôle : Écran TV (moniteur — cyan)
+  // ── Rôle : Écran TV (moniteur — base cercle cyan)
   display:
-    '<rect x="6" y="10" width="52" height="34" rx="5" fill="#083344"/>' +
-    '<rect x="10" y="14" width="44" height="26" rx="3" fill="#0e7490"/>' +
-    '<rect x="15" y="19" width="34" height="3" rx="1.5" fill="#a5f3fc"/>' +
-    '<rect x="15" y="26" width="22" height="3" rx="1.5" fill="#a5f3fc" opacity=".5"/>' +
-    '<rect x="15" y="33" width="14" height="3" rx="1.5" fill="#a5f3fc" opacity=".28"/>' +
-    '<circle cx="45" cy="20.5" r="3.5" fill="#22d3ee"/>' +
-    '<rect x="29" y="44" width="6" height="5" rx="1" fill="#083344"/>' +
-    '<rect x="22" y="49" width="20" height="3.5" rx="1.7" fill="#083344"/>',
+    '<circle cx="32" cy="32" r="28" fill="#042f2e"/>' +
+    '<circle cx="32" cy="32" r="23" fill="#0e7490"/>' +
+    '<circle cx="32" cy="32" r="23" fill="none" stroke="#22d3ee" stroke-width="2.5"/>' +
+    '<circle cx="32" cy="32" r="17" fill="#22d3ee" opacity=".18"/>' +
+    '<rect x="13" y="18" width="38" height="27" rx="4" fill="#042f2e" opacity=".85"/>' +
+    '<rect x="15" y="20" width="34" height="23" rx="3" fill="#083344"/>' +
+    '<rect x="18" y="25" width="28" height="2.5" rx="1.2" fill="#a5f3fc"/>' +
+    '<rect x="18" y="31" width="18" height="2" rx="1" fill="#a5f3fc" opacity=".55"/>' +
+    '<rect x="18" y="36" width="11" height="2" rx="1" fill="#a5f3fc" opacity=".3"/>' +
+    '<rect x="29" y="45" width="6" height="5" rx="1" fill="#042f2e"/>' +
+    '<rect x="22" y="50" width="20" height="3" rx="1.5" fill="#042f2e"/>',
 
-  // ── QCM : 4 cases — SKY BLUE
+  // ── QCM : 4 cases — base cercle SKY BLUE
   category:
-    '<rect x="7" y="9" width="22" height="20" rx="5" fill="#075985"/>' +
-    '<rect x="35" y="9" width="22" height="20" rx="5" fill="#0ea5e9"/>' +
-    '<rect x="7" y="35" width="22" height="20" rx="5" fill="#075985"/>' +
-    '<rect x="35" y="35" width="22" height="20" rx="5" fill="#0284c7"/>' +
-    '<path d="M40 20l4 4 8-8" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<rect x="12" y="17" width="12" height="2.5" rx="1.2" fill="#7dd3fc" opacity=".8"/>' +
-    '<rect x="12" y="43" width="12" height="2.5" rx="1.2" fill="#7dd3fc" opacity=".8"/>' +
-    '<rect x="40" y="43" width="12" height="2.5" rx="1.2" fill="#7dd3fc" opacity=".8"/>',
+    '<circle cx="32" cy="32" r="28" fill="#0c2d48"/>' +
+    '<circle cx="32" cy="32" r="23" fill="#0369a1"/>' +
+    '<circle cx="32" cy="32" r="23" fill="none" stroke="#0ea5e9" stroke-width="2.5"/>' +
+    '<circle cx="32" cy="32" r="17" fill="#0ea5e9" opacity=".18"/>' +
+    '<rect x="16" y="16" width="13" height="13" rx="3" fill="#fff" opacity=".9"/>' +
+    '<rect x="35" y="16" width="13" height="13" rx="3" fill="#0ea5e9"/>' +
+    '<rect x="16" y="35" width="13" height="13" rx="3" fill="#fff" opacity=".45"/>' +
+    '<rect x="35" y="35" width="13" height="13" rx="3" fill="#fff" opacity=".45"/>' +
+    '<path d="M37 23l3 3 6-6" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
 
-  // ── Vrai / Faux : panneau bicolore (vert/rouge)
+  // ── Vrai / Faux — base cercle sombre, panneaux vert/rouge
   correct:
-    '<rect x="6" y="9" width="24" height="46" rx="6" fill="#059669"/>' +
-    '<rect x="34" y="9" width="24" height="46" rx="6" fill="#dc2626"/>' +
-    '<path d="M12 33l6 6 10-12" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<path d="M40 27l10 14M50 27 40 41" stroke="#fff" stroke-width="3" stroke-linecap="round"/>',
+    '<circle cx="32" cy="32" r="28" fill="#0d1a0e"/>' +
+    '<circle cx="32" cy="32" r="23" fill="none" stroke="#6ee7b7" stroke-width="1.5" opacity=".35"/>' +
+    '<rect x="8" y="12" width="22" height="40" rx="6" fill="#059669"/>' +
+    '<rect x="34" y="12" width="22" height="40" rx="6" fill="#dc2626"/>' +
+    '<path d="M13 33l5 5 8-10" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M40 27l9 12M49 27l-9 12" stroke="#fff" stroke-width="3" stroke-linecap="round"/>',
 
-  // ── Rapidité : éclair — ORANGE
+  // ── Rapidité : éclair — base cercle ORANGE
   rapidite:
-    '<path d="M37 6 15 36h13l-5 22 27-33H37l2-19Z" fill="#f97316"/>' +
-    '<path d="M37 6 15 36h13l-5 22 27-33H37l2-19Z" fill="#fed7aa" opacity=".35"/>' +
-    '<path d="M11 19H5M9 29H2M55 42h7" stroke="rgba(255,255,255,.5)" stroke-width="2" stroke-linecap="round"/>',
+    '<circle cx="32" cy="32" r="28" fill="#431407"/>' +
+    '<circle cx="32" cy="32" r="23" fill="#c2410c"/>' +
+    '<circle cx="32" cy="32" r="23" fill="none" stroke="#f97316" stroke-width="2.5"/>' +
+    '<circle cx="32" cy="32" r="17" fill="#f97316" opacity=".18"/>' +
+    '<path d="M36 10L17 34h12L22 54 45 28H33L36 10Z" fill="#fff"/>' +
+    '<path d="M36 10L17 34h12L22 54 45 28H33L36 10Z" fill="#fed7aa" opacity=".28"/>',
 
-  // ── Vote : bulles de dialogue — BLUE
+  // ── Vote : bulles de dialogue — base cercle BLUE
   vote:
-    '<rect x="5" y="5" width="38" height="27" rx="7" fill="#1e3a8a"/>' +
-    '<path d="M5 26l-6 10 14-4" fill="#1e3a8a"/>' +
-    '<rect x="11" y="12" width="12" height="2.5" rx="1.2" fill="#93c5fd"/>' +
-    '<rect x="11" y="19" width="22" height="2.5" rx="1.2" fill="#93c5fd" opacity=".55"/>' +
-    '<rect x="21" y="32" width="38" height="25" rx="7" fill="#3b82f6"/>' +
-    '<path d="M59 50l6 9-14-4" fill="#3b82f6"/>' +
-    '<rect x="27" y="39" width="22" height="2.5" rx="1.2" fill="#fff" opacity=".85"/>' +
-    '<rect x="27" y="46" width="14" height="2.5" rx="1.2" fill="#fff" opacity=".45"/>',
+    '<circle cx="32" cy="32" r="28" fill="#0f1729"/>' +
+    '<circle cx="32" cy="32" r="23" fill="#1e40af"/>' +
+    '<circle cx="32" cy="32" r="23" fill="none" stroke="#3b82f6" stroke-width="2.5"/>' +
+    '<circle cx="32" cy="32" r="17" fill="#3b82f6" opacity=".18"/>' +
+    '<rect x="12" y="16" width="30" height="18" rx="5" fill="#fff" opacity=".9"/>' +
+    '<path d="M17 34l-4 8 9-4" fill="#fff" opacity=".9"/>' +
+    '<rect x="16" y="22" width="14" height="2" rx="1" fill="#1e40af"/>' +
+    '<rect x="16" y="27" width="9" height="2" rx="1" fill="#1e40af" opacity=".6"/>' +
+    '<rect x="26" y="34" width="24" height="15" rx="4" fill="#3b82f6" opacity=".7"/>' +
+    '<path d="M44 49l4 6-8-3" fill="#3b82f6" opacity=".7"/>' +
+    '<rect x="30" y="39" width="16" height="1.8" rx=".9" fill="#fff" opacity=".8"/>' +
+    '<rect x="30" y="44" width="10" height="1.8" rx=".9" fill="#fff" opacity=".5"/>',
 
-  // ── Défi Memory : liste ordonnée — VIOLET
+  // ── Défi Memory : liste ordonnée — base cercle VIOLET
   burger:
-    '<rect x="4" y="6" width="56" height="15" rx="5" fill="#3b0764"/>' +
-    '<rect x="4" y="25" width="56" height="15" rx="5" fill="#6b21a8"/>' +
-    '<rect x="4" y="44" width="56" height="15" rx="5" fill="#7e22ce"/>' +
-    '<circle cx="15" cy="13.5" r="6.5" fill="#a855f7"/>' +
-    '<circle cx="15" cy="32.5" r="6.5" fill="#9333ea"/>' +
-    '<circle cx="15" cy="51.5" r="6.5" fill="#7c3aed"/>' +
-    '<text x="15" y="17" text-anchor="middle" font-size="8" font-weight="900" fill="#fff" font-family="sans-serif">1</text>' +
-    '<text x="15" y="36" text-anchor="middle" font-size="8" font-weight="900" fill="#fff" font-family="sans-serif">2</text>' +
-    '<text x="15" y="55" text-anchor="middle" font-size="8" font-weight="900" fill="#fff" font-family="sans-serif">3</text>' +
-    '<rect x="26" y="11" width="22" height="3" rx="1.5" fill="#e9d5ff"/>' +
-    '<rect x="26" y="30" width="18" height="3" rx="1.5" fill="#e9d5ff" opacity=".65"/>' +
-    '<rect x="26" y="49" width="14" height="3" rx="1.5" fill="#e9d5ff" opacity=".45"/>',
+    '<circle cx="32" cy="32" r="28" fill="#2e1065"/>' +
+    '<circle cx="32" cy="32" r="23" fill="#6b21a8"/>' +
+    '<circle cx="32" cy="32" r="23" fill="none" stroke="#a855f7" stroke-width="2.5"/>' +
+    '<circle cx="32" cy="32" r="17" fill="#a855f7" opacity=".18"/>' +
+    '<circle cx="20" cy="21" r="6" fill="#a855f7"/>' +
+    '<circle cx="20" cy="32" r="6" fill="#9333ea"/>' +
+    '<circle cx="20" cy="43" r="6" fill="#7c3aed"/>' +
+    '<text x="20" y="25" text-anchor="middle" font-size="8" font-weight="900" fill="#fff" font-family="sans-serif">1</text>' +
+    '<text x="20" y="36" text-anchor="middle" font-size="8" font-weight="900" fill="#fff" font-family="sans-serif">2</text>' +
+    '<text x="20" y="47" text-anchor="middle" font-size="8" font-weight="900" fill="#fff" font-family="sans-serif">3</text>' +
+    '<rect x="30" y="19" width="16" height="3" rx="1.5" fill="#e9d5ff"/>' +
+    '<rect x="30" y="30" width="13" height="3" rx="1.5" fill="#e9d5ff" opacity=".7"/>' +
+    '<rect x="30" y="41" width="10" height="3" rx="1.5" fill="#e9d5ff" opacity=".45"/>',
 
-  // ── Challenge Vidéo : clap classique — ROSE/PINK
+  // ── Challenge Vidéo : clap — base cercle ROSE
   karaoke:
-    '<rect x="8" y="24" width="48" height="34" rx="5" fill="#500724"/>' +
-    '<rect x="12" y="29" width="40" height="25" rx="3" fill="#1a0010"/>' +
-    '<rect x="16" y="35" width="28" height="2.5" rx="1.2" fill="#fbcfe8"/>' +
-    '<rect x="16" y="43" width="20" height="2.5" rx="1.2" fill="#fbcfe8" opacity=".6"/>' +
-    '<rect x="16" y="51" width="13" height="2.5" rx="1.2" fill="#fbcfe8" opacity=".35"/>' +
-    '<rect x="8" y="8" width="48" height="17" rx="4" fill="#fbcfe8"/>' +
-    '<path d="M8 8L20 8L8 25Z" fill="#be185d"/>' +
-    '<path d="M27 8L37 8L22 25L12 25Z" fill="#be185d"/>' +
-    '<path d="M46 8L56 8L41 25L31 25Z" fill="#be185d"/>' +
-    '<rect x="8" y="8" width="48" height="17" rx="4" fill="none" stroke="#ec4899" stroke-width="1.5"/>' +
-    '<rect x="8" y="23" width="48" height="4" fill="#ec4899"/>' +
-    '<circle cx="15" cy="25" r="3.5" fill="#be185d"/>' +
-    '<circle cx="15" cy="25" r="1.8" fill="#f9a8d4"/>',
+    '<circle cx="32" cy="32" r="28" fill="#500724"/>' +
+    '<circle cx="32" cy="32" r="23" fill="#be185d"/>' +
+    '<circle cx="32" cy="32" r="23" fill="none" stroke="#ec4899" stroke-width="2.5"/>' +
+    '<circle cx="32" cy="32" r="17" fill="#ec4899" opacity=".18"/>' +
+    '<rect x="14" y="30" width="36" height="22" rx="4" fill="#3d0617"/>' +
+    '<rect x="17" y="36" width="22" height="2" rx="1" fill="#fbcfe8"/>' +
+    '<rect x="17" y="42" width="15" height="2" rx="1" fill="#fbcfe8" opacity=".6"/>' +
+    '<rect x="17" y="48" width="10" height="2" rx="1" fill="#fbcfe8" opacity=".35"/>' +
+    '<rect x="14" y="18" width="36" height="13" rx="3" fill="#fbcfe8"/>' +
+    '<path d="M14 18L22 18L14 31Z" fill="#be185d"/>' +
+    '<path d="M28 18L36 18L25 31L17 31Z" fill="#be185d"/>' +
+    '<path d="M44 18L50 18L43 31L35 31Z" fill="#be185d"/>' +
+    '<rect x="14" y="29" width="36" height="4" fill="#ec4899"/>' +
+    '<circle cx="20" cy="31" r="2.5" fill="#be185d"/>' +
+    '<circle cx="20" cy="31" r="1.3" fill="#f9a8d4"/>',
 
-  // ── Buzzer : bouton game show (boîtier + dôme) — ORANGE
+  // ── Buzzer : dôme game show — base cercle ORANGE
   buzzer:
-    '<rect x="10" y="32" width="44" height="26" rx="6" fill="#431407"/>' +
-    '<rect x="14" y="36" width="36" height="18" rx="4" fill="#7c2d12"/>' +
-    '<circle cx="32" cy="30" r="18" fill="#c2410c"/>' +
-    '<circle cx="32" cy="28" r="14" fill="#f97316"/>' +
-    '<ellipse cx="27" cy="23" rx="7" ry="4" fill="#fed7aa" opacity=".38"/>' +
-    '<circle cx="22" cy="45" r="2.5" fill="#fbbf24"/>' +
-    '<circle cx="22" cy="45" r="1.3" fill="#fff" opacity=".7"/>' +
-    '<path d="M32 6v5" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round"/>' +
-    '<path d="M15 12l3 3M49 12l-3 3" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>',
+    '<circle cx="32" cy="32" r="28" fill="#431407"/>' +
+    '<circle cx="32" cy="32" r="23" fill="#c2410c"/>' +
+    '<circle cx="32" cy="32" r="23" fill="none" stroke="#f97316" stroke-width="2.5"/>' +
+    '<circle cx="32" cy="32" r="17" fill="#f97316" opacity=".18"/>' +
+    '<circle cx="32" cy="30" r="14" fill="#ea580c"/>' +
+    '<circle cx="32" cy="28" r="11" fill="#f97316"/>' +
+    '<ellipse cx="27" cy="23" rx="5.5" ry="3.5" fill="#fed7aa" opacity=".38"/>' +
+    '<path d="M32 8v4" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round"/>' +
+    '<path d="M15 14l2.5 2.5M49 14l-2.5 2.5" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>',
 
-  // ── Scores : coupe — GOLD/AMBER
+  // ── Scores : coupe — base cercle GOLD
   scores:
-    '<path d="M20 8h24v21c0 9-5.5 14-12 15-6.5-1-12-6-12-15V8Z" fill="#78350f"/>' +
-    '<path d="M22 10h20v19c0 8-4.5 12-10 13-5.5-1-10-5-10-13V10Z" fill="#d97706"/>' +
-    '<path d="M9 12h11v11c0 3-5 4-6 1.5L9 12Z" fill="#92400e"/>' +
-    '<path d="M55 12H44v11c0 3 5 4 6 1.5L55 12Z" fill="#92400e"/>' +
-    '<rect x="30" y="43" width="4" height="8" rx="2" fill="#78350f"/>' +
-    '<rect x="22" y="51" width="20" height="5" rx="2.5" fill="#92400e"/>' +
-    '<path d="M32 18l2 5 5.5.8-4 3.8.9 5.2-4.4-2.4-4.4 2.4.9-5.2-4-3.8 5.5-.8Z" fill="#fde68a"/>',
+    '<circle cx="32" cy="32" r="28" fill="#422006"/>' +
+    '<circle cx="32" cy="32" r="23" fill="#b45309"/>' +
+    '<circle cx="32" cy="32" r="23" fill="none" stroke="#f59e0b" stroke-width="2.5"/>' +
+    '<circle cx="32" cy="32" r="17" fill="#f59e0b" opacity=".18"/>' +
+    '<path d="M22 10h20v16c0 8-4 11-10 12-6-1-10-4-10-12V10Z" fill="#fde68a"/>' +
+    '<path d="M11 13h11v10c0 2-4 3-5 1Z" fill="#d97706"/>' +
+    '<path d="M53 13H42v10c0 2 4 3 5 1Z" fill="#d97706"/>' +
+    '<rect x="30" y="38" width="4" height="6" rx="2" fill="#fde68a"/>' +
+    '<rect x="23" y="44" width="18" height="4" rx="2" fill="#d97706"/>' +
+    '<path d="M32 17l1.8 4.2 4.5.6-3.3 3.1.8 4.5-4-2-4 2 .8-4.5-3.3-3.1 4.5-.6Z" fill="#422006"/>',
 
   // ── Bonus : étoile violet/indigo
   bonus:
@@ -323,13 +343,4 @@ export const Modal = ({ show, onClose, title, children, width = 'max-w-lg' }) =>
     >
       <div className=${'w-full ' + width + ' app-surface rounded-lg shadow-2xl animate-soft-slide-up overflow-hidden'}>
         ${title && html`
-          <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
-            <h3 className="text-lg font-bold">${title}</h3>
-            <button onClick=${onClose} className="text-white/40 hover:text-white text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5">✕</button>
-          </div>
-        `}
-        <div className="p-6">${children}</div>
-      </div>
-    </div>
-  `;
-};
+          <div className="flex items-center ju
