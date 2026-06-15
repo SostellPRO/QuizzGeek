@@ -155,9 +155,10 @@ const GAME_ICON_PATHS = {
     '<circle cx="32" cy="32" r="23" fill="#be185d"/>' +
     '<circle cx="32" cy="32" r="23" fill="none" stroke="#ec4899" stroke-width="2.5"/>' +
     '<circle cx="32" cy="32" r="17" fill="#ec4899" opacity=".18"/>' +
-    '<rect x="7" y="19" width="34" height="26" rx="5" fill="#fff"/>' +
-    '<circle cx="32" cy="32" r="5" fill="#be185d" opacity=".5"/>' +
-    '<path d="M41 23L55 16v32L41 40V23Z" fill="#fff"/>',
+    '<rect x="8" y="19" width="36" height="26" rx="5" fill="#fff"/>' +
+    '<circle cx="21" cy="32" r="9" fill="#9f1239"/>' +
+    '<circle cx="21" cy="32" r="5" fill="#fbcfe8" opacity=".35"/>' +
+    '<circle cx="38" cy="23" r="4" fill="#f43f5e"/>',
 
   // ── Buzzer : cloche simplifiée — base cercle ORANGE
   buzzer:
