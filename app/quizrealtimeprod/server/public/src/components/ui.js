@@ -54,14 +54,15 @@ const SYSTEM_ICON_PATHS = {
 
 const GAME_ICON_PATHS = {
 
-  // ── Rôle : Jouer (smartphone — bleu ciel)
+  // ── Rôle : Jouer (grand bouton play — bleu ciel)
   profile:
-    '<rect x="21" y="7" width="22" height="40" rx="5" fill="#0c2d48"/>' +
-    '<rect x="24" y="11" width="16" height="26" rx="3" fill="#0369a1"/>' +
-    '<rect x="28" y="40.5" width="8" height="2.5" rx="1.2" fill="#075985"/>' +
-    '<path d="M28 18v14l12-7Z" fill="#fff"/>' +
-    '<circle cx="46" cy="13" r="7" fill="#0ea5e9"/>' +
-    '<path d="M43 13l2.5 2.5 4.5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    '<circle cx="32" cy="32" r="28" fill="#0c2d48"/>' +
+    '<circle cx="32" cy="32" r="23" fill="#0369a1"/>' +
+    '<circle cx="32" cy="32" r="23" fill="none" stroke="#0ea5e9" stroke-width="2.5"/>' +
+    '<circle cx="32" cy="32" r="17" fill="#0ea5e9" opacity=".18"/>' +
+    '<path d="M27 20l20 12-20 12Z" fill="#fff"/>' +
+    '<path d="M10 32 a22 22 0 0 1 4-13" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".4"/>' +
+    '<path d="M54 32 a22 22 0 0 1-4 13" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".4"/>',
 
   // ── Rôle : Animateur (micro — indigo)
   host:
