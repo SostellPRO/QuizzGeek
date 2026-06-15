@@ -193,6 +193,7 @@ const GAME_ICON_PATHS = {
     '<rect x="23" y="44" width="18" height="4" rx="2" fill="#d97706"/>' +
     '<path d="M32 17l1.8 4.2 4.5.6-3.3 3.1.8 4.5-4-2-4 2 .8-4.5-3.3-3.1 4.5-.6Z" fill="#422006"/>',
 
+
   // ── Bonus : étoile violet/indigo
   bonus:
     '<path d="M32 5 38.5 20l17 2.5-13 11 4 17L32 42l-14.5 8.5 4-17-13-11 17-2.5Z" fill="#7c3aed"/>' +
@@ -343,4 +344,13 @@ export const Modal = ({ show, onClose, title, children, width = 'max-w-lg' }) =>
     >
       <div className=${'w-full ' + width + ' app-surface rounded-lg shadow-2xl animate-soft-slide-up overflow-hidden'}>
         ${title && html`
-          <div className="flex items-center ju
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
+            <h3 className="text-lg font-bold">${title}</h3>
+            <button onClick=${onClose} className="text-white/40 hover:text-white text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5">✕</button>
+          </div>
+        `}
+        <div className="p-6">${children}</div>
+      </div>
+    </div>
+  `;
+};
