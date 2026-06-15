@@ -135,26 +135,33 @@ const GAME_ICON_PATHS = {
     '<rect x="26" y="30" width="18" height="3" rx="1.5" fill="#e9d5ff" opacity=".65"/>' +
     '<rect x="26" y="49" width="14" height="3" rx="1.5" fill="#e9d5ff" opacity=".45"/>',
 
-  // ── Challenge Vidéo : clap cinéma — ROSE/PINK
+  // ── Challenge Vidéo : clap classique — ROSE/PINK
   karaoke:
-    '<rect x="6" y="7" width="52" height="14" rx="4" fill="#500724"/>' +
-    '<path d="M16 7l-5 14h7l5-14h-7zM29 7l-5 14h7l5-14h-7zM42 7l-5 14h7l5-14h-7z" fill="#ec4899"/>' +
-    '<rect x="4" y="20" width="56" height="3" rx="1.5" fill="#3d0617"/>' +
-    '<rect x="6" y="22" width="52" height="36" rx="5" fill="#be185d"/>' +
-    '<rect x="10" y="26" width="44" height="28" rx="3" fill="#500724"/>' +
-    '<rect x="14" y="31" width="30" height="2.5" rx="1.2" fill="#fbcfe8"/>' +
-    '<rect x="14" y="38" width="22" height="2.5" rx="1.2" fill="#fbcfe8" opacity=".6"/>' +
-    '<rect x="14" y="45" width="16" height="2.5" rx="1.2" fill="#fbcfe8" opacity=".35"/>',
+    '<rect x="8" y="24" width="48" height="34" rx="5" fill="#500724"/>' +
+    '<rect x="12" y="29" width="40" height="25" rx="3" fill="#1a0010"/>' +
+    '<rect x="16" y="35" width="28" height="2.5" rx="1.2" fill="#fbcfe8"/>' +
+    '<rect x="16" y="43" width="20" height="2.5" rx="1.2" fill="#fbcfe8" opacity=".6"/>' +
+    '<rect x="16" y="51" width="13" height="2.5" rx="1.2" fill="#fbcfe8" opacity=".35"/>' +
+    '<rect x="8" y="8" width="48" height="17" rx="4" fill="#fbcfe8"/>' +
+    '<path d="M8 8L20 8L8 25Z" fill="#be185d"/>' +
+    '<path d="M27 8L37 8L22 25L12 25Z" fill="#be185d"/>' +
+    '<path d="M46 8L56 8L41 25L31 25Z" fill="#be185d"/>' +
+    '<rect x="8" y="8" width="48" height="17" rx="4" fill="none" stroke="#ec4899" stroke-width="1.5"/>' +
+    '<rect x="8" y="23" width="48" height="4" fill="#ec4899"/>' +
+    '<circle cx="15" cy="25" r="3.5" fill="#be185d"/>' +
+    '<circle cx="15" cy="25" r="1.8" fill="#f9a8d4"/>',
 
-  // ── Buzzer : bouton d'alarme — ORANGE
+  // ── Buzzer : bouton game show (boîtier + dôme) — ORANGE
   buzzer:
-    '<circle cx="32" cy="36" r="23" fill="#431407"/>' +
-    '<circle cx="32" cy="36" r="18" fill="#c2410c"/>' +
-    '<circle cx="32" cy="34" r="13" fill="#f97316"/>' +
-    '<ellipse cx="32" cy="29" rx="7.5" ry="4" fill="#fed7aa" opacity=".45"/>' +
-    '<path d="M32 8v5" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round"/>' +
-    '<path d="M15 17l3.5 3.5M49 17l-3.5 3.5" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>' +
-    '<path d="M7 34h4M53 34h4" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>',
+    '<rect x="10" y="32" width="44" height="26" rx="6" fill="#431407"/>' +
+    '<rect x="14" y="36" width="36" height="18" rx="4" fill="#7c2d12"/>' +
+    '<circle cx="32" cy="30" r="18" fill="#c2410c"/>' +
+    '<circle cx="32" cy="28" r="14" fill="#f97316"/>' +
+    '<ellipse cx="27" cy="23" rx="7" ry="4" fill="#fed7aa" opacity=".38"/>' +
+    '<circle cx="22" cy="45" r="2.5" fill="#fbbf24"/>' +
+    '<circle cx="22" cy="45" r="1.3" fill="#fff" opacity=".7"/>' +
+    '<path d="M32 6v5" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round"/>' +
+    '<path d="M15 12l3 3M49 12l-3 3" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>',
 
   // ── Scores : coupe — GOLD/AMBER
   scores:
